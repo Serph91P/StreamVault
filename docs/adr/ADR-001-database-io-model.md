@@ -1,6 +1,6 @@
 # ADR-001: Database I/O and incremental typed model split
 
-- Status: Accepted
+- Status: Accepted category slice; #842 hybrid amendment pending independent PR1070 review
 - Date: 2026-09-22
 - Issue: https://github.com/Serph91P/StreamVault/issues/842
 - Base: `develop@61eef2b097f1fb2ddb893056ef4b6c823bb950e6`
@@ -13,7 +13,7 @@ The production runtime is CPython 3.14 and PostgreSQL. SQLite remains a test bac
 
 ## Decision
 
-Async request paths will converge on SQLAlchemy 2 `AsyncSession` and `select()` repositories. The category/favorite path is the first bounded vertical slice because it already has a router/service/repository seam and no recording or playback ownership behavior.
+The original category/favorite decision uses SQLAlchemy 2 `AsyncSession` and `select()` repositories. That already integrated slice is preserved. The originally proposed universal convergence is superseded by the measured hybrid amendment below, not used to justify another category rewrite.
 
 Rules:
 
@@ -21,9 +21,23 @@ Rules:
 2. Repositories execute queries and may add/delete/flush, but do not silently commit or rollback.
 3. The service boundary owns write commit/rollback. Route handlers own neither sessions nor transactions.
 4. ORM relationships used after an await must be eagerly loaded or avoided; no hidden lazy I/O is allowed.
-5. Existing synchronous paths remain compatibility debt and must not call sync SQL directly from newly converted async slices. Each later conversion must be vertical (dependency, repository, service, route, tests) rather than adding another mixed call chain.
+5. Synchronous work must not run on the async event loop. Remaining legacy units follow the complete-worker/session/DTO boundary below. Any later async conversion must be vertical (dependency, repository, service, route, tests), not another mixed call chain.
 6. Models move feature-by-feature into `app.models.<feature>` using `Mapped`/`mapped_column`. `app.models` remains the stable re-export surface until all callers intentionally migrate.
 7. Wire schemas stay in `app.schemas`; ORM models must not become API schemas.
+
+## #842 measured hybrid amendment
+
+The implemented target permits two explicit boundaries: the existing category async transaction, and complete synchronous units executed by the existing cancellation-draining worker helper. This is a bounded application architecture, not permission for inline legacy SQL or a claim that every call site has passed verification.
+
+For the second boundary, the application supplies its own session factory, Settings/root, logger and dependent services. Open/query/project/commit-or-rollback/close happen in the same worker unit. Only immutable scalar values/DTOs and owned non-ORM resources escape it; no request Session or mapped row crosses a transport/task await. Filesystem and blocking process operations belong inside that unit too. Cancellation must drain the owned operation before returning; existing admission, transport, subprocess and shutdown budgets are retained. This helper is not a promise that arbitrary unbounded synchronous third-party code becomes interruptible.
+
+Factory composition/import remains nonmutating. Lifecycle initializes persistent identities and app resources explicitly, and closes only that application's tasks/clients/processes. Stable legacy synchronous entry points remain available for their explicit standalone callers, not as implicit alternate owners for requests.
+
+The same-lock/CPython3.14.10/PostgreSQL18 comparison in [backend-performance.md](../architecture/backend-performance.md) ran three fresh matched base49b61a8/candidatecf30e62 pairs. Startup median was 4.573824→4.628688s, post-startup RSS168416→169328KiB, and image719388752→719524109bytes. Catalog median/p95 was28.039/51.552→23.029/34.930ms with unchanged12SQL statements; streamer reads were21.104→24.105ms and44→43statements. Queue46.544602→45.901111jobs/s and several tail latencies worsen. Full tables, raw samples, profiling, provenance and limitations are in that document. There is no global performance win or elimination-of-N+1 claim.
+
+Choose the hybrid for demonstrated ownership/session/cancellation correctness while preserving the already integrated async slice and the PostgreSQL/API/schema contracts. The experiment does not justify a risky universal ORM/driver rewrite, nor prove maximum throughput. Costs are thread-token plus connection-pool coordination, explicit DTO projection, and cancellation/drain complexity; the dedicated boundary/peer/cancellation tests and real-PG operational checks are required mitigations. A future async conversion needs a concrete workload/contract benefit and the same vertical regression evidence, not the old universal-convergence assertion.
+
+Rollback remains source-only for these boundaries: restore one verified application revision and its composition together. This amendment creates no migration, rotates no identity, changes no schema and authorizes no live rollback/deployment. Module coverage, strict rewritten-code typing and final exact-head CI are independent gates, not inferred from these performance measurements.
 
 ## Preserved contracts and invariants
 
@@ -46,7 +60,7 @@ The split is intentionally narrow: it proves package import compatibility, metad
 
 ### Keep synchronous sessions on async routes
 
-Wrapping every complete sync unit of work in a bounded threadpool could be coherent, but it retains duplicate concurrency controls (thread tokens plus the SQLAlchemy pool), complicates cancellation, and does not use the already accepted psycopg 3 async foundation. It is permitted only for an unconverted legacy boundary and must be off the event loop; it is not the target architecture.
+Rejected: synchronous SQL directly on the async event loop. The original decision also classified complete worker units as transitional only; the amendment supersedes that restriction for explicitly scoped, cancellation-drained units. It retains the stated coordination/cancellation costs rather than pretending a threadpool removes them.
 
 ### Convert all models and call sites at once
 
@@ -82,5 +96,5 @@ Quality gates are CPython 3.14 focused/full tests, Ruff format/check, configured
 
 1. Extract identity/auth models after transaction and concurrency tests cover refresh-token families.
 2. Extract stream/recording models only with explicit eager-load and identity regressions.
-3. Convert one repository/service/route vertical at a time to `AsyncSession`; remove its sync compatibility use in the same change.
-4. Remove `_legacy.py`, `SessionLocal`, and the sync engine only after all production call sites are converted and measured.
+3. Convert another repository/service/route vertical to `AsyncSession` only when a concrete measured or contractual need justifies it; remove that vertical's old request boundary together.
+4. `_legacy.py` removal/model extraction is independent of driver selection. The amended hybrid intentionally retains the scoped sync engine and explicit standalone compatibility; it does not promise universal `SessionLocal` removal.
