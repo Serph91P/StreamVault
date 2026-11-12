@@ -3,7 +3,8 @@ API routes for system testing and administration
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
+from app.bootstrap.settings import resolve_app_settings
 from app.dependencies import (
     get_db,
     get_application_session_factory,
@@ -122,14 +123,15 @@ async def get_available_tests() -> Dict[str, List[str]]:
 
 
 @router.get("/system/info")
-async def get_system_info() -> Dict[str, Any]:
+def get_system_info(request: Request) -> Dict[str, Any]:
     """
     Get comprehensive system information
     """
     import platform
     import os
     from pathlib import Path
-    from app.config.settings import settings
+
+    settings = resolve_app_settings(request.app)
 
     try:
         # Try to import psutil - handle gracefully if not available
@@ -167,7 +169,7 @@ async def get_system_info() -> Dict[str, Any]:
             ),
             "storage": {},
             "settings": {
-                "recording_directory": "/recordings",  # Hard-coded path based on Docker mount
+                "recording_directory": settings.RECORDING_DIRECTORY,
                 "vapid_configured": hasattr(settings, "VAPID_PUBLIC_KEY")
                 and bool(settings.VAPID_PUBLIC_KEY),
                 "proxy_configured": hasattr(settings, "HTTP_PROXY")
@@ -180,9 +182,7 @@ async def get_system_info() -> Dict[str, Any]:
 
         # Storage info for recording directory
         try:
-            recording_path = Path(
-                "/recordings"
-            )  # Hard-coded path based on Docker mount
+            recording_path = Path(settings.RECORDING_DIRECTORY)
             if recording_path.exists():
                 stat = os.statvfs(recording_path)
                 free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
@@ -526,7 +526,9 @@ async def recover_specific_recording(recording_id: int) -> Dict[str, Any]:
 
 # Video Debug Endpoints
 @router.get("/debug/videos-database")
-def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def debug_videos_database(
+    request: Request, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
     """Debug endpoint to see what's in the database vs filesystem"""
 
     try:
@@ -622,7 +624,7 @@ def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]:
             result["recordings"].append(recording_info)
 
         # Check filesystem directly
-        recordings_dir = Path("/recordings")
+        recordings_dir = Path(resolve_app_settings(request.app).RECORDING_DIRECTORY)
         if recordings_dir.exists():
             result["filesystem_check"]["recordings_dir_exists"] = True
 
@@ -694,15 +696,19 @@ def debug_videos_database(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.get("/debug/recordings-directory")
-async def debug_recordings_directory() -> Dict[str, Any]:
+def debug_recordings_directory(request: Request) -> Dict[str, Any]:
     """Debug endpoint to list contents of recordings directory"""
 
     try:
         from pathlib import Path
 
-        result = {"base_recordings_dir": "/recordings", "directories": []}
+        configuration = resolve_app_settings(request.app)
+        result = {
+            "base_recordings_dir": configuration.RECORDING_DIRECTORY,
+            "directories": [],
+        }
 
-        base_dir = Path("/recordings")
+        base_dir = Path(configuration.RECORDING_DIRECTORY)
         if base_dir.exists():
             result["base_recordings_dir_exists"] = True
 
