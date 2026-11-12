@@ -157,3 +157,44 @@ async def test_post_processing_scheduling_is_idempotent_off_loop(image_applicati
         await lifecycle._postprocessing_supervisor.shutdown()
         await close_owned(apps)
     assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
+
+
+@pytest.mark.asyncio
+async def test_recording_process_check_and_postprocessing_decline_missing_stream(
+    image_applications,
+):
+    """Missing recording/stream identities decline cleanly without a process claim."""
+    from datetime import datetime, timezone
+
+    from app.models import Recording
+
+    apps, databases, _clients, _ = image_applications
+    app = apps[0]
+    manager = await run_in_thread_pool(
+        get_application_recording_manager,
+        HTTPConnection({"type": "http", "app": app, "headers": []}),
+    )
+    lifecycle = manager.orchestrator.lifecycle_manager
+    database = databases[0]
+
+    def seed():
+        with database.sync_session_factory() as db:
+            db.add(
+                Recording(
+                    id=12,
+                    stream_id=999,
+                    status="completed",
+                    start_time=datetime.now(timezone.utc),
+                    path="/tmp/synthetic.ts",
+                )
+            )
+            db.commit()
+
+    await run_in_thread_pool(seed)
+    try:
+        assert await lifecycle._check_recording_process(999) is False
+        await lifecycle._trigger_post_processing(12)
+        assert not app.state.background_queue_service.external_tasks
+    finally:
+        await close_owned(apps)
+    assert all(db.sync_engine.pool.checkedout() == 0 for db in databases)
