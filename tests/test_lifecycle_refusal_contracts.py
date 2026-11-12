@@ -15,7 +15,7 @@ from sqlalchemy import event
 from starlette.requests import HTTPConnection
 
 from app.dependencies import get_application_recording_manager
-from app.models import Recording, Stream
+from app.models import Recording, Stream, TwitchUpstreamLease
 from app.utils.async_db_utils import run_in_thread_pool
 from app.utils.retry_decorator import NonRetryableError
 from tests.test_image_http_ownership import image_applications as image_applications
@@ -98,7 +98,7 @@ async def test_recording_start_refusal_has_native_owned_terminal_effects(
 
     def denied_mkdir(path, *args, **kwargs):
         if str(path).startswith(str(root)):
-            probes.append(get_ident())
+            probes.append((str(path), get_ident()))
             raise PermissionError("synthetic-own-recording-mkdir-denied")
         return native_mkdir(path, *args, **kwargs)
 
@@ -132,7 +132,25 @@ async def test_recording_start_refusal_has_native_owned_terminal_effects(
         assert queries and {owner for owner, _thread in queries} == {0}
         assert get_ident() not in {thread for _owner, thread in queries}
         if case == "output-denied":
-            assert probes and get_ident() not in probes
+            assert any(path.endswith("_segments") for path, _thread in probes)
+            assert get_ident() not in {thread for _path, thread in probes}
+
+            def lease_state():
+                with database.sync_session_factory() as db:
+                    lease = db.query(TwitchUpstreamLease).one()
+                    return (
+                        lease.state,
+                        lease.release_reason,
+                        lease.released_at is not None,
+                        lease.process_pid,
+                    )
+
+            assert await run_in_thread_pool(lease_state) == (
+                "RELEASED",
+                "recording_start_failed",
+                True,
+                None,
+            )
         assert all(owner.sync_engine.pool.checkedout() == 0 for owner in databases)
     finally:
         for owner, listener in zip(databases, listeners, strict=True):
@@ -142,6 +160,7 @@ async def test_recording_start_refusal_has_native_owned_terminal_effects(
         assert db.query(Stream).count() == 1
         peer = db.query(Recording).one()
         assert peer.id == 7 and peer.status == "stopped" and peer.end_time is None
+        assert db.query(TwitchUpstreamLease).count() == 0
     with database.sync_session_factory() as db:
         rows = db.query(Recording).all()
         if case in {"output-denied", "stream-removed-before-path"}:

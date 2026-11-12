@@ -599,6 +599,37 @@ class ProcessManager:
                                  If provided, new segments will be added to this directory with
                                  the next available segment number.
         """
+        from app.utils.async_db_utils import run_in_thread_pool
+
+        segment_dir, current_segment_path, next_segment_num = await run_in_thread_pool(
+            self._prepare_segment_paths, output_path, resume_segments_dir
+        )
+
+        segment_info = {
+            "stream_id": stream.id,
+            "recording_id": recording_id,  # Store recording_id for proper post-processing
+            "base_output_path": str(output_path),
+            "segment_dir": str(segment_dir),
+            "current_segment_path": str(current_segment_path),
+            "segment_count": next_segment_num,
+            "segment_start_time": datetime.now(),
+            "total_segments": [],
+            "monitor_task": None,
+        }
+
+        process_id = f"stream_{stream.id}"
+        async with self.lock:
+            self.long_stream_processes[process_id] = segment_info
+
+        logger.info(
+            f"Initialized segmented recording for stream {stream.id}: {segment_dir}"
+        )
+        return segment_info
+
+    def _prepare_segment_paths(
+        self, output_path: str, resume_segments_dir: str | None
+    ) -> tuple[Path, Path, int]:
+        """Prepare only filesystem/scalar inputs before touching the loop registry."""
         base_path = Path(output_path)
 
         if resume_segments_dir and Path(resume_segments_dir).exists():
@@ -650,27 +681,7 @@ class ProcessManager:
             segment_filename = f"{base_path.stem}{self.SEGMENT_PART_IDENTIFIER}001.ts"
             current_segment_path = segment_dir / segment_filename
             next_segment_num = 1
-
-        segment_info = {
-            "stream_id": stream.id,
-            "recording_id": recording_id,  # Store recording_id for proper post-processing
-            "base_output_path": str(output_path),
-            "segment_dir": str(segment_dir),
-            "current_segment_path": str(current_segment_path),
-            "segment_count": next_segment_num,
-            "segment_start_time": datetime.now(),
-            "total_segments": [],
-            "monitor_task": None,
-        }
-
-        process_id = f"stream_{stream.id}"
-        async with self.lock:
-            self.long_stream_processes[process_id] = segment_info
-
-        logger.info(
-            f"Initialized segmented recording for stream {stream.id}: {segment_dir}"
-        )
-        return segment_info
+        return segment_dir, current_segment_path, next_segment_num
 
     def _load_segment_configuration(
         self, streamer_id: int, streamer_name: str | None
