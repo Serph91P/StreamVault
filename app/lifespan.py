@@ -331,7 +331,9 @@ async def lifespan(app: FastAPI):
         supervisor.create_task(
             "recording-cleanup",
             _run_recording_cleanup(
-                SessionLocal if legacy_context else runtime_database.sync_session_factory,
+                SessionLocal
+                if legacy_context
+                else runtime_database.sync_session_factory,
                 runtime_settings,
                 logging_actor,
             ),
