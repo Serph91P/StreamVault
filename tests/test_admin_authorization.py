@@ -112,7 +112,11 @@ def admin_stack(monkeypatch, tmp_path):
     app = create_app(
         settings=settings,
         database=lifecycle,
-        service_overrides={get_db: test_db, get_auth_service: test_auth},
+        service_overrides={
+            get_db: test_db,
+            get_auth_service: test_auth,
+            admin.get_application_background_queue_service: lambda: queue,
+        },
     )
     # No lifespan: no provider connections, schedulers or startup cleanup.
     yield app, settings, factory, sentinel, queue

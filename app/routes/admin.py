@@ -9,7 +9,10 @@ from app.dependencies import (
     get_db,
     get_application_session_factory,
     get_application_recording_manager,
+    get_background_queue_service as get_application_background_queue_service,
 )
+from app.services.background_queue_service import BackgroundQueueService
+from app.services.background_queue_cleanup_service import BackgroundQueueCleanupService
 from collections.abc import Callable
 from app.dependencies import require_admin_user
 from sqlalchemy.orm import Session, joinedload
@@ -39,6 +42,14 @@ def get_background_queue_service():
 
         _background_queue_service = background_queue_service
     return _background_queue_service
+
+
+def get_queue_cleanup_service(
+    queue_service: BackgroundQueueService = Depends(
+        get_application_background_queue_service
+    ),
+) -> BackgroundQueueCleanupService:
+    return BackgroundQueueCleanupService(queue_service)
 
 
 router = APIRouter(
@@ -1049,14 +1060,16 @@ class BackgroundQueueCleanupResponse(BaseModel):
 
 
 @router.get("/background-queue/status", response_model=BackgroundQueueStatusResponse)
-async def get_background_queue_status():
+async def get_background_queue_status(
+    background_queue_service: BackgroundQueueService = Depends(
+        get_application_background_queue_service
+    ),
+):
     """
     🔍 Display Background Queue Status
     Shows the current status of the Background Queue and detected issues
     """
     try:
-        background_queue_service = get_background_queue_service()
-
         # Use proper API methods instead of getattr when available
         external_tasks = getattr(background_queue_service, "external_tasks", {})
         active_tasks = getattr(background_queue_service, "active_tasks", {})
@@ -1118,7 +1131,9 @@ async def get_background_queue_status():
 @router.post(
     "/background-queue/cleanup/all", response_model=BackgroundQueueCleanupResponse
 )
-async def fix_all_background_queue_issues():
+async def fix_all_background_queue_issues(
+    cleanup_service: BackgroundQueueCleanupService = Depends(get_queue_cleanup_service),
+):
     """
     🧹 Fix All Background Queue Issues
     Automatically fixes all detected issues:
@@ -1127,13 +1142,10 @@ async def fix_all_background_queue_issues():
     - Unknown task names
     """
     try:
-        from app.services.background_queue_cleanup_service import get_cleanup_service
-
         logger.info(
             "🧹 ADMIN_CLEANUP_ALL: Starting comprehensive background queue cleanup"
         )
 
-        cleanup_service = get_cleanup_service()
         results = await cleanup_service.comprehensive_cleanup()
 
         # Extract results
@@ -1171,17 +1183,16 @@ async def fix_all_background_queue_issues():
     "/background-queue/cleanup/stuck-recordings",
     response_model=BackgroundQueueCleanupResponse,
 )
-async def fix_stuck_recordings():
+async def fix_stuck_recordings(
+    cleanup_service: BackgroundQueueCleanupService = Depends(get_queue_cleanup_service),
+):
     """
     🔧 Fix Only Stuck Recording Jobs
     Fixes only recording jobs that are stuck at 100%
     """
     try:
-        from app.services.background_queue_cleanup_service import get_cleanup_service
-
         logger.info("🔧 ADMIN_CLEANUP_STUCK: Fixing stuck recording tasks")
 
-        cleanup_service = get_cleanup_service()
         result = await cleanup_service.cleanup_stuck_recording_tasks()
 
         fixed_count = result.get("cleaned", 0)
@@ -1206,17 +1217,16 @@ async def fix_stuck_recordings():
     "/background-queue/cleanup/orphaned-recovery",
     response_model=BackgroundQueueCleanupResponse,
 )
-async def stop_orphaned_recovery():
+async def stop_orphaned_recovery(
+    cleanup_service: BackgroundQueueCleanupService = Depends(get_queue_cleanup_service),
+):
     """
     🛑 Stop Continuous Orphaned Recovery
     Stops continuous orphaned recovery checks
     """
     try:
-        from app.services.background_queue_cleanup_service import get_cleanup_service
-
         logger.info("🛑 ADMIN_STOP_ORPHANED: Stopping continuous orphaned recovery")
 
-        cleanup_service = get_cleanup_service()
         result = await cleanup_service.stop_continuous_orphaned_recovery()
 
         stopped_count = result.get("stopped", 0)
@@ -1243,17 +1253,16 @@ async def stop_orphaned_recovery():
     "/background-queue/cleanup/task-names",
     response_model=BackgroundQueueCleanupResponse,
 )
-async def fix_unknown_task_names():
+async def fix_unknown_task_names(
+    cleanup_service: BackgroundQueueCleanupService = Depends(get_queue_cleanup_service),
+):
     """
     🏷️ Fix Unknown Task Names
     Fixes tasks that are displayed as "Unknown"
     """
     try:
-        from app.services.background_queue_cleanup_service import get_cleanup_service
-
         logger.info("🏷️ ADMIN_FIX_NAMES: Fixing unknown task names")
 
-        cleanup_service = get_cleanup_service()
         result = await cleanup_service.fix_unknown_task_names()
 
         fixed_count = result.get("fixed", 0)
