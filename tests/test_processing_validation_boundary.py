@@ -1,4 +1,10 @@
-"""Execute the validation handler with real persistence and native media files."""
+"""Execute validation against native persistence/media, including corrupt outputs.
+
+Value: protects=an empty or smaller TS does not reject a valid larger MP4;
+fails_when=ratio/zero-size handling is inverted to false-reject a healthy output;
+why_new=existing rows cover missing/small MP4 and an undersized ratio, not these skip branches;
+seam=none; no_claim=provider capture or end-to-end job completion.
+"""
 
 import os
 import subprocess
@@ -17,7 +23,10 @@ from app.services.processing.post_processing_task_handlers import (
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("case", ["valid", "missing", "small", "size_ratio"])
+@pytest.mark.parametrize(
+    "case",
+    ["valid", "missing", "small", "size_ratio", "larger_mp4", "empty_ts"],
+)
 async def test_validation_handler_closes_persistence_and_file_io_off_loop(
     tmp_path, monkeypatch, case
 ):
@@ -29,7 +38,8 @@ async def test_validation_handler_closes_persistence_and_file_io_off_loop(
     )
     path = tmp_path / "input.mp4"
     ts_path = tmp_path / "input.ts"
-    if case in {"valid", "size_ratio"}:
+    valid_cases = {"valid", "larger_mp4", "empty_ts"}
+    if case in valid_cases | {"size_ratio"}:
         subprocess.run(
             [
                 "ffmpeg",
@@ -57,8 +67,14 @@ async def test_validation_handler_closes_persistence_and_file_io_off_loop(
         if case == "size_ratio":
             with ts_path.open("wb") as output:
                 output.truncate(path.stat().st_size * 2)
+        elif case == "larger_mp4":
+            with ts_path.open("wb") as output:
+                output.truncate(path.stat().st_size // 2)
+        elif case == "empty_ts":
+            ts_path.touch()
     elif case == "small":
         path.write_bytes(b"small")
+
     queries = []
     file_accesses = []
     loop_thread = get_ident()
@@ -103,7 +119,7 @@ async def test_validation_handler_closes_persistence_and_file_io_off_loop(
         }
         with monkeypatch.context() as watched:
             watched.setattr(os, "stat", stat)
-            if case == "valid":
+            if case in valid_cases:
                 await handler.handle_mp4_validation(payload)
             else:
                 expected = {
@@ -117,9 +133,9 @@ async def test_validation_handler_closes_persistence_and_file_io_off_loop(
         with database.sync_session_factory() as session:
             state = session.scalar(select(RecordingProcessingState))
             assert state.mp4_validation_status == (
-                "completed" if case == "valid" else "failed"
+                "completed" if case in valid_cases else "failed"
             )
-            if case != "valid":
+            if case not in valid_cases:
                 assert expected in state.last_error
         assert operation_queries and loop_thread not in operation_queries
         assert file_accesses and loop_thread not in file_accesses

@@ -191,6 +191,7 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
                 assert metadata is None or metadata.segments_removed is not True
                 assert state.cleanup_status == "completed"
                 assert output.exists()
+
             else:
                 assert metadata is None
                 assert state is None
@@ -219,6 +220,7 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
             assert removal_faults and loop_thread not in removal_faults
         if case == "metadata-denied":
             assert metadata_faults and loop_thread not in metadata_faults
+
         assert database.sync_engine.pool.checkedout() == 0
     finally:
         await handler.cleanup()
