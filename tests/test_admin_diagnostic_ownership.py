@@ -398,3 +398,71 @@ async def test_mounted_recording_diagnostics_apply_native_fallbacks_without_peer
     finally:
         for database, listener in zip(databases, listeners, strict=True):
             event.remove(database.sync_engine, "before_cursor_execute", listener)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "layout,level",
+    [("root", "INFO"), ("app", "ALL"), ("root", ""), ("missing", "INFO")],
+)
+async def test_recent_logs_tail_and_filter_only_the_configured_owner_off_loop(
+    image_applications, monkeypatch, layout, level
+):
+    import subprocess
+
+    apps, _databases, clients, _ = image_applications
+    roots = [Path(app.state.settings.RECORDING_DIRECTORY) / "logs" for app in apps]
+    for index, (app, root) in enumerate(zip(apps, roots, strict=True)):
+        root.mkdir()
+        monkeypatch.setattr(app.state.settings, "LOGS_BASE_DIR", str(root))
+        target = root / ("app/app.log" if layout == "app" else "app.log")
+        if layout != "missing" or index:
+            target.parent.mkdir(exist_ok=True)
+            target.write_text(
+                f"INFO owner-{index} old\nERROR owner-{index} failure\nINFO owner-{index} latest\nDEBUG owner-{index} detail\n"
+            )
+    expected_path = roots[0] / ("app/app.log" if layout == "app" else "app.log")
+    native_exists, native_run = Path.exists, subprocess.run
+    probes, commands, forbidden = [], [], []
+
+    def exists(path):
+        if str(path) in {"/app/logs/app.log", "logs/app/app.log", "app.log"}:
+            # Never read unrelated default logs even on the pre-fix RED path.
+            forbidden.append(str(path))
+            return False
+        if str(path).startswith(str(roots[0])):
+            probes.append(get_ident())
+        return native_exists(path)
+
+    def run(command, *args, **kwargs):
+        commands.append((command, kwargs["timeout"], get_ident()))
+        return native_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "exists", exists)
+    monkeypatch.setattr(subprocess, "run", run)
+    response = await clients[0].get(
+        "/api/admin/logs/recent", params={"lines": 3, "level": level}
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    expected = ["ERROR owner-0 failure", "INFO owner-0 latest", "DEBUG owner-0 detail"]
+    if level == "INFO":
+        expected = ["INFO owner-0 latest"]
+    if layout == "missing":
+        expected = []
+    assert data == {
+        "log_file": None if layout == "missing" else str(expected_path),
+        "lines_requested": 3,
+        "lines_returned": len(expected),
+        "level_filter": level,
+        "logs": expected,
+    }
+    assert forbidden == []
+    assert probes and get_ident() not in probes
+    if layout == "missing":
+        assert commands == []
+    else:
+        assert len(commands) == 1
+        assert commands[0][:2] == (["tail", "-n", "3", str(expected_path)], 10)
+        assert commands[0][2] != get_ident()
+    assert "owner-1" not in response.text

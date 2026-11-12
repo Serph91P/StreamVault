@@ -382,7 +382,9 @@ async def cleanup_temp_files(
 
 
 @router.get("/logs/recent")
-async def get_recent_logs(lines: int = 100, level: str = "INFO") -> Dict[str, Any]:
+def get_recent_logs(
+    request: Request, lines: int = 100, level: str = "INFO"
+) -> Dict[str, Any]:
     """
     Get recent log entries
     """
@@ -391,7 +393,9 @@ async def get_recent_logs(lines: int = 100, level: str = "INFO") -> Dict[str, An
         from pathlib import Path
 
         # Try to get logs from the application log file
-        log_files = ["/app/logs/app.log", "logs/app/app.log", "app.log"]
+        configuration = resolve_app_settings(request.app)
+        base = Path(configuration.LOGS_BASE_DIR or configuration.LOG_DIR or "/app/logs")
+        log_files = [base / "app.log", base / "app" / "app.log"]
 
         log_content = []
         log_file_used = None
