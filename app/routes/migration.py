@@ -10,6 +10,8 @@ from typing import Dict
 import logging
 
 from app.dependencies import get_image_refresh_service, get_image_migration_service
+from app.services.images.image_refresh_service import ImageRefreshService
+from app.services.migration.image_migration_service import ImageMigrationService
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +29,8 @@ class MigrationResponse(BaseModel):
 @router.post("/images", response_model=MigrationResponse)
 async def migrate_images(
     background_tasks: BackgroundTasks,
-    migration_service=Depends(get_image_migration_service),
-):
+    migration_service: ImageMigrationService = Depends(get_image_migration_service),
+) -> MigrationResponse:
     """
     Migrate images from old directory structure to new simplified structure.
 
@@ -54,8 +56,10 @@ async def migrate_images(
         raise HTTPException(status_code=500, detail="Migration failed")
 
 
-@router.get("/images/status")
-def get_migration_status(migration_service=Depends(get_image_migration_service)):
+@router.get("/images/status", response_model=None)
+def get_migration_status(
+    migration_service: ImageMigrationService = Depends(get_image_migration_service),
+) -> dict[str, bool | str]:
     """
     Check if migration is needed by looking for old directory structures
     """
@@ -79,8 +83,8 @@ def get_migration_status(migration_service=Depends(get_image_migration_service))
 @router.post("/images/refresh", response_model=MigrationResponse)
 async def refresh_missing_images(
     background_tasks: BackgroundTasks,
-    refresh_service=Depends(get_image_refresh_service),
-):
+    refresh_service: ImageRefreshService = Depends(get_image_refresh_service),
+) -> MigrationResponse:
     """
     Check for missing images and re-download them.
 
@@ -107,10 +111,11 @@ async def refresh_missing_images(
         raise HTTPException(status_code=500, detail="Image refresh failed")
 
 
-@router.post("/images/refresh/streamer/{streamer_id}")
+@router.post("/images/refresh/streamer/{streamer_id}", response_model=None)
 async def refresh_streamer_images(
-    streamer_id: int, refresh_service=Depends(get_image_refresh_service)
-):
+    streamer_id: int,
+    refresh_service: ImageRefreshService = Depends(get_image_refresh_service),
+) -> dict[str, bool | str]:
     """
     Refresh images for a specific streamer
     """
@@ -133,10 +138,11 @@ async def refresh_streamer_images(
         raise HTTPException(status_code=500, detail="Failed to refresh streamer images")
 
 
-@router.post("/images/refresh/category/{category_name}")
+@router.post("/images/refresh/category/{category_name}", response_model=None)
 async def refresh_category_image(
-    category_name: str, refresh_service=Depends(get_image_refresh_service)
-):
+    category_name: str,
+    refresh_service: ImageRefreshService = Depends(get_image_refresh_service),
+) -> dict[str, bool | str]:
     """
     Refresh image for a specific category
     """

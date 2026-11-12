@@ -21,7 +21,9 @@ def _log_file_path(log_dir: Path, filename: str) -> Path:
 
 
 @router.get("/files", response_model=LogsListSchema)
-def list_log_files(logging_service: LoggingService = Depends(get_logging_service)):
+def list_log_files(
+    logging_service: LoggingService = Depends(get_logging_service),
+) -> LogsListSchema:
     """List all available log files"""
     try:
         streamlink_logs = []
@@ -102,7 +104,7 @@ def download_log_file(
     log_type: str,
     filename: str,
     logging_service: LoggingService = Depends(get_logging_service),
-):
+) -> Response:
     """Download a specific log file"""
     try:
         # Validate log type
@@ -142,13 +144,13 @@ def download_log_file(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/files/{log_type}/{filename}/tail")
+@router.get("/files/{log_type}/{filename}/tail", response_model=None)
 def tail_log_file(
     log_type: str,
     filename: str,
     lines: int = Query(100, description="Number of lines to return", ge=1, le=10000),
     logging_service: LoggingService = Depends(get_logging_service),
-):
+) -> dict[str, str | int]:
     """Get the last N lines of a log file"""
     try:
         # Validate log type
@@ -188,12 +190,12 @@ def tail_log_file(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/files/{log_type}/{filename}")
+@router.delete("/files/{log_type}/{filename}", response_model=None)
 def delete_log_file(
     log_type: str,
     filename: str,
     logging_service: LoggingService = Depends(get_logging_service),
-):
+) -> dict[str, str]:
     """Delete a specific log file"""
     try:
         # Validate log type
@@ -226,11 +228,11 @@ def delete_log_file(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/cleanup")
+@router.post("/cleanup", response_model=None)
 def cleanup_old_logs(
     days_to_keep: int = Query(30, description="Days of logs to keep", ge=1, le=365),
     logging_service: LoggingService = Depends(get_logging_service),
-):
+) -> dict[str, str]:
     """Clean up log files older than specified days"""
     try:
         if not logging_service.cleanup_old_logs(days_to_keep):
@@ -245,8 +247,10 @@ def cleanup_old_logs(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/stats")
-def get_logging_stats(logging_service: LoggingService = Depends(get_logging_service)):
+@router.get("/stats", response_model=None)
+def get_logging_stats(
+    logging_service: LoggingService = Depends(get_logging_service),
+) -> dict[str, dict[str, int]]:
     """Get logging statistics"""
     try:
         stats = {

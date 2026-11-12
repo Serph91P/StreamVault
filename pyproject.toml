@@ -82,6 +82,9 @@ files = [
     "app/middleware/logging.py",
     "app/observability.py",
     "app/routes/health.py",
+    "app/routes/logging.py",
+    "app/routes/migration.py",
+    "app/routes/settings.py",
     "app/services/system/logging_service.py",
     "app/services/recording/recording_logger.py",
     "app/utils/path_utils.py",
@@ -152,6 +155,8 @@ no_implicit_optional = true
 module = [
     "app.bootstrap", "app.bootstrap.application", "app.bootstrap.settings", "app.bootstrap.storage",
     "app.events.event_catalog",
+    "app.routes.logging", "app.routes.migration",
+    "app.routes.settings",
     "app.models.identity", "app.models.notifications", "app.models.proxies", "app.models.recordings",
     "app.models.streams", "app.models.system", "app.models.upstream",
     "app.services.core.automated_recovery_state", "app.services.core.session_maintenance", "app.services.core.state_values",

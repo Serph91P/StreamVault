@@ -6,6 +6,7 @@ from app.schemas.settings import (
     StreamerNotificationSettingsUpdateSchema,
 )
 from app.dependencies import (
+    AuthIdentity,
     get_application_session_factory,
     get_application_twitch_token_service,
     get_image_service,
@@ -20,6 +21,8 @@ from app.services.system.twitch_token_service import TwitchTokenService
 from app.services.system.streamlink_config_service import StreamlinkConfigService
 from sqlalchemy.orm import Session
 from app.services.notification_service import NotificationService
+from app.services.unified_image_service import UnifiedImageService
+from app.services.communication.websocket_manager import ConnectionManager
 from app.utils.async_db_utils import run_in_thread_pool
 import logging
 from datetime import datetime, timezone
@@ -36,15 +39,15 @@ router = APIRouter(
 @router.get("", response_model=GlobalSettingsSchema)
 def get_settings(
     settings_service: SettingsService = Depends(get_settings_service),
-):
+) -> GlobalSettingsSchema:
     return settings_service.get_global_settings_schema()
 
 
 @router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
 def get_all_streamer_settings(
     settings_service: SettingsService = Depends(get_settings_service),
-    image_service=Depends(get_image_service),
-):
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> list[StreamerNotificationSettingsSchema]:
     try:
         return settings_service.get_all_streamer_notification_settings(image_service)
     except Exception as e:
@@ -59,9 +62,9 @@ def update_streamer_settings(
     streamer_id: int,
     settings_data: StreamerNotificationSettingsUpdateSchema,
     settings_service: SettingsService = Depends(get_settings_service),
-    image_service=Depends(get_image_service),
-    _identity=Depends(require_scopes("admin")),
-):
+    image_service: UnifiedImageService = Depends(get_image_service),
+    _identity: AuthIdentity = Depends(require_scopes("admin")),
+) -> StreamerNotificationSettingsSchema:
     logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     try:
         return settings_service.update_streamer_notification_settings(
@@ -72,10 +75,10 @@ def update_streamer_settings(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/streamers")
+@router.get("/streamers", response_model=None)
 def get_streamer_settings(
     settings_service: SettingsService = Depends(get_settings_service),
-):
+) -> list[dict[str, int | bool | None]]:
     try:
         return settings_service.get_streamer_settings_flat()
     except Exception as e:
@@ -98,15 +101,15 @@ def _notification_validation_error(
         return None
 
 
-@router.post("/test-notification")
+@router.post("/test-notification", response_model=None)
 async def test_notification(
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     notification_service_factory: Callable[[], NotificationService] = Depends(
         get_notification_service_factory
     ),
-    websocket_manager=Depends(get_websocket_manager),
-    _identity=Depends(require_scopes("admin")),
-):
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+    _identity: AuthIdentity = Depends(require_scopes("admin")),
+) -> dict[str, str]:
     try:
         validation_error = await run_in_thread_pool(
             _notification_validation_error, session_factory
@@ -155,11 +158,11 @@ async def test_notification(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/test-websocket-notification")
+@router.post("/test-websocket-notification", response_model=None)
 async def test_websocket_notification(
-    websocket_manager=Depends(get_websocket_manager),
-    _identity=Depends(require_scopes("admin")),
-):
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+    _identity: AuthIdentity = Depends(require_scopes("admin")),
+) -> dict[str, str]:
     """Test WebSocket notification delivery to frontend"""
     try:
         import time
@@ -251,8 +254,8 @@ async def update_settings(
     notification_service_factory: Callable[[], NotificationService] = Depends(
         get_notification_service_factory
     ),
-    _identity=Depends(require_scopes("admin")),
-):
+    _identity: AuthIdentity = Depends(require_scopes("admin")),
+) -> GlobalSettingsSchema:
     try:
         updated_settings, config_changed = await run_in_thread_pool(
             _persist_settings_snapshot, session_factory, settings_data
@@ -285,10 +288,10 @@ async def update_settings(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/quality-options")
+@router.get("/quality-options", response_model=None)
 async def get_quality_options(
     token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
-):
+) -> dict[str, object]:
     """
     Get available quality options based on OAuth token configuration.
 
@@ -318,10 +321,10 @@ async def get_quality_options(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/codec-options")
+@router.get("/codec-options", response_model=None)
 async def get_codec_options(
     token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
-):
+) -> dict[str, object]:
     """
     Get available codec options with OAuth authentication requirements.
 
