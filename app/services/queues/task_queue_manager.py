@@ -1056,21 +1056,20 @@ class TaskQueueManager:
                 "ts_file_path, output_dir, streamer_name, and started_at must not be empty or None"
             )
 
-        # Create task factory and generate tasks
-        task_factory = RecordingTaskFactory()
-        if self.task_store is not None:
-            from app.utils.async_db_utils import run_in_thread_pool
-
-            def admit_chain():
-                tasks = task_factory.create_post_processing_chain(
-                    stream_id=stream_id,
-                    recording_id=recording_id,
-                    ts_file_path=ts_file_path,
-                    output_dir=output_dir,
-                    streamer_name=streamer_name,
-                    started_at=started_at,
-                    cleanup_ts_file=cleanup_ts_file,
-                )
+        def build_tasks():
+            task_factory = RecordingTaskFactory()
+            tasks = task_factory.create_post_processing_chain(
+                stream_id=stream_id,
+                recording_id=recording_id,
+                ts_file_path=ts_file_path,
+                output_dir=output_dir,
+                streamer_name=streamer_name,
+                started_at=started_at,
+                cleanup_ts_file=cleanup_ts_file,
+                settings=kwargs.get("settings"),
+                session_factory=kwargs.get("session_factory"),
+            )
+            if self.task_store is not None:
                 entries = [
                     (
                         self._create_queue_task_from_dependency_task(task),
@@ -1080,38 +1079,34 @@ class TaskQueueManager:
                     for task in tasks
                 ]
                 self.task_store.accept(entries, recording_id=recording_id)
-                return [task.id for task in tasks]
+                return tasks
+            # Persist IDs before transferring plain task values to the event loop.
+            try:
+                from app.database import SessionLocal
+                from app.models import RecordingProcessingState
 
-            ids = await run_in_thread_pool(admit_chain)
+                with (kwargs.get("session_factory") or SessionLocal)() as db:
+                    state = (
+                        db.query(RecordingProcessingState)
+                        .filter(RecordingProcessingState.recording_id == recording_id)
+                        .first()
+                    )
+                    if state:
+                        state.set_task_ids({t.type: t.id for t in tasks})
+                        db.commit()
+            except Exception:
+                pass
+            return tasks
+
+        from app.utils.async_db_utils import run_in_thread_pool
+
+        tasks = await run_in_thread_pool(build_tasks)
+        if self.task_store is not None:
+            ids = [task.id for task in tasks]
             for task_id in ids:
                 self.progress_tracker.completed_tasks.pop(task_id, None)
             self._queue_wakeup.set()
             return ids
-        tasks = task_factory.create_post_processing_chain(
-            stream_id=stream_id,
-            recording_id=recording_id,
-            ts_file_path=ts_file_path,
-            output_dir=output_dir,
-            streamer_name=streamer_name,
-            started_at=started_at,
-            cleanup_ts_file=cleanup_ts_file,
-        )
-        # Persist created task IDs for the recording
-        try:
-            from app.database import SessionLocal
-            from app.models import RecordingProcessingState
-
-            with SessionLocal() as db:
-                state = (
-                    db.query(RecordingProcessingState)
-                    .filter(RecordingProcessingState.recording_id == recording_id)
-                    .first()
-                )
-                if state:
-                    state.set_task_ids({t.type: t.id for t in tasks})
-                    db.commit()
-        except Exception:
-            pass
 
         # Add tasks to dependency manager and create corresponding queue tasks for tracking
         for task in tasks:

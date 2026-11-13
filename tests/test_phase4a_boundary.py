@@ -141,10 +141,14 @@ def test_settings_router_injects_session_notification_and_websocket_seams():
     for endpoint in (
         settings.get_quality_options,
         settings.get_codec_options,
-        videos.get_videos,
     ):
-        db_default = inspect.signature(endpoint).parameters["db"].default
-        assert db_default.dependency is dependencies.get_db
+        token_default = inspect.signature(endpoint).parameters["token_service"].default
+        assert (
+            token_default.dependency
+            is dependencies.get_application_twitch_token_service
+        )
+    db_default = inspect.signature(videos.get_videos).parameters["db"].default
+    assert db_default.dependency is dependencies.get_db
 
 
 def test_settings_update_preserves_invalid_proxy_error_envelope(seeded_client):
@@ -160,6 +164,7 @@ def test_settings_update_preserves_invalid_proxy_error_envelope(seeded_client):
 
 
 def test_settings_update_persists_before_regenerating_streamlink_config(monkeypatch):
+    from contextlib import nullcontext
     from app.routes import settings
     from app.schemas.settings import GlobalSettingsSchema
     from app.services.system import streamlink_config_service as config_module
@@ -205,10 +210,16 @@ def test_settings_update_persists_before_regenerating_streamlink_config(monkeypa
     service = SettingsServiceFake()
     config = StreamlinkConfigFake()
     monkeypatch.setattr(config_module, "streamlink_config_service", config)
+    monkeypatch.setattr(settings, "SettingsService", lambda _db: service)
     data = GlobalSettingsSchema(supported_codecs="av1,h265,h264")
 
     asyncio.run(
-        settings.update_settings(data, service, lambda: NotificationServiceFake())
+        settings.update_settings(
+            data,
+            session_factory=lambda: nullcontext(None),
+            streamlink_config_service=config,
+            notification_service_factory=lambda: NotificationServiceFake(),
+        )
     )
 
     assert config.observed_codecs == "av1,h265,h264"

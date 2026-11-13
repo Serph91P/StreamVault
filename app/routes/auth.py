@@ -1,5 +1,7 @@
 import logging
 import time
+from dataclasses import dataclass, field
+from threading import Lock
 from collections import defaultdict
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -18,30 +20,39 @@ from app.dependencies import (
     get_db,
 )
 from app.schemas.auth import UserCreate
-from app.config.settings import get_settings
+
 from app.models import SystemState, User
 
 logger = logging.getLogger("streamvault")
 
 router = APIRouter(tags=["auth"])
 
+
 # SECURITY: Per-IP login rate limiting to prevent brute-force attacks (CWE-307)
-_login_attempts: dict[str, list[float]] = defaultdict(list)
+@dataclass
+class LoginThrottle:
+    attempts: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
+    lock: Lock = field(default_factory=Lock)
+
+
+_default_login_throttle = LoginThrottle()
+_login_attempts = _default_login_throttle.attempts
 _LOGIN_MAX_ATTEMPTS = 5  # Max attempts per window
 _LOGIN_WINDOW_SECONDS = 300  # 5-minute sliding window
 _LOGIN_LOCKOUT_SECONDS = 900  # 15-minute lockout after exceeding limit
 
 
-def _check_login_rate_limit(client_ip: str) -> None:
+def _check_login_rate_limit(
+    client_ip: str, *, attempts_by_ip: dict[str, list[float]] | None = None
+) -> None:
     """Check if the IP has exceeded the login rate limit."""
     now = time.monotonic()
-    attempts = _login_attempts[client_ip]
+    history = attempts_by_ip if attempts_by_ip is not None else _login_attempts
+    attempts = history[client_ip]
 
     # Remove attempts outside the window
-    _login_attempts[client_ip] = [
-        t for t in attempts if now - t < _LOGIN_WINDOW_SECONDS
-    ]
-    attempts = _login_attempts[client_ip]
+    history[client_ip] = [t for t in attempts if now - t < _LOGIN_WINDOW_SECONDS]
+    attempts = history[client_ip]
 
     if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
         # Check if still in lockout period from the last attempt
@@ -55,12 +66,24 @@ def _check_login_rate_limit(client_ip: str) -> None:
                 headers={"Retry-After": str(int(lockout_remaining))},
             )
         # Lockout expired, clear old attempts
-        _login_attempts[client_ip] = []
+        history[client_ip] = []
 
 
-def _record_login_attempt(client_ip: str) -> None:
+def _record_login_attempt(
+    client_ip: str, *, attempts_by_ip: dict[str, list[float]] | None = None
+) -> None:
     """Record a failed login attempt."""
-    _login_attempts[client_ip].append(time.monotonic())
+    history = attempts_by_ip if attempts_by_ip is not None else _login_attempts
+    history[client_ip].append(time.monotonic())
+
+
+def _auth_throttle(request: Request | None) -> LoginThrottle:
+    if request is None:
+        return _default_login_throttle
+    throttle: LoginThrottle = getattr(
+        request.app.state, "login_throttle", _default_login_throttle
+    )
+    return throttle
 
 
 def _get_or_create_system_state(db: Session) -> SystemState:
@@ -75,12 +98,12 @@ def _get_or_create_system_state(db: Session) -> SystemState:
 
 
 @router.api_route("/setup", methods=["GET", "HEAD"])
-async def setup_page(
+def setup_page(
     request: Request,
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db, scope="function"),
 ):
-    admin_exists = await auth_service.admin_exists()
+    admin_exists = auth_service.admin_exists_sync()
 
     # Always return JSON for XHR/fetch requests
     if request.headers.get(
@@ -102,19 +125,27 @@ async def setup_page(
 
 
 @router.post("/setup")
-async def setup_admin(
-    request: UserCreate, auth_service: AuthService = Depends(get_auth_service)
+def setup_admin(
+    request: UserCreate,
+    http_request: Request,
+    auth_service: AuthService = Depends(get_auth_service),
 ):
-    if await auth_service.admin_exists():
+    # Preserve first-admin admission when moving work off the event loop.
+    with _auth_throttle(http_request).lock:
+        return _setup_admin_in_worker(request, auth_service)
+
+
+def _setup_admin_in_worker(request: UserCreate, auth_service: AuthService):
+    if auth_service.admin_exists_sync():
         raise HTTPException(status_code=400, detail="Admin already exists")
 
-    admin = await auth_service.create_admin(request)
-    token = await auth_service.create_session(admin.id)
+    admin = auth_service.create_admin_sync(request)
+    token = auth_service.create_session_sync(admin.id)
 
     response = JSONResponse(
         content={"message": "Admin account created", "success": True}
     )
-    settings = get_settings()
+    settings = auth_service.settings
     # FIX: Cookie-Pfad explizit auf Root setzen + max_age, damit es für alle Routen (/api/..., /videos, PWA) gesendet wird.
     # Vorheriger Zustand: Standard-Pfad "/auth" -> Cookie wurde bei anderen Pfaden nicht mitgesendet -> ständiges Ausloggen.
     response.set_cookie(
@@ -130,10 +161,22 @@ async def setup_admin(
 
 
 @router.post("/login")
-async def login(
+def login(
     request: UserCreate,
     http_request: Request = None,
     auth_service: AuthService = Depends(get_auth_service),
+):
+    throttle = _auth_throttle(http_request)
+    # Keep failure admission atomic across workers with unchanged budgets.
+    with throttle.lock:
+        return _login_in_worker(request, http_request, auth_service, throttle.attempts)
+
+
+def _login_in_worker(
+    request: UserCreate,
+    http_request: Request | None,
+    auth_service: AuthService,
+    attempts: dict[str, list[float]],
 ):
     try:
         # SECURITY: Only trust X-Forwarded-For behind a reverse proxy.
@@ -141,7 +184,7 @@ async def login(
         client_ip = "unknown"
         if http_request:
             client_ip = http_request.client.host if http_request.client else "unknown"
-        _check_login_rate_limit(client_ip)
+        _check_login_rate_limit(client_ip, attempts_by_ip=attempts)
 
         # Validate input
         if not request.username or not request.password:
@@ -152,10 +195,10 @@ async def login(
                 status_code=400, detail="Username and password are required"
             )
 
-        user = await auth_service.validate_login(request.username, request.password)
+        user = auth_service.validate_login_sync(request.username, request.password)
         if not user:
             # Record failed attempt for rate limiting
-            _record_login_attempt(client_ip)
+            _record_login_attempt(client_ip, attempts_by_ip=attempts)
             logger.warning(f"Failed login attempt for username: {request.username}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -164,7 +207,7 @@ async def login(
             content={"message": "Login successful", "success": True}
         )
         # Set secure based on configuration, httponly=True for XSS protection
-        settings = get_settings()
+        settings = auth_service.settings
         # Siehe Kommentar oben: Pfad & max_age setzen
         response.set_cookie(
             key="access_token",
@@ -194,9 +237,7 @@ async def login(
 
 
 @router.api_route("/login", methods=["GET", "HEAD"])
-async def login_page(
-    request: Request, auth_service: AuthService = Depends(get_auth_service)
-):
+def login_page(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     def is_api_request() -> bool:
         """Check if this is an API request that expects JSON response"""
         return request.headers.get(
@@ -216,7 +257,7 @@ async def login_page(
             raise HTTPException(status_code=500, detail="Unable to serve login page")
 
     try:
-        admin_exists = await auth_service.admin_exists()
+        admin_exists = auth_service.admin_exists_sync()
 
         # Handle API requests
         if is_api_request():
@@ -235,10 +276,8 @@ async def login_page(
 
 
 @router.get("/check")
-async def check_auth(
-    request: Request, auth_service: AuthService = Depends(get_auth_service)
-):
-    admin_exists = await auth_service.admin_exists()
+def check_auth(request: Request, auth_service: AuthService = Depends(get_auth_service)):
+    admin_exists = auth_service.admin_exists_sync()
     if not admin_exists:
         return JSONResponse(content={"setup_required": True})
 
@@ -250,13 +289,13 @@ async def check_auth(
         except AuthTokenError:
             pass
     session_token = request.cookies.get("session")
-    if not session_token or not await auth_service.validate_session(session_token):
+    if not session_token or auth_service.resolve_legacy_session(session_token) is None:
         return JSONResponse(content={"authenticated": False})
     return JSONResponse(content={"authenticated": True})
 
 
 @router.post("/refresh")
-async def refresh_access_token(
+def refresh_access_token(
     request: Request, auth_service: AuthService = Depends(get_auth_service)
 ):
     raw_token = request.cookies.get("refresh_token")
@@ -268,7 +307,7 @@ async def refresh_access_token(
         raise HTTPException(status_code=401, detail="Refresh token replay detected")
     except AuthTokenError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
-    settings = get_settings()
+    settings = auth_service.settings
     response = JSONResponse(content={"success": True})
     response.set_cookie(
         key="access_token",
@@ -292,16 +331,14 @@ async def refresh_access_token(
 
 
 @router.post("/logout")
-async def logout(
-    request: Request, auth_service: AuthService = Depends(get_auth_service)
-):
+def logout(request: Request, auth_service: AuthService = Depends(get_auth_service)):
     try:
         refresh_token = request.cookies.get("refresh_token")
         if refresh_token:
             auth_service.revoke_refresh_token(refresh_token)
         session_token = request.cookies.get("session")
         if session_token:
-            await auth_service.delete_session(session_token)
+            auth_service.delete_session_sync(session_token)
             logger.info("User logged out successfully")
 
         response = JSONResponse(
@@ -323,7 +360,7 @@ async def logout(
 
 
 @router.post("/keepalive")
-async def keepalive(
+def keepalive(
     request: Request,
     auth_service: AuthService = Depends(get_auth_service),
     identity: AuthIdentity = Depends(get_current_identity),
@@ -339,7 +376,7 @@ async def keepalive(
                 content={"ok": False, "reason": "no_session"}, status_code=401
             )
 
-        refreshed = await auth_service.refresh_session(session_token)
+        refreshed = auth_service.resolve_legacy_session(session_token) is not None
         if not refreshed:
             return JSONResponse(
                 content={"ok": False, "reason": "invalid_or_expired"}, status_code=401
@@ -353,7 +390,7 @@ async def keepalive(
 
 
 @router.get("/onboarding-state")
-async def get_onboarding_state(db: Session = Depends(get_db)):
+def get_onboarding_state(db: Session = Depends(get_db)):
     """Return persistent onboarding flags so the frontend router can decide
     whether to show the welcome screen without relying on browser localStorage.
     """
@@ -369,7 +406,7 @@ async def get_onboarding_state(db: Session = Depends(get_db)):
 
 
 @router.post("/onboarding/complete")
-async def complete_onboarding(
+def complete_onboarding(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

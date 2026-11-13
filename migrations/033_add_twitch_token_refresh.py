@@ -33,7 +33,11 @@ from app.database import SessionLocal
 logger = logging.getLogger("streamvault")
 
 
-def run_migration():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def run_migration(target_engine: Engine | None = None):
     """
     Add Twitch OAuth refresh token and expiration columns to global_settings.
 
@@ -41,7 +45,7 @@ def run_migration():
     manually update TWITCH_OAUTH_TOKEN every few hours.
     """
 
-    with SessionLocal() as session:
+    with migration_session(target_engine, SessionLocal) as session:
         try:
             logger.info("🔄 Running Migration 033: Add Twitch Token Refresh")
 
@@ -59,7 +63,10 @@ def run_migration():
 
             existing_columns = {row[0] for row in check_result}
 
-            if "twitch_refresh_token" in existing_columns and "twitch_token_expires_at" in existing_columns:
+            if (
+                "twitch_refresh_token" in existing_columns
+                and "twitch_token_expires_at" in existing_columns
+            ):
                 logger.info("Migration 033 already applied (columns exist), skipping")
                 return
 
@@ -78,7 +85,9 @@ def run_migration():
 
             # === STEP 3: Add twitch_token_expires_at column (timestamp) ===
             if "twitch_token_expires_at" not in existing_columns:
-                logger.info("Adding twitch_token_expires_at column to global_settings...")
+                logger.info(
+                    "Adding twitch_token_expires_at column to global_settings..."
+                )
                 session.execute(
                     text(
                         """

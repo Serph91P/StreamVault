@@ -408,7 +408,7 @@ def test_enhanced_live_requests_twitch_token_explicitly(monkeypatch):
     calls = []
 
     class TokenService:
-        def __init__(self, db):
+        def __init__(self, *, session_factory=None, settings=None):
             calls.append("created")
 
         async def get_valid_access_token(self):

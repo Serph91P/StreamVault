@@ -10,12 +10,16 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Streamer, StreamerRecordingSettings
+from app.models import Recording, Stream, Streamer, StreamerRecordingSettings
 from app.routes.recording import (
     _is_pending_auth_handoff,
+    unified_image_service,
     update_streamer_recording_settings,
 )
 from app.schemas.recording import StreamerRecordingSettingsSchema
+from app.services.system.logging_service import (
+    get_logging_service as get_legacy_logging_service,
+)
 from app.services.recording.twitch_auth_scheduler import (
     AuthCandidate,
     AuthDecisionKind,
@@ -201,22 +205,27 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
             engine = create_engine(f"sqlite:///{Path(directory) / 'settings.db'}")
             Base.metadata.create_all(
                 engine,
-                tables=[Streamer.__table__, StreamerRecordingSettings.__table__],
+                tables=[
+                    Streamer.__table__,
+                    Stream.__table__,
+                    Recording.__table__,
+                    StreamerRecordingSettings.__table__,
+                ],
             )
             Session = sessionmaker(bind=engine, expire_on_commit=False)
             with Session() as db:
                 streamer = Streamer(twitch_id="123", username="priority-channel")
                 db.add(streamer)
                 db.commit()
-                response = __import__("asyncio").run(
-                    update_streamer_recording_settings(
-                        streamer.id,
-                        StreamerRecordingSettingsSchema(
-                            streamer_id=streamer.id,
-                            twitch_auth_priority=100,
-                        ),
-                        db,
-                    )
+                response = update_streamer_recording_settings(
+                    streamer.id,
+                    StreamerRecordingSettingsSchema(
+                        streamer_id=streamer.id,
+                        twitch_auth_priority=100,
+                    ),
+                    db,
+                    logging_service=get_legacy_logging_service(),
+                    unified_image_service=unified_image_service,
                 )
                 persisted = db.query(StreamerRecordingSettings).one()
 
@@ -226,10 +235,17 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
 
     def test_unrelated_settings_update_preserves_stored_priority(self) -> None:
         with TemporaryDirectory() as directory:
-            engine = create_engine(f"sqlite:///{Path(directory) / 'settings-preserve.db'}")
+            engine = create_engine(
+                f"sqlite:///{Path(directory) / 'settings-preserve.db'}"
+            )
             Base.metadata.create_all(
                 engine,
-                tables=[Streamer.__table__, StreamerRecordingSettings.__table__],
+                tables=[
+                    Streamer.__table__,
+                    Stream.__table__,
+                    Recording.__table__,
+                    StreamerRecordingSettings.__table__,
+                ],
             )
             Session = sessionmaker(bind=engine, expire_on_commit=False)
             with Session() as db:
@@ -245,15 +261,15 @@ class TwitchAuthPrioritySchedulerTests(unittest.TestCase):
                 )
                 db.commit()
 
-                response = __import__("asyncio").run(
-                    update_streamer_recording_settings(
-                        streamer.id,
-                        StreamerRecordingSettingsSchema(
-                            streamer_id=streamer.id,
-                            enabled=False,
-                        ),
-                        db,
-                    )
+                response = update_streamer_recording_settings(
+                    streamer.id,
+                    StreamerRecordingSettingsSchema(
+                        streamer_id=streamer.id,
+                        enabled=False,
+                    ),
+                    db,
+                    logging_service=get_legacy_logging_service(),
+                    unified_image_service=unified_image_service,
                 )
                 persisted = db.query(StreamerRecordingSettings).one()
 

@@ -12,6 +12,9 @@ Original God Class (527 lines) split into:
 """
 
 import logging
+from collections.abc import Callable
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
 from typing import Dict, Optional, Any
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notifications import NotificationDispatcher
@@ -22,8 +25,16 @@ logger = logging.getLogger("streamvault")
 class NotificationService:
     """Backward compatibility wrapper for the refactored notification services"""
 
-    def __init__(self, websocket_manager: Optional[ConnectionManager] = None):
-        self.dispatcher = NotificationDispatcher(websocket_manager)
+    def __init__(
+        self,
+        websocket_manager: Optional[ConnectionManager] = None,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+        settings: Settings | None = None,
+    ):
+        self.dispatcher = NotificationDispatcher(
+            websocket_manager, session_factory=session_factory, settings=settings
+        )
         # Legacy properties for compatibility
         self.websocket_manager = websocket_manager
         self.apprise = self.dispatcher.external_service.apprise
@@ -80,7 +91,6 @@ class NotificationService:
             profile_image,
             streamer_name,
             event_type,
-            original_image_url,
         )
 
     async def _send_push_notifications(

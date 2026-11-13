@@ -20,11 +20,15 @@ def test_socket_dependencies_and_producers_share_one_manager():
     from app.services.communication.websocket_manager import (
         websocket_manager as producer_manager,
     )
-    from app.routes.realtime import websocket_manager as router_manager
+    from app.main import app
+    from starlette.requests import HTTPConnection
 
     assert socket_manager is producer_manager
-    assert get_websocket_manager() is producer_manager
-    assert router_manager is producer_manager
+    assert app.state.websocket_manager is producer_manager
+    assert (
+        get_websocket_manager(HTTPConnection({"type": "http", "app": app}))
+        is producer_manager
+    )
 
 
 def test_replay_resets_a_cursor_ahead_of_a_restarted_server():

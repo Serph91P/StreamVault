@@ -4,20 +4,21 @@ import asyncio
 import importlib
 import os
 import sys
-import time
 from datetime import datetime, timedelta, timezone
 from threading import get_ident
-from types import SimpleNamespace
-from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import event
 from sqlalchemy.engine import make_url
 from sqlalchemy import inspect
+from starlette.requests import HTTPConnection
+
+from app import dependencies
+from app.config.settings import Settings
 from app.database import Base, DatabaseLifecycle
+from app.main import create_app
 from app.models import Recording, Stream, Streamer
-from app.services.recording.process_manager import ProcessManager
-from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
+from app.utils.async_db_utils import run_in_thread_pool
 
 
 @pytest.mark.asyncio
@@ -26,8 +27,7 @@ async def test_periodic_cleanup_preserves_old_live_unknown_and_peer_catalogs(
 ):
     startup = importlib.import_module("app.services.init.startup_init")
     database_module = importlib.import_module("app.database")
-    databases, recorders = [], []
-    schemas = []
+    databases, applications, recorders = [], [], []
     queries = []
     loop_thread = get_ident()
     child = None
@@ -37,14 +37,9 @@ async def test_periodic_cleanup_preserves_old_live_unknown_and_peer_catalogs(
             root.mkdir()
             if postgres_url := os.environ.get("STREAMVAULT_PERIODIC_TEST_URL"):
                 url = make_url(postgres_url)
-                assert url.get_backend_name() == "postgresql" and url.host in {"127.0.0.1", "localhost", "::1"} and (url.database or "").startswith("streamvault_test_"), "periodic tests require local disposable PostgreSQL before any connection"
-                schema = "periodic_" + uuid4().hex
-                admin = create_engine(postgres_url)
-                with admin.begin() as connection:
-                    connection.execute(text(f'CREATE SCHEMA "{schema}"'))
-                schemas.append((admin, schema))
+                assert url.get_backend_name() == "postgresql"
                 database = DatabaseLifecycle(
-                    url.update_query_dict({"options": "-csearch_path=" + schema}).render_as_string(
+                    url.set(database=f"periodic_{name}").render_as_string(
                         hide_password=False
                     )
                 )
@@ -73,25 +68,16 @@ async def test_periodic_cleanup_preserves_old_live_unknown_and_peer_catalogs(
                         )
                     )
                 session.commit()
-            # Keep the original death/peer-DB assertions without importing #842's factory.
-            processes = object.__new__(ProcessManager)
-            processes.lock = asyncio.Lock()
-            processes.active_processes = {}
-            processes.long_stream_processes = {}
-            processes.upstream_coordinator = TwitchUpstreamCoordinator(
-                database.sync_session_factory, monotonic_clock=time.monotonic
-            )
-            memory = {}
-            state = SimpleNamespace(
-                get_active_recordings=lambda memory=memory: dict(memory),
-                get_active_recording=memory.get,
-                remove_active_recording=lambda rid, memory=memory: memory.pop(
-                    rid, None
+            app = create_app(
+                settings=Settings(
+                    ENVIRONMENT="test", RECORDING_DIRECTORY=str(root), _env_file=None
                 ),
+                database=database,
             )
-            recorder = SimpleNamespace(
-                process_manager=processes,
-                orchestrator=SimpleNamespace(state_manager=state),
+            applications.append(app)
+            recorder = await run_in_thread_pool(
+                dependencies.get_application_recording_manager,
+                HTTPConnection({"type": "http", "app": app, "headers": []}),
             )
             recorders.append(recorder)
             event.listen(
@@ -148,9 +134,8 @@ async def test_periodic_cleanup_preserves_old_live_unknown_and_peer_catalogs(
             await child.wait()
         for recorder in recorders:
             recorder.process_manager.active_processes.pop("stream_70", None)
+            await recorder.shutdown()
+        for app in applications:
+            await app.state.websocket_manager.close_all()
         for database in databases:
             await database.adispose()
-        for admin, schema in schemas:
-            with admin.begin() as connection:
-                connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
-            admin.dispose()

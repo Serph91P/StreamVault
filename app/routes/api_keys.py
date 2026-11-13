@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/api-keys", tags=["api-keys"])
 
 
 @router.get("", response_model=List[ApiKeyResponse])
-async def list_api_keys(
+def list_api_keys(
     current_user: User = Depends(get_current_user),
     _identity=Depends(require_interactive_identity),
     db: Session = Depends(get_db),
@@ -34,7 +34,7 @@ async def list_api_keys(
 
 
 @router.post("", response_model=ApiKeyCreated, status_code=201)
-async def create_api_key(
+def create_api_key(
     payload: ApiKeyCreate,
     current_user: User = Depends(get_current_user),
     _identity=Depends(require_interactive_identity),
@@ -58,7 +58,7 @@ async def create_api_key(
 
 
 @router.delete("/{key_id}", status_code=204)
-async def revoke_api_key(
+def revoke_api_key(
     key_id: int,
     current_user: User = Depends(get_current_user),
     _identity=Depends(require_interactive_identity),

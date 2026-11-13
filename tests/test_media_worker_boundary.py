@@ -43,12 +43,13 @@ async def test_media_preparation_owns_session_and_slow_query_in_one_worker(tmp_p
             query_busy.clear()
     event.listen(engine,'before_cursor_execute',delayed_query)
     monkeypatch.setattr(videos,'SessionLocal',factory)
-    monkeypatch.setattr(videos,'validate_share_token',lambda _:identifier)
+    monkeypatch.setattr(videos,'validate_share_token',lambda _, *, db:identifier)
     monkeypatch.setattr(get_settings(),'RECORDING_DIRECTORY',str(tmp_path))
     def fresh_db():
         with factory() as db: yield db
     application=FastAPI(); application.include_router(videos.router)
     application.dependency_overrides[dependencies.get_db]=fresh_db
+    application.dependency_overrides[dependencies.get_application_session_factory]=lambda: factory
     application.dependency_overrides[dependencies.get_current_identity]=lambda:dependencies.AuthIdentity(subject='synthetic',roles=frozenset(),scopes=frozenset(),auth_method='legacy-session',interactive=True)
     main=threading.get_ident(); ticks=[]; stop=False
     async def heartbeat():

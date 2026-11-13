@@ -1,36 +1,27 @@
-"""Stable model import surface.
+"""Stable model imports over feature-local SQLAlchemy mappings.
 
-Feature modules are introduced incrementally. Existing callers continue to use
-``from app.models import ...`` while extracted models also gain a focused module
-path. Importing this package registers the complete historical SQLAlchemy
-metadata exactly once.
+All features share the historical Base registry. Existing imports and table
+identities are preserved; defining models does not open resources.
 """
 
-from app.models._legacy import (
-    ActiveRecordingState,
-    ApiKey,
-    GlobalSettings,
+from app.models.categories import Category, FavoriteCategory
+from app.models.identity import ApiKey, RefreshToken, Session, User
+from app.models.notifications import (
     NotificationSettings,
     NotificationState,
-    ProxySettings,
     PushSubscription,
+)
+from app.models.proxies import ProxySettings
+from app.models.recordings import (
+    ActiveRecordingState,
     Recording,
     RecordingProcessingState,
     RecordingSettings,
-    RefreshToken,
-    Session,
-    Stream,
-    StreamEvent,
-    StreamMetadata,
-    Streamer,
     StreamerRecordingSettings,
-    SystemConfig,
-    SystemState,
-    TwitchUpstreamCoordinationState,
-    TwitchUpstreamLease,
-    User,
 )
-from app.models.categories import Category, FavoriteCategory
+from app.models.streams import Stream, StreamEvent, StreamMetadata, Streamer
+from app.models.system import GlobalSettings, SystemConfig, SystemState
+from app.models.upstream import TwitchUpstreamCoordinationState, TwitchUpstreamLease
 from app.models.video_catalog import VideoCatalogEntry
 from app.models.background_task import BackgroundTask, BackgroundTaskDependency
 

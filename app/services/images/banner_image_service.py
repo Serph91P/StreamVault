@@ -6,7 +6,11 @@ These are displayed on profile pages and can be used in NFO files for media serv
 """
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
+from threading import RLock
+from sqlalchemy.orm import Session
+from app.utils.async_db_utils import run_in_thread_pool
 from typing import Dict, Optional
 from cachetools import TTLCache
 from app.database import SessionLocal
@@ -20,38 +24,34 @@ logger = logging.getLogger("streamvault")
 class BannerImageService:
     """Handles streamer banner image management"""
 
-    def __init__(self, download_service: Optional[ImageDownloadService] = None):
+    def __init__(
+        self,
+        download_service: Optional[ImageDownloadService] = None,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+    ):
+        self._session_factory = session_factory
+        self._cache_lock = RLock()
         self.download_service = download_service or ImageDownloadService()
         # TTLCache for banner images
-        self._banner_cache: TTLCache = TTLCache(
+        self._banner_cache: TTLCache[int, str] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
-        self.banners_dir = None
+        self.banners_dir: Path | None = None
         self._cache_loaded = False
 
-    def _ensure_banners_dir(self):
-        """Ensure banners directory exists"""
+    def _ensure_banners_dir(self) -> None:
+        """Create only this owner's configured storage root."""
         if self.banners_dir is None:
-            try:
-                images_base_dir = self.download_service.get_images_base_dir()
-                self.banners_dir = images_base_dir / "banners"
-                self.banners_dir.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
-                logger.error(f"Failed to initialize banners directory: {e}")
-                fallback_dir = Path("/recordings/.media/banners")
-                try:
-                    self.banners_dir = fallback_dir
-                    self.banners_dir.mkdir(parents=True, exist_ok=True)
-                    logger.warning(
-                        f"Using fallback banners directory: {self.banners_dir}"
-                    )
-                except Exception as fallback_error:
-                    logger.error(
-                        f"Failed to create fallback directory: {fallback_error}"
-                    )
-                    raise
+            directory = self.download_service.get_images_base_dir() / "banners"
+            directory.mkdir(parents=True, exist_ok=True)
+            self.banners_dir = directory
 
-    def _load_existing_cache(self):
+    def _load_existing_cache(self) -> None:
+        with self._cache_lock:
+            self._load_existing_cache_locked()
+
+    def _load_existing_cache_locked(self) -> None:
         """Load existing banner images into cache"""
         if self._cache_loaded:
             return
@@ -93,12 +93,28 @@ class BannerImageService:
             logger.error(f"Error loading banner cache: {e}")
             self._cache_loaded = True  # Mark as loaded even on error to prevent retries
 
+    def _banner_path(self, streamer_id: int) -> Path:
+        self._ensure_banners_dir()
+        if self.banners_dir is None:
+            raise RuntimeError("Banner storage unavailable")
+        return self.banners_dir / f"banner_{streamer_id}.jpg"
+
+    def _persist_banner(self, streamer_id: int, source: str, cached_url: str) -> None:
+        with self._cache_lock:
+            self._banner_cache[streamer_id] = cached_url
+        with (self._session_factory or SessionLocal)() as db:
+            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+            if streamer:
+                streamer.offline_image_url = cached_url
+                streamer.original_offline_image_url = source
+                db.commit()
+
     async def download_banner_image(
         self, streamer_id: int, offline_image_url: str
     ) -> Optional[str]:
         """Download and cache a streamer's banner image"""
         try:
-            self._ensure_banners_dir()
+            file_path = await run_in_thread_pool(self._banner_path, streamer_id)
 
             if not offline_image_url:
                 logger.debug(f"No banner URL provided for streamer {streamer_id}")
@@ -106,30 +122,18 @@ class BannerImageService:
 
             # Generate filename (hash used for cache validation in future)
             _ = self.download_service.create_filename_hash(offline_image_url)
-            filename = f"banner_{streamer_id}.jpg"
-            file_path = self.banners_dir / filename
+            filename = file_path.name
 
             # Download image
             success = await self.download_service.download_image(
-                offline_image_url, file_path, f"banner for streamer {streamer_id}"
+                offline_image_url, file_path
             )
 
             if success:
                 cached_url = f"/data/images/banners/{filename}"
-                self._banner_cache[streamer_id] = cached_url
-
-                # Update database
-                with SessionLocal() as db:
-                    streamer = (
-                        db.query(Streamer).filter(Streamer.id == streamer_id).first()
-                    )
-                    if streamer:
-                        streamer.offline_image_url = cached_url
-                        streamer.original_offline_image_url = offline_image_url
-                        db.commit()
-                        logger.info(
-                            f"✅ Downloaded and cached banner for streamer {streamer_id}"
-                        )
+                await run_in_thread_pool(
+                    self._persist_banner, streamer_id, offline_image_url, cached_url
+                )
 
                 return cached_url
             else:
@@ -143,7 +147,8 @@ class BannerImageService:
     def get_cached_banner_image(self, streamer_id: int) -> Optional[str]:
         """Get cached banner image URL"""
         self._load_existing_cache()
-        return self._banner_cache.get(streamer_id)
+        with self._cache_lock:
+            return self._banner_cache.get(streamer_id)
 
     def get_banner_image_url(
         self, streamer_id: int, original_url: Optional[str] = None
@@ -167,48 +172,44 @@ class BannerImageService:
             logger.error(f"Error updating banner for streamer {streamer_id}: {e}")
             return False
 
-    async def sync_all_banner_images(self) -> Dict[str, int]:
-        """Sync all banner images from database"""
-        stats = {"downloaded": 0, "failed": 0, "skipped": 0, "total": 0}
-
-        try:
-            with SessionLocal() as db:
-                streamers = (
-                    db.query(Streamer)
-                    .filter(
-                        Streamer.original_offline_image_url.isnot(None),
-                        Streamer.original_offline_image_url != "",
-                    )
-                    .all()
+    def _banner_sources(self) -> list[tuple[int, str]]:
+        with (self._session_factory or SessionLocal)() as db:
+            return [
+                (row.id, row.original_offline_image_url)
+                for row in db.query(Streamer.id, Streamer.original_offline_image_url)
+                .filter(
+                    Streamer.original_offline_image_url.isnot(None),
+                    Streamer.original_offline_image_url != "",
                 )
+                .all()
+            ]
 
-                stats["total"] = len(streamers)
-                logger.info(f"Starting banner sync for {stats['total']} streamers")
-
-                for streamer in streamers:
-                    # Skip if already cached
-                    if self.get_cached_banner_image(streamer.id):
-                        stats["skipped"] += 1
-                        continue
-
-                    # Download banner
-                    cached_url = await self.download_banner_image(
-                        streamer.id, streamer.original_offline_image_url
-                    )
-
-                    if cached_url:
-                        stats["downloaded"] += 1
-                    else:
-                        stats["failed"] += 1
-
-                logger.info(f"Banner sync completed: {stats}")
-
-        except Exception as e:
-            logger.error(f"Error syncing banner images: {e}")
-
+    async def sync_all_banner_images(self) -> Dict[str, int]:
+        """Close the catalogue snapshot before any provider request."""
+        stats = {"downloaded": 0, "failed": 0, "skipped": 0, "total": 0}
+        try:
+            sources = await run_in_thread_pool(self._banner_sources)
+            stats["total"] = len(sources)
+            for streamer_id, source in sources:
+                cached = await run_in_thread_pool(
+                    self.get_cached_banner_image, streamer_id
+                )
+                if cached:
+                    stats["skipped"] += 1
+                    continue
+                if await self.download_banner_image(streamer_id, source):
+                    stats["downloaded"] += 1
+                else:
+                    stats["failed"] += 1
+        except Exception as error:
+            logger.error("Banner sync failed: %s", type(error).__name__)
+        logger.info("Banner sync completed: %s", stats)
         return stats
 
     async def cleanup_unused_banner_images(self) -> int:
+        return await run_in_thread_pool(self._cleanup_unused_banner_images)
+
+    def _cleanup_unused_banner_images(self) -> int:
         """Clean up banner images for streamers that no longer exist"""
         cleaned = 0
 
@@ -219,7 +220,7 @@ class BannerImageService:
                 return 0
 
             # Get all streamer IDs from database
-            with SessionLocal() as db:
+            with (self._session_factory or SessionLocal)() as db:
                 valid_ids = {s.id for s in db.query(Streamer.id).all()}
 
             # Check all banner files
@@ -236,8 +237,9 @@ class BannerImageService:
 
                         # Remove if streamer doesn't exist
                         if streamer_id not in valid_ids:
-                            banner_file.unlink()
-                            self._banner_cache.pop(streamer_id, None)
+                            with self._cache_lock:
+                                banner_file.unlink()
+                                self._banner_cache.pop(streamer_id, None)
                             cleaned += 1
                             logger.info(f"Removed orphaned banner: {banner_file.name}")
 
@@ -258,10 +260,11 @@ class BannerImageService:
         """Get banner cache statistics"""
         self._load_existing_cache()
 
-        stats = {
-            "cached_banners": len(self._banner_cache),
-            "failed_downloads": len(self.download_service._failed_downloads),
-        }
+        with self._cache_lock:
+            stats = {
+                "cached_banners": len(self._banner_cache),
+                "failed_downloads": len(self.download_service._failed_downloads),
+            }
 
         # Count files on disk
         try:

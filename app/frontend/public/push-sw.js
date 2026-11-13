@@ -1,6 +1,3 @@
-// Custom push and notification click handlers for the generated Workbox SW
-// This file is imported by the generated service worker via workbox.importScripts
-
 /* eslint-disable no-restricted-globals */
 
 self.addEventListener('push', (event) => {
@@ -11,7 +8,6 @@ self.addEventListener('push', (event) => {
     try {
       payload = event.data.json();
     } catch (_e) {
-      // Fallback for non-JSON payloads
       payload = { title: 'Notification', body: event.data.text() };
     }
 
@@ -24,13 +20,11 @@ self.addEventListener('push', (event) => {
       data: payload.data || {},
       actions: payload.actions || [],
       requireInteraction: !!payload.requireInteraction,
-      // Optional: vibrate pattern for attention
       vibrate: payload.vibrate || [100, 50, 100],
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
   } catch (err) {
-    // Swallow errors to avoid crashing the SW
     // eslint-disable-next-line no-console
     console.error('SW push handler error:', err);
   }
@@ -68,31 +62,23 @@ self.addEventListener('notificationclick', (event) => {
     const root = new URL('/', self.location.origin).href;
     const target = new URL(url, self.location.origin).href;
 
-    // Try focus an existing tab on same origin
     for (const client of allClients) {
       try {
         const clientUrl = client.url || root;
         if (clientUrl.startsWith(self.location.origin)) {
           await client.focus();
-          // If router-based SPA, navigate within the app
-          // Note: postMessage can be handled by app to navigate
           client.postMessage({ type: 'navigate', url: target });
           return;
         }
       } catch (_) { /* ignore */ }
     }
 
-    // Otherwise open a new window
     await clients.openWindow(target);
   };
 
   event.waitUntil((async () => {
     try {
-      if (action && action !== 'dismiss') {
-        await openOrFocus(targetUrl);
-      } else if (!action) {
-        await openOrFocus(targetUrl);
-      }
+      if (action !== 'dismiss') await openOrFocus(targetUrl);
     } finally {
       notification.close();
     }

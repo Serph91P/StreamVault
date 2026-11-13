@@ -17,10 +17,14 @@ from app.database import SessionLocal
 logger = logging.getLogger("streamvault")
 
 
-def run_migration():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def run_migration(target_engine: Engine | None = None):
     """Add description column to streamers table (idempotent)."""
 
-    with SessionLocal() as session:
+    with migration_session(target_engine, SessionLocal) as session:
         try:
             logger.info("🔄 Running Migration 036: Add Streamer Description")
 

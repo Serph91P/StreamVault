@@ -9,9 +9,13 @@ from sqlalchemy import text
 from app.database import SessionLocal
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def upgrade(target_engine: Engine | None = None):
     """Add notification preferences for recording events"""
-    with SessionLocal() as db:
+    with migration_session(target_engine, SessionLocal) as db:
         try:
             # Add new columns to global_settings
             db.execute(
@@ -26,7 +30,9 @@ def upgrade():
             )
 
             db.commit()
-            print("✅ Migration 028: Added system notification settings for recording events")
+            print(
+                "✅ Migration 028: Added system notification settings for recording events"
+            )
             print("   - notify_recording_started: DEFAULT false (too noisy)")
             print("   - notify_recording_failed: DEFAULT true (CRITICAL)")
             print("   - notify_recording_completed: DEFAULT false (too noisy)")
@@ -62,6 +68,8 @@ def downgrade():
 
 
 if __name__ == "__main__":
-    print("Running migration 028: Add system notification settings for recording events...")
+    print(
+        "Running migration 028: Add system notification settings for recording events..."
+    )
     upgrade()
     print("Migration 028 completed successfully!")

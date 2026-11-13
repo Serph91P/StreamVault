@@ -6,13 +6,18 @@ Handles external notifications via Apprise (Ntfy, Discord, Telegram, etc.)
 """
 
 import logging
+import os
 import re
-from typing import Optional
+from collections.abc import Callable
+from typing import Literal, Optional
 from urllib.parse import quote
 from apprise import Apprise, NotifyFormat
-from app.models import GlobalSettings, Streamer
+from app.models import GlobalSettings, Streamer, Stream
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
 from app.database import SessionLocal
 from .notification_formatter import NotificationFormatter
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -50,7 +55,9 @@ def optimize_profile_image_for_notification(url: str, target_size: int = 150) ->
     return optimized_url
 
 
-def get_local_cached_profile_url(streamer: "Streamer") -> Optional[str]:
+def get_local_cached_profile_url(
+    streamer: "Streamer", configuration: Settings | None = None
+) -> Optional[str]:
     """
     Get the public URL for a locally cached profile image.
 
@@ -91,7 +98,7 @@ def get_local_cached_profile_url(streamer: "Streamer") -> Optional[str]:
 
         # Construct the public URL using BASE_URL
         # The /data/images/profiles/{filename} endpoint serves these files without auth
-        base_url = settings.BASE_URL.rstrip("/")
+        base_url = (configuration or settings).BASE_URL.rstrip("/")
         public_url = f"{base_url}/data/images/profiles/{filename}"
 
         logger.debug(f"Using locally cached profile image: {public_url}")
@@ -105,81 +112,85 @@ def get_local_cached_profile_url(streamer: "Streamer") -> Optional[str]:
 class ExternalNotificationService:
     """Handles external notifications via Apprise"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+        settings: Settings | None = None,
+    ):
+        self._session_factory = session_factory
+        self._settings = settings
         self.apprise = Apprise()
-        self._notification_url = None
+        self._notification_url: str | None = None
         self.formatter = NotificationFormatter()
-        self._initialize_apprise()
 
-    def _initialize_apprise(self):
+    def _initialize_apprise(self) -> Apprise | None:
         """Initialize Apprise with the notification URL from settings"""
+        self._notification_url = None
         try:
-            with SessionLocal() as db:
+            with (self._session_factory or SessionLocal)() as db:
                 settings = db.query(GlobalSettings).first()
                 if not settings or not settings.notifications_enabled:
                     logger.debug("Notifications disabled")
-                    return
+                    return None
 
                 if not settings.notification_url:
                     logger.debug("No notification URL configured")
-                    return
+                    return None
 
                 url = settings.notification_url.strip()
                 self._notification_url = url
-                self.apprise = Apprise()
+                apprise = Apprise()
 
-                # Try to add the URL to Apprise
-                if self.apprise.add(url):
-                    logger.info(f"Apprise initialized successfully with URL: {url}")
+                # Keep each in-flight operation's transport local to its snapshot.
+                if apprise.add(url):
+                    self.apprise = apprise
+                    logger.info("Apprise initialized successfully")
+                    return apprise
                 else:
-                    logger.error(f"Failed to initialize Apprise with URL: {url}")
+                    logger.error("Failed to initialize Apprise URL")
                     self._notification_url = None
 
         except Exception as e:
-            logger.error(f"Error initializing Apprise: {e}")
+            logger.error("Apprise initialization failed (%s)", type(e).__name__)
             self._notification_url = None
+        return None
 
     async def send_notification(
         self, message: str, title: str = "StreamVault Notification"
     ) -> bool:
         """Send a basic notification"""
-        with SessionLocal() as db:
-            settings = db.query(GlobalSettings).first()
-            if not settings or not settings.notifications_enabled:
-                logger.debug("Notifications are disabled, skipping")
-                return False
-            if not settings.notification_url:
-                logger.debug("No notification URLs configured, skipping")
-                return False
-
-        # Refresh URLs before sending
-        self._initialize_apprise()
-
-        logger.debug(f"Preparing to send notification: {message[:50]}...")
         try:
-            result = await self.apprise.async_notify(body=message, title=title)
+            apprise = await run_in_thread_pool(self._initialize_apprise)
+            if apprise is None:
+                return False
+            result = bool(
+                await run_in_thread_pool(apprise.notify, body=message, title=title)
+            )
             if result:
                 logger.info("Notification sent successfully")
             else:
                 logger.error("Failed to send notification - Apprise returned False")
             return result
         except Exception as e:
-            logger.error(f"Error sending notification: {str(e)}", exc_info=True)
+            logger.error("Notification delivery failed (%s)", type(e).__name__)
             return False
 
-    async def send_stream_notification(
-        self, streamer_name: str, event_type: str, details: dict
-    ) -> bool:
+    def _prepare_stream_notification(
+        self, streamer_name: str, event_type: str, details: dict[str, object]
+    ) -> tuple[Apprise, str, str] | Literal[False]:
         """Send external notification via Apprise for stream events"""
         try:
             logger.debug(
                 f"Starting send_stream_notification for {streamer_name}, event type: {event_type}"
             )
 
-            with SessionLocal() as db:
+            with (self._session_factory or SessionLocal)() as db:
                 settings = db.query(GlobalSettings).first()
                 if not settings or not settings.notifications_enabled:
                     logger.debug("Global notifications disabled")
+                    return False
+                if not settings.notification_url:
                     return False
 
                 # Case insensitive search for streamer
@@ -216,7 +227,9 @@ class ExternalNotificationService:
 
                 # Priority 1: Use locally cached profile image if available
                 # This serves the image from our server via /data/images/profiles/{filename}
-                local_cached_url = get_local_cached_profile_url(streamer)
+                local_cached_url = get_local_cached_profile_url(
+                    streamer, self._settings
+                )
                 if local_cached_url:
                     profile_image_url = local_cached_url
                     logger.debug(
@@ -273,9 +286,7 @@ class ExternalNotificationService:
                 # Create new Apprise instance
                 apprise = Apprise()
                 if not apprise.add(notification_url):
-                    logger.error(
-                        f"Failed to initialize notification URL: {notification_url}"
-                    )
+                    logger.error("Failed to initialize notification URL")
                     return False
 
                 # Format message using formatter
@@ -283,40 +294,57 @@ class ExternalNotificationService:
                     streamer_name=streamer_name, event_type=event_type, details=details
                 )
 
-                # Send notification
-                logger.debug(
-                    f"Sending notification with title: {title}, message: {message[:50]}..."
-                )
-                result = await apprise.async_notify(
-                    title=title, body=message, body_format=NotifyFormat.TEXT
-                )
-
-                if not result:
-                    logger.error("Apprise notification failed to send")
-
-                logger.debug(f"Notification result: {result}")
-                return result
+                return apprise, title, message
 
         except Exception as e:
-            logger.error(f"Error sending notification: {e}", exc_info=True)
+            logger.error("Notification preparation failed (%s)", type(e).__name__)
+            return False
+
+    async def send_stream_notification(
+        self, streamer_name: str, event_type: str, details: dict[str, object]
+    ) -> bool:
+        return await self._send_prepared_notification(
+            self._prepare_stream_notification, streamer_name, event_type, details
+        )
+
+    async def _send_prepared_notification(
+        self,
+        prepare: Callable[
+            [str, str, dict[str, object]], tuple[Apprise, str, str] | Literal[False]
+        ],
+        streamer_name: str,
+        event_type: str,
+        details: dict[str, object],
+    ) -> bool:
+        try:
+            prepared = await run_in_thread_pool(
+                prepare, streamer_name, event_type, details
+            )
+            if prepared is False:
+                return False
+            apprise, title, message = prepared
+            return bool(
+                await run_in_thread_pool(
+                    apprise.notify,
+                    title=title,
+                    body=message,
+                    body_format=NotifyFormat.TEXT,
+                )
+            )
+        except Exception as exc:
+            logger.error("Notification delivery failed (%s)", type(exc).__name__)
             return False
 
     async def send_test_notification(self) -> bool:
         """Send a test notification using current settings"""
         try:
-            if not self._notification_url:
+            apprise = await run_in_thread_pool(self._initialize_apprise)
+            if apprise is None:
                 logger.error("No notification URL configured")
                 return False
 
-            # Create new Apprise instance for test
-            apprise = Apprise()
-            if not apprise.add(self._notification_url):
-                logger.error(f"Invalid notification URL: {self._notification_url}")
-                return False
-
-            logger.debug(f"Sending test notification via: {self._notification_url}")
-
-            result = await apprise.async_notify(
+            result = await run_in_thread_pool(
+                apprise.notify,
                 title="🔔 StreamVault Test Notification",
                 body=(
                     "This is a test notification from StreamVault.\n\n"
@@ -332,7 +360,7 @@ class ExternalNotificationService:
             return False
 
         except Exception as e:
-            logger.error(f"Error sending test notification: {e}")
+            logger.error("Test notification failed (%s)", type(e).__name__)
             return False
 
     def _get_service_specific_url(
@@ -350,7 +378,7 @@ class ExternalNotificationService:
         Local file paths (/recordings/.media/...) will NOT work.
         """
 
-        logger.debug(f"Configuring service-specific URL for {base_url}")
+        logger.debug("Configuring service-specific notification URL")
 
         # Get appropriate title based on event type
         title_map = self.formatter.get_event_title_map()
@@ -409,7 +437,7 @@ class ExternalNotificationService:
                 )
 
             final_url = f"{base_url}?{'&'.join(params)}"
-            logger.debug(f"Generated ntfy URL: {final_url}")
+            logger.debug("Generated ntfy notification URL")
             return final_url
 
         elif "discord" in base_url:
@@ -433,7 +461,7 @@ class ExternalNotificationService:
                 )
 
             final_url = f"{base_url}?{'&'.join(params)}"
-            logger.debug(f"Generated discord URL: {final_url}")
+            logger.debug("Generated discord notification URL")
             return final_url
 
         elif "telegram" in base_url or "tgram" in base_url:
@@ -450,7 +478,7 @@ class ExternalNotificationService:
                 )
 
             final_url = f"{base_url}?{'&'.join(params)}" if params else base_url
-            logger.debug(f"Generated telegram URL: {final_url}")
+            logger.debug("Generated telegram notification URL")
             return final_url
 
         elif "matrix" in base_url:
@@ -468,7 +496,7 @@ class ExternalNotificationService:
                 params.append("thumbnail=false")
 
             final_url = f"{base_url}?{'&'.join(params)}"
-            logger.debug(f"Generated matrix URL: {final_url}")
+            logger.debug("Generated matrix notification URL")
             return final_url
 
         elif "slack" in base_url:
@@ -485,7 +513,7 @@ class ExternalNotificationService:
                 params.append("image=no")
 
             final_url = f"{base_url}?{'&'.join(params)}"
-            logger.debug(f"Generated slack URL: {final_url}")
+            logger.debug("Generated slack notification URL")
             return final_url
 
         elif "pover" in base_url:
@@ -505,7 +533,7 @@ class ExternalNotificationService:
                 )
 
             final_url = f"{base_url}?{'&'.join(params)}"
-            logger.debug(f"Generated pushover URL: {final_url}")
+            logger.debug("Generated pushover notification URL")
             return final_url
 
         elif "gotify" in base_url:
@@ -521,7 +549,7 @@ class ExternalNotificationService:
                 )
 
             final_url = f"{base_url}?{'&'.join(params)}"
-            logger.debug(f"Generated gotify URL: {final_url}")
+            logger.debug("Generated gotify notification URL")
             return final_url
 
         elif "pbul" in base_url or "pushbullet" in base_url:
@@ -536,7 +564,7 @@ class ExternalNotificationService:
                 )
 
             final_url = f"{base_url}?{'&'.join(params)}"
-            logger.debug(f"Generated pushbullet URL: {final_url}")
+            logger.debug("Generated pushbullet notification URL")
             return final_url
 
         elif "msteams" in base_url or "teams" in base_url:
@@ -549,7 +577,7 @@ class ExternalNotificationService:
                 logger.debug(f"Teams notification using profile image: {profile_image}")
 
             final_url = f"{base_url}?{'&'.join(params)}" if params else base_url
-            logger.debug(f"Generated teams URL: {final_url}")
+            logger.debug("Generated teams notification URL")
             return final_url
 
         # Default case - try to add avatar_url/image parameter for unknown services
@@ -561,18 +589,79 @@ class ExternalNotificationService:
                 f"{base_url}{separator}avatar_url={encoded_avatar_url}&image=yes"
             )
             logger.debug(
-                f"Using default avatar_url/image for unknown service: {final_url}"
+                "Using default avatar_url/image for unknown notification service"
             )
             return final_url
 
         logger.debug(
-            f"No specific configuration for this service, using base URL: {base_url}"
+            "No specific configuration for this notification service, using base URL"
         )
         return base_url
 
-    async def send_recording_notification(
-        self, streamer_name: str, event_type: str, details: dict = None
+    def _prepare_recording_completion(
+        self,
+        stream_id: int,
+        output_path: str | None,
+        duration_seconds: int | None,
+    ) -> tuple[str, dict[str, object]] | None:
+        from sqlalchemy.orm import joinedload
+        from app.models import StreamerRecordingSettings
+
+        with (self._session_factory or SessionLocal)() as db:
+            stream = (
+                db.query(Stream)
+                .options(joinedload(Stream.streamer))
+                .filter(Stream.id == stream_id)
+                .first()
+            )
+            if stream is None or stream.streamer is None:
+                return None
+            path = output_path if output_path is not None else stream.recording_path
+            if not path:
+                return None
+            policy = (
+                db.query(StreamerRecordingSettings)
+                .filter(StreamerRecordingSettings.streamer_id == stream.streamer_id)
+                .first()
+            )
+            quality = (
+                policy.quality if policy is not None and policy.quality else "best"
+            )
+            if duration_seconds is None:
+                duration_seconds = (
+                    int((stream.ended_at - stream.started_at).total_seconds())
+                    if stream.started_at is not None and stream.ended_at is not None
+                    else 0
+                )
+            size = os.path.getsize(path) if os.path.exists(path) else 0
+            return stream.streamer.username, {
+                "duration_minutes": duration_seconds // 60,
+                "file_size_mb": f"{size / (1024 * 1024):.2f}",
+                "quality": quality,
+            }
+
+    async def send_recording_completion(
+        self,
+        stream_id: int,
+        *,
+        output_path: str | None = None,
+        duration_seconds: int | None = None,
     ) -> bool:
+        prepared = await run_in_thread_pool(
+            self._prepare_recording_completion, stream_id, output_path, duration_seconds
+        )
+        if prepared is None:
+            return False
+        streamer_name, details = prepared
+        return await self.send_recording_notification(
+            streamer_name=streamer_name,
+            event_type="recording_completed",
+            details=details,
+        )
+
+    def _prepare_recording_notification(
+        self, streamer_name: str, event_type: str, details: dict[str, object]
+    ) -> tuple[Apprise, str, str] | Literal[False]:
         """
         Send notification for recording events (started/failed/completed)
 
@@ -586,10 +675,7 @@ class ExternalNotificationService:
         """
         try:
             # Check if this specific event type is enabled
-            from app.database import SessionLocal
-            from app.models import GlobalSettings, Streamer
-
-            with SessionLocal() as db:
+            with (self._session_factory or SessionLocal)() as db:
                 settings = db.query(GlobalSettings).first()
                 if not settings:
                     logger.debug("No global settings found")
@@ -648,7 +734,9 @@ class ExternalNotificationService:
                 )
 
                 # Priority 1: Use locally cached profile image if available
-                local_cached_url = get_local_cached_profile_url(streamer)
+                local_cached_url = get_local_cached_profile_url(
+                    streamer, self._settings
+                )
                 if local_cached_url:
                     profile_image_url = local_cached_url
                     logger.debug(
@@ -681,11 +769,9 @@ class ExternalNotificationService:
                 )
 
                 # Create Apprise instance
-                from apprise import Apprise, NotifyFormat
-
                 apprise = Apprise()
                 if not apprise.add(notification_url):
-                    logger.error(f"Failed to add notification URL: {notification_url}")
+                    logger.error("Failed to add notification URL")
                     return False
 
                 # Format message
@@ -695,25 +781,23 @@ class ExternalNotificationService:
                     details=details or {},
                 )
 
-                # Send notification
-                logger.debug(
-                    f"Sending recording notification: {event_type} for {streamer_name}"
-                )
-                result = await apprise.async_notify(
-                    title=title, body=message, body_format=NotifyFormat.TEXT
-                )
-
-                if result:
-                    logger.info(
-                        f"✅ Recording notification sent: {event_type} - {streamer_name}"
-                    )
-                else:
-                    logger.error(
-                        f"❌ Failed to send recording notification: {event_type}"
-                    )
-
-                return result
+                return apprise, title, message
 
         except Exception as e:
-            logger.error(f"Error sending recording notification: {e}", exc_info=True)
+            logger.error(
+                "Recording notification preparation failed (%s)", type(e).__name__
+            )
             return False
+
+    async def send_recording_notification(
+        self,
+        streamer_name: str,
+        event_type: str,
+        details: dict[str, object] | None = None,
+    ) -> bool:
+        return await self._send_prepared_notification(
+            self._prepare_recording_notification,
+            streamer_name,
+            event_type,
+            details or {},
+        )

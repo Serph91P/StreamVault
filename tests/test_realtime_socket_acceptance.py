@@ -7,15 +7,16 @@ workers, media jobs, production configuration, or mocked transport is involved.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
-import importlib
+
 import secrets
 import socket
 import threading
 import time
-from types import SimpleNamespace
+
 from unittest.mock import AsyncMock
 
 import httpx
@@ -23,42 +24,24 @@ import pytest
 import uvicorn
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosedError
-from fastapi import FastAPI
+from starlette.requests import HTTPConnection
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from pydantic import SecretStr
 
 
 def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monkeypatch):
-    import app.database as database
     import app.dependencies as dependencies
-    import app.middleware.auth as middleware
-    import app.events.handler_registry as handlers
     from app.config.settings import settings
     from app.database import Base
-    from app.models import (
-        User,
-        Session,
-        RefreshToken,
-        SystemState,
-        NotificationState,
-        GlobalSettings,
-        NotificationSettings,
-        Streamer,
-        Stream,
-        StreamEvent,
-        Recording,
+    from app.main import create_app
+    from app.models import User, SystemState, GlobalSettings, Streamer
+    from app.lifespan import (
+        _close_application_twitch,
+        _close_application_images,
+        _close_application_proxy,
     )
-    from app.routes import auth, notifications, realtime, settings as settings_routes
-
-    from app.services.notifications import (
-        external_notification_service,
-        push_notification_service,
-    )
-
-    communication = importlib.import_module(
-        "app.services.communication.websocket_manager"
-    )
+    from app.utils.async_db_utils import run_in_thread_pool
     from app.services.core.auth_service import AuthService
     from app.services.queues.task_progress_tracker import (
         QueueTask,
@@ -71,47 +54,27 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
         f"sqlite:///{tmp_path / 'auth.sqlite'}",
         connect_args={"check_same_thread": False},
     )
-    tables = [
-        model.__table__
-        for model in (
-            User,
-            Session,
-            RefreshToken,
-            SystemState,
-            NotificationState,
-            GlobalSettings,
-            NotificationSettings,
-            Streamer,
-            Stream,
-            StreamEvent,
-            Recording,
-        )
-    ]
-    Base.metadata.create_all(engine, tables=tables)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("BEGIN")
+        Base.metadata.create_all(connection)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
-    monkeypatch.setattr(
-        settings, "auth_jwt_secret", SecretStr(secrets.token_urlsafe(48))
+    runtime_settings = settings.model_copy(
+        update={
+            "auth_jwt_secret": SecretStr(secrets.token_urlsafe(48)),
+            "USE_SECURE_COOKIES": False,
+            "database_url": SecretStr(f"sqlite:///{tmp_path / 'auth.sqlite'}"),
+            "RECORDING_DIRECTORY": str(tmp_path / "recordings"),
+        }
     )
-    monkeypatch.setattr(settings, "USE_SECURE_COOKIES", False)
-    monkeypatch.setattr(middleware, "SessionLocal", factory)
-    monkeypatch.setattr(database, "SessionLocal", factory)
-    monkeypatch.setattr(dependencies, "SessionLocal", factory)
-    monkeypatch.setattr(external_notification_service, "SessionLocal", factory)
-    monkeypatch.setattr(push_notification_service, "SessionLocal", factory)
-    monkeypatch.setattr(handlers, "SessionLocal", factory)
     recorder = AsyncMock()
-    monkeypatch.setattr(handlers, "get_recording_manager", lambda: recorder)
-    monkeypatch.setattr(
-        handlers,
-        "ConfigManager",
-        lambda: SimpleNamespace(is_recording_enabled=lambda streamer_id: False),
-    )
     password = secrets.token_urlsafe(24)
     with factory() as db:
         db.add(
             User(
                 username="realtime-admin",
-                password=AuthService(db).hash_password(password),
+                password=AuthService(db, settings=runtime_settings).hash_password(
+                    password
+                ),
                 is_admin=True,
                 is_active=True,
             )
@@ -131,17 +94,18 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
         db.commit()
 
     @contextmanager
-    def backend(manager):
-        # These are the same imports a fresh backend process resolves.
-        monkeypatch.setattr(communication, "websocket_manager", manager)
-        monkeypatch.setattr(dependencies, "websocket_manager", manager)
-        monkeypatch.setattr(realtime, "websocket_manager", manager)
-        app = FastAPI()
-        app.include_router(auth.router, prefix="/auth")
-        app.include_router(realtime.router)
-        app.include_router(settings_routes.router)
-        app.include_router(notifications.router)
-        app.add_middleware(middleware.AuthMiddleware)
+    def backend():
+        app = create_app(settings=runtime_settings)
+        app.dependency_overrides[dependencies.get_recording_manager] = lambda: recorder
+        manager = app.state.websocket_manager
+        assert (
+            dependencies.get_websocket_manager(
+                HTTPConnection({"type": "http", "app": app})
+            )
+            is manager
+        )
+        manager._event_log_size = 3
+        manager._event_log = deque(maxlen=3)
         loop = asyncio.new_event_loop()
         sock = socket.socket()
         sock.bind(("127.0.0.1", 0))
@@ -167,16 +131,23 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
                     asyncio.run_coroutine_threadsafe(coro, loop)
                 )
 
-            yield f"http://127.0.0.1:{port}", on_backend
+            yield f"http://127.0.0.1:{port}", on_backend, app
         finally:
             if server.started:
-                asyncio.run_coroutine_threadsafe(manager.close_all(), loop).result(
-                    timeout=5
-                )
+
+                async def close_app():
+                    await manager.close_all()
+                    await _close_application_images(app)
+                    await _close_application_twitch(app)
+                    await _close_application_proxy(app)
+                    await app.state.background_queue_service.queue_manager.progress_tracker.cleanup_background_tasks()
+
+                asyncio.run_coroutine_threadsafe(close_app(), loop).result(timeout=5)
             server.should_exit = True
             thread.join(timeout=10)
             sock.close()
             assert not thread.is_alive(), "loopback server did not stop"
+            loop.run_until_complete(app.state.database_lifecycle.adispose())
             loop.close()
 
     async def receive(ws, event_type):
@@ -186,7 +157,8 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
                 if event["type"] == event_type:
                     return event
 
-    async def exercise(origin, on_backend):
+    async def exercise(origin, on_backend, app):
+        manager = app.state.websocket_manager
         async with httpx.AsyncClient(
             base_url=origin, headers={"accept": "application/json", "origin": origin}
         ) as client:
@@ -218,9 +190,9 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
                     notification["data"]["test_id"]
                     == response.json()["notification_id"]
                 )
-                # Formerly disconnected Recording/Postprocessing import path.
+                # Producers and real HTTP/WS adapters share this app's manager.
                 await on_backend(
-                    communication.websocket_manager.send_notification(
+                    manager.send_notification(
                         {"type": "recording.started", "data": {"recording_id": 933}}
                     )
                 )
@@ -228,8 +200,10 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
                 assert recording["event_id"] > notification["event_id"]
 
                 # Real registered handler -> dispatcher -> authenticated socket, alerts off.
-                registry = handlers.EventHandlerRegistry(
-                    communication.websocket_manager
+                registry = await on_backend(
+                    run_in_thread_pool(
+                        dependencies._get_application_event_registry, app
+                    )
                 )
                 registry.get_user_info = AsyncMock(return_value=None)
                 previous_id = recording["event_id"]
@@ -268,9 +242,7 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
                             assert streamer.category_name == "New category"
                 recorder.start_recording.assert_not_awaited()
 
-                tracker = TaskProgressTracker(
-                    websocket_manager=communication.websocket_manager
-                )
+                tracker = TaskProgressTracker(websocket_manager=manager)
                 task = QueueTask(
                     id="synthetic-933",
                     task_type="acceptance",
@@ -307,7 +279,7 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
 
             # Event produced with no connected browser, then retrieved by real HTTP replay.
             await on_backend(
-                communication.websocket_manager.send_notification(
+                manager.send_notification(
                     {"type": "test", "data": {"test_id": "offline"}}
                 )
             )
@@ -329,7 +301,7 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
                 # Force retention overflow using only synthetic local events.
                 for index in range(4):
                     await on_backend(
-                        communication.websocket_manager.send_notification(
+                        manager.send_notification(
                             {"type": "test", "data": {"test_id": f"retention-{index}"}}
                         )
                     )
@@ -339,21 +311,15 @@ def test_authenticated_socket_producers_queue_replay_and_restart(tmp_path, monke
                 assert replay["gap"] is True
                 return generation, replay["latest_event_id"], cookie
 
-    # Use the real canonical singleton first, not an independently injected producer.
-    manager = communication.websocket_manager
-    assert manager is dependencies.websocket_manager is realtime.websocket_manager
-    monkeypatch.setattr(manager, "_event_log_size", 3)
-    monkeypatch.setattr(manager, "_next_event_id", 0)
-    from collections import deque
-
-    monkeypatch.setattr(manager, "_event_log", deque(maxlen=3))
-    with backend(manager) as (origin, on_backend):
-        generation, cursor, cookie = asyncio.run(exercise(origin, on_backend))
+    with backend() as (origin, on_backend, app):
+        manager = app.state.websocket_manager
+        generation, cursor, cookie = asyncio.run(exercise(origin, on_backend, app))
 
     # Stop the actual listening server and start a fresh backend/manager against
     # the same synthetic auth DB, as on a process restart (no production lifespan).
-    fresh = communication.ConnectionManager(event_log_size=3)
-    with backend(fresh) as (origin, on_backend):
+    with backend() as (origin, on_backend, app):
+        fresh = app.state.websocket_manager
+        assert fresh is not manager
 
         async def after_restart():
             await on_backend(

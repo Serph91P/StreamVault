@@ -3,6 +3,7 @@
 Migration 015: Add default settings data
 Inserts default recording settings to ensure system works correctly
 """
+
 import os
 import sys
 import logging
@@ -17,21 +18,26 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Add default settings data to ensure system functionality"""
     session = None
     try:
         # Validate DATABASE_URL
-        if not settings.DATABASE_URL:
+        if target_engine is None and not settings.DATABASE_URL:
             raise ValueError("DATABASE_URL not configured")
 
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL, echo=False)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL, echo=False)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 
@@ -40,13 +46,19 @@ def run_migration():
         # 1. Ensure recording_settings has a default row
         try:
             # Check if recording_settings is empty
-            result = session.execute(text("SELECT COUNT(*) FROM recording_settings")).scalar()
+            result = session.execute(
+                text("SELECT COUNT(*) FROM recording_settings")
+            ).scalar()
 
             if result == 0:
                 logger.info("🔄 Inserting default recording settings...")
 
                 # Create default cleanup policy as proper dictionary
-                default_cleanup_policy = {"enabled": False, "days_to_keep": 30, "max_size_gb": 100}
+                default_cleanup_policy = {
+                    "enabled": False,
+                    "days_to_keep": 30,
+                    "max_size_gb": 100,
+                }
 
                 session.execute(
                     text(
@@ -90,7 +102,9 @@ def run_migration():
                 session.commit()
                 logger.info("✅ Added default recording settings")
             else:
-                logger.info("Recording settings already exist, skipping default insertion")
+                logger.info(
+                    "Recording settings already exist, skipping default insertion"
+                )
 
         except (DatabaseError, OperationalError) as e:
             session.rollback()
@@ -102,7 +116,9 @@ def run_migration():
         # 2. Ensure global_settings has a default row
         try:
             # Check if global_settings is empty
-            result = session.execute(text("SELECT COUNT(*) FROM global_settings")).scalar()
+            result = session.execute(
+                text("SELECT COUNT(*) FROM global_settings")
+            ).scalar()
 
             if result == 0:
                 logger.info("🔄 Inserting default global settings...")
@@ -156,7 +172,9 @@ def run_migration():
 
         # 3. Categories are automatically created when streamers play them
         # No need to pre-populate categories here
-        logger.info("ℹ️ Categories will be automatically created when streamers play them")
+        logger.info(
+            "ℹ️ Categories will be automatically created when streamers play them"
+        )
 
         logger.info("🎉 Migration 015 completed successfully")
 

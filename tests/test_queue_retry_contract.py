@@ -1,4 +1,4 @@
-"""#954 original d5b5bdce: isolated/shared queues obey one retry contract."""
+"""#954: the production isolated and shared queues obey one retry contract."""
 
 import asyncio
 import time
@@ -22,9 +22,7 @@ async def terminal(manager, task_id):
 @pytest.mark.parametrize("isolated", [True, False])
 @pytest.mark.parametrize("permanent", [True, False])
 @pytest.mark.parametrize("budget", [1, 2])
-async def test_exception_retry_budget_and_dependency_outcome(
-    isolated, permanent, budget
-):
+async def test_exception_retry_budget_and_dependency_outcome(isolated, permanent, budget):
     manager = TaskQueueManager(max_workers=1, enable_streamer_isolation=isolated)
     attempts = []
     dependent_executed = asyncio.Event()

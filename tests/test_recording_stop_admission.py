@@ -16,6 +16,7 @@ from test_recording_completion_notifications import (
     CompletedChild,
     completion_state,
     make_manager,
+    make_orchestrator,
 )
 
 
@@ -285,7 +286,8 @@ async def test_callback_admission_failure_preserves_final_path_for_restart_retry
         db.add(recording)
         db.commit()
         identifier = recording.id
-        orchestrator = RecordingOrchestrator(db)
+        db.close()
+        orchestrator = make_orchestrator(state)
 
         async def unavailable(*args):
             raise OSError("synthetic admission failure")
@@ -311,7 +313,8 @@ async def test_callback_admission_failure_preserves_final_path_for_restart_retry
         persisted = db.get(Recording, identifier)
         assert persisted.path == str(final)
         assert persisted.status == "completed"
-        recovered = RecordingOrchestrator(db)
+        db.close()
+        recovered = make_orchestrator(state)
         admitted = []
 
         async def accepted(*args):

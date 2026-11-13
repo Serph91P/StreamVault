@@ -1,5 +1,5 @@
 import asyncio
-import importlib
+
 import inspect
 from types import SimpleNamespace
 
@@ -148,21 +148,50 @@ async def test_manager_serializes_manual_recording_commands() -> None:
 
 
 @pytest.mark.asyncio
-async def test_persisted_state_is_keyed_by_recording_id(monkeypatch) -> None:
-    state_module = importlib.import_module(
-        "app.services.recording.recording_state_manager"
-    )
+async def test_persisted_state_is_keyed_by_recording_id(tmp_path) -> None:
+    from datetime import datetime, timezone
+    import os
 
-    expected = SimpleNamespace(recording_id=7, stream_id=70)
+    from app.database import Base, DatabaseLifecycle
+    from app.models import Recording, Stream, Streamer
+    from app.services.core.state_persistence_service import StatePersistenceService
+    from app.services.recording.config_manager import ConfigManager
+    from app.services.recording.recording_state_manager import RecordingStateManager
 
-    class Persistence:
-        async def load_state(self):
-            return [expected]
-
-    monkeypatch.setattr(state_module, "state_persistence_service", Persistence())
-    state_manager = state_module.RecordingStateManager()
-
-    assert await state_manager.load_state_from_persistence() == {7: expected}
+    database = DatabaseLifecycle(f"sqlite:///{tmp_path / 'state-keys.db'}")
+    try:
+        with database.sync_engine.begin() as connection:
+            connection.exec_driver_sql("BEGIN")
+            Base.metadata.create_all(connection)
+        with database.sync_session_factory() as session:
+            session.add(Streamer(id=1, username="owner", twitch_id="1"))
+            session.flush()
+            session.add(Stream(id=70, streamer_id=1))
+            session.flush()
+            session.add(
+                Recording(
+                    id=7,
+                    stream_id=70,
+                    status="recording",
+                    start_time=datetime.now(timezone.utc),
+                )
+            )
+            session.commit()
+        persistence = StatePersistenceService(
+            session_factory=database.sync_session_factory
+        )
+        await persistence.save_active_recording(
+            70, 7, os.getpid(), "probe", "owner", datetime.now(timezone.utc), "owned.ts"
+        )
+        state_manager = RecordingStateManager.for_application(
+            ConfigManager(session_factory=database.sync_session_factory), persistence
+        )
+        assert await state_manager.load_state_from_persistence() == {
+            7: {"file_path": "owned.ts", "status": "active"}
+        }
+        assert database.sync_engine.pool.checkedout() == 0
+    finally:
+        await database.adispose()
 
 
 @pytest.mark.asyncio
@@ -204,5 +233,5 @@ def test_lifespan_owns_the_recording_manager_before_background_services() -> Non
     )
     assert "app.state.recording_manager" in source
     assert source.index("recording_manager.shutdown") < source.index(
-        "database_lifecycle.adispose"
+        "runtime_database.adispose"
     )

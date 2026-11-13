@@ -207,9 +207,14 @@ def test_http_failures_preserve_status_without_sensitive_logs(
 def push_db(receiver):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
+    from sqlalchemy.pool import StaticPool
     from app.models import PushSubscription, GlobalSettings
 
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_engine(
+        "sqlite:///:memory:",
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
     PushSubscription.__table__.create(engine)
     GlobalSettings.__table__.create(engine)
     with Session(engine) as db:
@@ -249,19 +254,21 @@ async def test_test_route_counts_and_persisted_expiry(
     from types import SimpleNamespace
 
     route = import_module("app.routes.push")
-    monkeypatch.setattr(
-        route,
-        "settings",
-        SimpleNamespace(
-            has_push_notifications_configured=True,
-            VAPID_PRIVATE_KEY=identity[0],
-            VAPID_CLAIMS_SUB="mailto:push@example.com",
-        ),
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                settings=SimpleNamespace(
+                    has_push_notifications_configured=True,
+                    VAPID_PRIVATE_KEY=identity[0],
+                    VAPID_CLAIMS_SUB="mailto:push@example.com",
+                )
+            )
+        )
     )
     receiver["status"] = status
     caplog.set_level(logging.DEBUG, logger="streamvault")
     db, sub = push_db
-    result = await route.send_test_notification(db)
+    result = route.send_test_notification(request, db)
     assert result["sent_count"] == (1 if status == 201 else 0)
     assert result["failed_count"] == (0 if status == 201 else 1)
     db.expire_all()
@@ -274,11 +281,11 @@ async def test_event_pipeline_only_deactivates_confirmed_expired(
     enhanced, receiver, push_db, monkeypatch, caplog, status
 ):
     from importlib import import_module
-    from contextlib import nullcontext
+    from sqlalchemy.orm import sessionmaker
 
     module = import_module("app.services.notifications.push_notification_service")
     db, sub = push_db
-    monkeypatch.setattr(module, "SessionLocal", lambda: nullcontext(db))
+    monkeypatch.setattr(module, "SessionLocal", sessionmaker(bind=db.get_bind()))
     pipeline = module.PushNotificationService()
     pipeline.push_service = enhanced
 

@@ -10,13 +10,19 @@ automatic health checks and failover to the best available proxy.
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, field_validator
 
-from app.database import SessionLocal
+
 from app.models import ProxySettings, RecordingSettings
-from app.dependencies import get_current_user
-from app.services.proxy.proxy_health_service import proxy_health_service
+from app.dependencies import (
+    get_current_user,
+    get_application_session_factory,
+    get_proxy_health_service,
+)
+from app.utils.async_db_utils import run_in_thread_pool
+from app.utils.proxy_encryption import get_proxy_encryption
+from app.services.proxy.proxy_catalog import ProxySnapshot
 from app.utils.proxy_url_helper import (
     encode_proxy_url,
 )  # URL encoder for special chars in passwords
@@ -78,14 +84,17 @@ class ProxyListResponse(BaseModel):
 
 
 @router.get("/list")
-async def list_proxies(user=Depends(get_current_user)):
+def list_proxies(
+    user=Depends(get_current_user),
+    session_factory=Depends(get_application_session_factory),
+):
     """
     List all configured proxies with health status and system configuration.
 
     Returns:
         List of all proxies with masked passwords + system config from recording_settings
     """
-    with SessionLocal() as db:
+    with session_factory() as db:
         # Get proxies
         proxies = (
             db.query(ProxySettings)
@@ -94,6 +103,8 @@ async def list_proxies(user=Depends(get_current_user)):
         )
 
         # Get system config from recording_settings
+        if proxies:
+            get_proxy_encryption(db)
         recording_settings = db.query(RecordingSettings).first()
 
         # Build system config with defaults if recording_settings doesn't exist
@@ -128,7 +139,13 @@ async def list_proxies(user=Depends(get_current_user)):
 
 
 @router.post("/add")
-async def add_proxy(request: ProxyAddRequest, user=Depends(get_current_user)):
+def add_proxy(
+    request: ProxyAddRequest,
+    background_tasks: BackgroundTasks,
+    user=Depends(get_current_user),
+    session_factory=Depends(get_application_session_factory),
+    service=Depends(get_proxy_health_service),
+):
     """
     Add a new proxy configuration.
 
@@ -138,18 +155,19 @@ async def add_proxy(request: ProxyAddRequest, user=Depends(get_current_user)):
     Returns:
         Success message with proxy_id
     """
-    with SessionLocal() as db:
+    with session_factory() as db:
         # URL-encode credentials in proxy URL (fixes passwords with special chars like _)
+        get_proxy_encryption(db)
         encoded_proxy_url = encode_proxy_url(request.proxy_url)
 
         # Check for duplicate proxy URL (check both raw and encoded)
-        existing = (
-            db.query(ProxySettings)
-            .filter(
-                (ProxySettings.proxy_url == request.proxy_url)
-                | (ProxySettings.proxy_url == encoded_proxy_url)
-            )
-            .first()
+        existing = next(
+            (
+                row
+                for row in db.query(ProxySettings).all()
+                if row.proxy_url in (request.proxy_url, encoded_proxy_url)
+            ),
+            None,
         )
 
         if existing:
@@ -160,7 +178,6 @@ async def add_proxy(request: ProxyAddRequest, user=Depends(get_current_user)):
 
         # Create new proxy with encoded URL
         new_proxy = ProxySettings(
-            proxy_url=encoded_proxy_url,  # Store encoded URL
             priority=request.priority,
             enabled=True,
             health_status="unknown",
@@ -170,6 +187,7 @@ async def add_proxy(request: ProxyAddRequest, user=Depends(get_current_user)):
         )
 
         db.add(new_proxy)
+        new_proxy.proxy_url = encoded_proxy_url
         db.commit()
         db.refresh(new_proxy)
 
@@ -177,12 +195,7 @@ async def add_proxy(request: ProxyAddRequest, user=Depends(get_current_user)):
             f"✅ Added new proxy: {new_proxy.masked_url} (priority {new_proxy.priority})"
         )
 
-        # Trigger immediate health check (don't wait for response)
-        import asyncio
-
-        asyncio.create_task(
-            proxy_health_service.check_proxy_health_manual(new_proxy.id)
-        )
+        background_tasks.add_task(service.check_proxy_health_manual, new_proxy.id)
 
         return {
             "success": True,
@@ -192,7 +205,11 @@ async def add_proxy(request: ProxyAddRequest, user=Depends(get_current_user)):
 
 
 @router.delete("/{proxy_id}")
-async def delete_proxy(proxy_id: int, user=Depends(get_current_user)):
+def delete_proxy(
+    proxy_id: int,
+    user=Depends(get_current_user),
+    session_factory=Depends(get_application_session_factory),
+):
     """
     Delete a proxy configuration.
 
@@ -202,12 +219,13 @@ async def delete_proxy(proxy_id: int, user=Depends(get_current_user)):
     Returns:
         Success message
     """
-    with SessionLocal() as db:
+    with session_factory() as db:
         proxy = db.query(ProxySettings).filter(ProxySettings.id == proxy_id).first()
 
         if not proxy:
             raise HTTPException(status_code=404, detail="Proxy not found")
 
+        get_proxy_encryption(db)
         masked_url = proxy.masked_url
 
         db.delete(proxy)
@@ -219,7 +237,13 @@ async def delete_proxy(proxy_id: int, user=Depends(get_current_user)):
 
 
 @router.post("/{proxy_id}/toggle")
-async def toggle_proxy(proxy_id: int, user=Depends(get_current_user)):
+def toggle_proxy(
+    proxy_id: int,
+    background_tasks: BackgroundTasks,
+    user=Depends(get_current_user),
+    session_factory=Depends(get_application_session_factory),
+    service=Depends(get_proxy_health_service),
+):
     """
     Toggle proxy enabled/disabled status.
 
@@ -229,13 +253,14 @@ async def toggle_proxy(proxy_id: int, user=Depends(get_current_user)):
     Returns:
         Success message with new enabled status
     """
-    with SessionLocal() as db:
+    with session_factory() as db:
         proxy = db.query(ProxySettings).filter(ProxySettings.id == proxy_id).first()
 
         if not proxy:
             raise HTTPException(status_code=404, detail="Proxy not found")
 
         # Toggle enabled status
+        get_proxy_encryption(db)
         proxy.enabled = not proxy.enabled
 
         # Reset consecutive failures when re-enabling
@@ -247,11 +272,10 @@ async def toggle_proxy(proxy_id: int, user=Depends(get_current_user)):
 
         db.commit()
 
-        # Broadcast status update
-        import asyncio
-
-        asyncio.create_task(
-            proxy_health_service._broadcast_proxy_status(proxy, auto_disabled=False)
+        background_tasks.add_task(
+            service._broadcast_proxy_status,
+            ProxySnapshot.from_row(proxy),
+            auto_disabled=False,
         )
 
         return {
@@ -262,7 +286,11 @@ async def toggle_proxy(proxy_id: int, user=Depends(get_current_user)):
 
 
 @router.post("/{proxy_id}/test")
-async def test_proxy(proxy_id: int, user=Depends(get_current_user)):
+async def test_proxy(
+    proxy_id: int,
+    user=Depends(get_current_user),
+    service=Depends(get_proxy_health_service),
+):
     """
     Manually trigger health check for a specific proxy.
 
@@ -272,7 +300,7 @@ async def test_proxy(proxy_id: int, user=Depends(get_current_user)):
     Returns:
         Health check result
     """
-    result = await proxy_health_service.check_proxy_health_manual(proxy_id)
+    result = await service.check_proxy_health_manual(proxy_id)
 
     if "error" in result and result["error"] == "Proxy not found":
         raise HTTPException(status_code=404, detail="Proxy not found")
@@ -281,8 +309,11 @@ async def test_proxy(proxy_id: int, user=Depends(get_current_user)):
 
 
 @router.post("/{proxy_id}/update-priority")
-async def update_proxy_priority(
-    proxy_id: int, request: ProxyUpdatePriorityRequest, user=Depends(get_current_user)
+def update_proxy_priority(
+    proxy_id: int,
+    request: ProxyUpdatePriorityRequest,
+    user=Depends(get_current_user),
+    session_factory=Depends(get_application_session_factory),
 ):
     """
     Update proxy priority for selection ordering.
@@ -294,12 +325,13 @@ async def update_proxy_priority(
     Returns:
         Success message
     """
-    with SessionLocal() as db:
+    with session_factory() as db:
         proxy = db.query(ProxySettings).filter(ProxySettings.id == proxy_id).first()
 
         if not proxy:
             raise HTTPException(status_code=404, detail="Proxy not found")
 
+        get_proxy_encryption(db)
         old_priority = proxy.priority
         proxy.priority = request.priority
 
@@ -316,7 +348,11 @@ async def update_proxy_priority(
 
 
 @router.get("/best")
-async def get_best_proxy(user=Depends(get_current_user)):
+async def get_best_proxy(
+    user=Depends(get_current_user),
+    service=Depends(get_proxy_health_service),
+    session_factory=Depends(get_application_session_factory),
+):
     """
     Get the currently selected best available proxy.
 
@@ -325,37 +361,43 @@ async def get_best_proxy(user=Depends(get_current_user)):
     Returns:
         Best proxy information (masked) or None if no healthy proxies
     """
-    best_proxy_url = await proxy_health_service.get_best_proxy()
+    best_proxy_url = await service.get_best_proxy()
 
     if not best_proxy_url:
         return {"proxy": None, "message": "No healthy proxies available"}
 
-    # Get proxy details from database
-    with SessionLocal() as db:
-        proxy = (
-            db.query(ProxySettings)
-            .filter(ProxySettings.proxy_url == best_proxy_url)
-            .first()
-        )
-
-        if proxy:
-            return {
-                "proxy": proxy.to_dict(mask_password=True),
-                "message": "Best available proxy",
-            }
+    details = await run_in_thread_pool(
+        _find_proxy_details, session_factory, best_proxy_url
+    )
+    if details is not None:
+        return {"proxy": details, "message": "Best available proxy"}
 
     return {"proxy": None, "message": "Proxy not found in database"}
 
 
+def _find_proxy_details(session_factory, proxy_url: str):
+    with session_factory() as db:
+        rows = db.query(ProxySettings).all()
+        if rows:
+            get_proxy_encryption(db)
+        for row in rows:
+            if row.proxy_url == proxy_url:
+                return row.to_dict(mask_password=True)
+    return None
+
+
 @router.get("/config")
-async def get_proxy_config(user=Depends(get_current_user)):
+def get_proxy_config(
+    user=Depends(get_current_user),
+    session_factory=Depends(get_application_session_factory),
+):
     """
     Get proxy system configuration settings.
 
     Returns:
         Proxy configuration from recording_settings
     """
-    with SessionLocal() as db:
+    with session_factory() as db:
         settings = db.query(RecordingSettings).first()
 
         if not settings:
@@ -389,13 +431,14 @@ async def get_proxy_config(user=Depends(get_current_user)):
 
 
 @router.post("/config/update")
-async def update_proxy_config(
+def update_proxy_config(
     enable_proxy: Optional[bool] = None,
     proxy_health_check_enabled: Optional[bool] = None,
     proxy_health_check_interval_seconds: Optional[int] = None,
     proxy_max_consecutive_failures: Optional[int] = None,
     fallback_to_direct_connection: Optional[bool] = None,
     user=Depends(get_current_user),
+    session_factory=Depends(get_application_session_factory),
 ):
     """
     Update proxy system configuration settings.
@@ -410,7 +453,7 @@ async def update_proxy_config(
     Returns:
         Success message with updated configuration
     """
-    with SessionLocal() as db:
+    with session_factory() as db:
         settings = db.query(RecordingSettings).first()
 
         if not settings:

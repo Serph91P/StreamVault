@@ -14,9 +14,11 @@ import logging
 import warnings
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Callable, Awaitable
+from sqlalchemy.orm import Session
 from .queues import TaskQueueManager
 from .queues.task_progress_tracker import QueueTask, TaskStatus, TaskPriority
 from app.observability import service_metrics
+from app.services.communication.websocket_manager import ConnectionManager
 
 logger = logging.getLogger("streamvault")
 
@@ -27,8 +29,8 @@ process_monitor = None
 class BackgroundQueueService:
     """Backward compatibility wrapper for the refactored queue services
 
-    SINGLETON PATTERN: Use `background_queue_service` global instance.
-    All parts of the application share the same queue to ensure consistent job tracking.
+    Default construction preserves the legacy singleton. Composition roots use
+    ``for_application`` for their own handlers, workers and task metadata.
     """
 
     # Singleton instance tracking
@@ -51,15 +53,44 @@ class BackgroundQueueService:
                 )
             return
 
-        # Initialize the refactored queue manager with streamer isolation enabled for production
         import app.database as database
+
+        self._initialize(
+            max_workers, websocket_manager, lambda: database.SessionLocal()
+        )
+        BackgroundQueueService._initialized = True
+        logger.debug("BackgroundQueueService singleton initialized")
+
+    @classmethod
+    def for_application(
+        cls,
+        websocket_manager: ConnectionManager,
+        max_workers: int = 3,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+    ) -> "BackgroundQueueService":
+        instance = object.__new__(cls)
+        instance._initialize(max_workers, websocket_manager, session_factory)
+        return instance
+
+    def _initialize(
+        self,
+        max_workers: int,
+        websocket_manager: ConnectionManager | None,
+        session_factory: Callable[[], Session] | None = None,
+    ) -> None:
+        # Initialize the refactored queue manager with streamer isolation enabled for production
         from .queues.durable_task_store import DurableTaskStore
 
         self.queue_manager = TaskQueueManager(
             max_workers=max_workers,
             websocket_manager=websocket_manager,
             enable_streamer_isolation=True,  # Enable concurrent streaming by default
-            task_store=DurableTaskStore(lambda: database.SessionLocal()),
+            task_store=(
+                DurableTaskStore(session_factory)
+                if session_factory is not None
+                else None
+            ),
         )
 
         # Legacy properties for compatibility
@@ -81,10 +112,7 @@ class BackgroundQueueService:
         self.dependency_worker = None
         self.stats = self.queue_manager.progress_tracker.stats
 
-        BackgroundQueueService._initialized = True
-        logger.debug("BackgroundQueueService singleton initialized")
-
-    async def start(self):
+    async def start(self) -> None:
         """Start the background queue service"""
         await self.queue_manager.start()
         self.is_running = self.queue_manager.is_running
@@ -94,7 +122,7 @@ class BackgroundQueueService:
         # if process_monitor:
         #     await process_monitor.start()
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the background queue service"""
         await self.queue_manager.stop()
         self.is_running = self.queue_manager.is_running
@@ -296,9 +324,12 @@ class BackgroundQueueService:
             logger.error(f"Error getting queue status: {e}")
             return None
 
-    async def enqueue_recording_post_processing(self, **kwargs):
+    async def enqueue_recording_post_processing(self, **kwargs: object) -> list[str]:
         """Enqueue a complete post-processing chain for a recording"""
-        return await self.queue_manager.enqueue_recording_post_processing(**kwargs)
+        task_ids: list[
+            str
+        ] = await self.queue_manager.enqueue_recording_post_processing(**kwargs)
+        return task_ids
 
     # Properties for legacy compatibility
 

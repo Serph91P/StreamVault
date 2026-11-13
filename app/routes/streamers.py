@@ -10,8 +10,12 @@ from app.services.communication.websocket_manager import (
     emit_event,
 )
 from app.events.handler_registry import EventHandlerRegistry
-from app.dependencies import get_streamer_service, get_event_registry, get_image_service
-from app.database import get_db
+from app.dependencies import (
+    get_streamer_service,
+    get_application_event_registry as get_event_registry,
+    get_image_service,
+)
+from app.dependencies import get_db
 from app.models import (
     Stream,
     Streamer,
@@ -28,6 +32,7 @@ from pathlib import Path
 import json
 import re
 from app.utils import async_file
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -271,8 +276,10 @@ async def get_streamers(
                 "last_updated": streamer.last_updated.isoformat()
                 if streamer.last_updated
                 else None,
-                "profile_image_url": image_service.get_profile_image_url(
-                    streamer.id, streamer.profile_image_url
+                "profile_image_url": await run_in_thread_pool(
+                    image_service.get_profile_image_url,
+                    streamer.id,
+                    streamer.profile_image_url,
                 ),
                 "original_profile_image_url": streamer.original_profile_image_url,
                 # Last stream info (shown when offline)
@@ -858,7 +865,7 @@ async def delete_streamer(
 
 
 @router.get("/streamer/{streamer_id}")
-async def get_streamer(
+def get_streamer(
     streamer_id: str,
     streamer_service: StreamerService = Depends(get_streamer_service),
     db: Session = Depends(get_db),
@@ -903,7 +910,7 @@ async def get_streamer(
         "username": streamer.username,
         "display_name": streamer.username,  # Fallback to username
         "is_live": streamer.is_live,
-        "is_recording": streamer.is_recording,  # FIXED: Use property that queries Recording table
+        "is_recording": streamer.is_recording,  # Loaded recording-status snapshot.
         # FIXED: Use StreamerRecordingSettings, not auto_record
         "recording_enabled": recording_settings.enabled if recording_settings else True,
         "recording_quality": recording_settings.quality if recording_settings else None,
@@ -961,7 +968,7 @@ async def get_streamer(
 
 
 @router.put("/streamer/{streamer_id}/settings")
-async def update_streamer_settings(
+def update_streamer_settings(
     streamer_id: int,
     settings: Dict[str, Any] = Body(...),
     db: Session = Depends(get_db),
@@ -1167,7 +1174,7 @@ async def delete_subscription(
 
 
 @router.get("/{streamer_id}/streams", response_model=dict)
-async def get_streams_by_streamer_id(
+def get_streams_by_streamer_id(
     streamer_id: int,
     db: Session = Depends(get_db),
     image_service=Depends(get_image_service),
@@ -1413,7 +1420,7 @@ async def validate_streamer(
 
 
 @router.get("/{streamer_id}/streams/{stream_id}/chapters")
-async def get_stream_chapters(
+def get_stream_chapters(
     streamer_id: int, stream_id: int, db: Session = Depends(get_db)
 ):
     """Get chapter data for a specific stream"""

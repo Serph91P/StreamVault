@@ -19,8 +19,21 @@ Compatibility seam (temporary):
 
 import logging
 import os
-import sys
-from typing import AsyncGenerator, Dict, Optional
+from typing import TYPE_CHECKING, AsyncGenerator, Dict, Optional, Generator
+
+if TYPE_CHECKING:
+    from app.config.settings import Settings
+    from typing import TypedDict
+
+    class EngineOptions(TypedDict, total=False):
+        connect_args: dict[str, bool | int | str]
+        poolclass: type[StaticPool]
+        pool_pre_ping: bool
+        pool_recycle: int
+        pool_size: int
+        max_overflow: int
+        pool_timeout: int
+
 
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.engine import Engine, make_url
@@ -31,19 +44,13 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
-# Get DATABASE_URL from environment (used as a fallback during early
-# initialization; settings remain authoritative).
+# Compatibility metadata only; URL selection uses validated settings below.
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL:
-    DATABASE_URL = "sqlite:///:memory:"
-
 logger = logging.getLogger("streamvault")
-
-is_testing = "pytest" in sys.modules or "import_test.py" in sys.argv[0]
 
 _SYNC_DRIVERNAMES: Dict[str, str] = {
     "postgresql": "postgresql+psycopg",
@@ -97,13 +104,16 @@ def _is_in_memory_sqlite(url: URL) -> bool:
 class DatabaseLifecycle:
     """Lazily own the sync + async engines and their session factories."""
 
-    def __init__(self, database_url: Optional[str] = None) -> None:
+    def __init__(
+        self, database_url: Optional[str] = None, *, settings: "Settings | None" = None
+    ) -> None:
         self._configured_url = database_url
+        self._settings = settings
         self._resolved_url: Optional[str] = None
         self._sync_engine: Optional[Engine] = None
         self._async_engine: Optional[AsyncEngine] = None
-        self._sync_session_factory = None
-        self._async_session_factory = None
+        self._sync_session_factory: sessionmaker[Session] | None = None
+        self._async_session_factory: async_sessionmaker[AsyncSession] | None = None
 
     @property
     def url(self) -> str:
@@ -111,7 +121,7 @@ class DatabaseLifecycle:
             self._resolved_url = (
                 self._configured_url
                 if self._configured_url is not None
-                else get_database_url()
+                else get_database_url(self._settings)
             )
         return self._resolved_url
 
@@ -126,6 +136,7 @@ class DatabaseLifecycle:
     @property
     def sync_engine(self) -> Engine:
         if self._sync_engine is None:
+            kwargs: EngineOptions
             engine_url = make_url(self.sync_url)
             if engine_url.drivername.startswith("sqlite"):
                 kwargs = {"connect_args": {"check_same_thread": False}}
@@ -149,6 +160,7 @@ class DatabaseLifecycle:
     @property
     def async_engine(self) -> AsyncEngine:
         if self._async_engine is None:
+            kwargs: EngineOptions
             engine_url = make_url(self.async_url)
             if engine_url.drivername.startswith("sqlite"):
                 kwargs = {}
@@ -168,7 +180,7 @@ class DatabaseLifecycle:
         return self._async_engine
 
     @property
-    def sync_session_factory(self):
+    def sync_session_factory(self) -> sessionmaker[Session]:
         if self._sync_session_factory is None:
             self._sync_session_factory = sessionmaker(
                 bind=self.sync_engine,
@@ -179,7 +191,7 @@ class DatabaseLifecycle:
         return self._sync_session_factory
 
     @property
-    def async_session_factory(self):
+    def async_session_factory(self) -> async_sessionmaker[AsyncSession]:
         if self._async_session_factory is None:
             self._async_session_factory = async_sessionmaker(
                 bind=self.async_engine,
@@ -221,7 +233,7 @@ class _EngineProxy:
     def __init__(self, lifecycle: DatabaseLifecycle) -> None:
         self._lifecycle = lifecycle
 
-    def __getattr__(self, item: str):
+    def __getattr__(self, item: str) -> object:
         if item == "dispose":
             return self._lifecycle.dispose_sync
         return getattr(self._lifecycle.sync_engine, item)
@@ -237,42 +249,38 @@ class _SessionLocalProxy:
     def __init__(self, lifecycle: DatabaseLifecycle) -> None:
         self._lifecycle = lifecycle
 
-    def __call__(self, *args, **kwargs):
-        return self._lifecycle.sync_session_factory(*args, **kwargs)
+    def __call__(self, **kwargs: object) -> Session:
+        return self._lifecycle.sync_session_factory(**kwargs)
 
-    def __getattr__(self, item: str):
+    def __getattr__(self, item: str) -> object:
         return getattr(self._lifecycle.sync_session_factory, item)
 
 
-def get_database_url() -> str:
-    """
-    Resolve the validated database URL for connections.
+def get_database_url(configuration: "Settings | None" = None) -> str:
+    """Resolve explicit validated configuration without test-framework policy.
 
-    Settings are authoritative; the environment variable is used as a
-    fallback and in-memory SQLite is used in testing.
+    Unit tests configure SQLite or inject DatabaseLifecycle(url); importing a
+    test runner never changes the chosen database. No connection is opened here.
     """
-    try:
+    if configuration is None:
         from app.config.settings import settings
 
-        url = settings.DATABASE_URL
-        if not url:
-            url = DATABASE_URL
-    except ImportError:
-        url = DATABASE_URL
+        configuration = settings
 
+    url = configuration.DATABASE_URL
     if not url:
         raise ValueError("DATABASE_URL is not set.")
-
-    if is_testing:
-        # Keep fast unit tests isolated on SQLite, but allow the explicitly
-        # opt-in UX09 integration suite to exercise the application's real
-        # SessionLocal/public seams against its dedicated PostgreSQL database.
-        return os.getenv("STREAMVAULT_POSTGRES_TEST_URL") or "sqlite:///:memory:"
-
+    if (
+        configuration.ENVIRONMENT != "test"
+        and make_url(url).get_backend_name() != "postgresql"
+    ):
+        raise ValueError(
+            "PostgreSQL DATABASE_URL is required outside explicit test configuration."
+        )
     return url
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     """FastAPI dependency yielding a sync session from the lifecycle.
 
     Temporary compatibility seam; new dependencies should prefer the async
@@ -305,8 +313,9 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
 # Process-scoped lifecycle. No engine is created at import time.
 database_lifecycle = DatabaseLifecycle()
 
-Base = declarative_base(
-    metadata=MetaData(
+
+class Base(DeclarativeBase):
+    metadata = MetaData(
         naming_convention={
             "ix": "ix_%(table_name)s_%(column_0_name)s",
             "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -315,7 +324,7 @@ Base = declarative_base(
             "pk": "pk_%(table_name)s",
         }
     )
-)
+
 
 # ---------------------------------------------------------------------------
 # Temporary compatibility exports (documented seam above).

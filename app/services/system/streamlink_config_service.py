@@ -9,9 +9,13 @@ settings change.
 """
 
 import logging
+import asyncio
+from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
 from app.utils.streamlink_utils import get_streamlink_log_level
+from sqlalchemy.orm import Session
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -19,30 +23,17 @@ logger = logging.getLogger("streamvault")
 class StreamlinkConfigService:
     """Manages automatic generation of Streamlink configuration files"""
 
-    def __init__(self):
-        # Streamlink config directory (Docker: /app/config/streamlink)
-        self.config_dir = Path("/app/config/streamlink")
+    def __init__(
+        self,
+        *,
+        config_dir: str | Path = "/app/config/streamlink",
+        session_factory: Callable[[], Session] | None = None,
+    ):
+        self.config_dir = Path(config_dir)
         self.twitch_config_path = self.config_dir / "config.twitch"
         self.twitch_anonymous_config_path = self.config_dir / "config.twitch-anonymous"
-
-        # Ensure config directory exists (must be writable volume mount in Docker)
-        if not self.config_dir.exists():
-            try:
-                self.config_dir.mkdir(parents=True, exist_ok=True)
-                logger.info(
-                    f"📁 Created streamlink config directory: {self.config_dir}"
-                )
-            except PermissionError:
-                logger.warning(
-                    f"⚠️ No permission to create {self.config_dir} - volume mount may be missing"
-                )
-                logger.warning(
-                    "   Config generation will be skipped. Check docker-compose.yml volume mounts."
-                )
-            except Exception as e:
-                logger.error(f"❌ Failed to create streamlink config directory: {e}")
-        else:
-            logger.debug(f"📂 Streamlink config directory: {self.config_dir}")
+        self._session_factory = session_factory
+        self._update_lock = asyncio.Lock()
 
     def generate_twitch_config(
         self,
@@ -62,7 +53,7 @@ class StreamlinkConfigService:
         command-line for each new process.
 
         Args:
-            oauth_token: Twitch OAuth token availability indicator
+            oauth_token: Ignored; credentials are selected for each new process
             http_proxy: Ignored; proxies are passed to each new process
             https_proxy: Ignored; proxies are passed to each new process
             supported_codecs: Comma-separated codec list (default: av1,h265,h264)
@@ -93,13 +84,7 @@ class StreamlinkConfigService:
                 ]
             )
 
-            if oauth_token and oauth_token.strip():
-                logger.info(
-                    "🔑 OAuth token available - will be passed via CLI per recording"
-                )
-            else:
-                logger.warning("⚠️ No OAuth token - H.265/1440p quality unavailable")
-                logger.warning("⚠️ No OAuth token - recordings limited to 1080p60 H.264")
+            logger.debug("OAuth credentials and proxies are selected per child")
 
             # Add static Streamlink options (from get_streamlink_command)
             config_lines.extend(
@@ -173,73 +158,29 @@ class StreamlinkConfigService:
             logger.error(f"❌ Unexpected error generating streamlink config: {e}")
             return False
 
-    async def update_config_from_settings(self, db_session=None) -> bool:
+    async def update_config_from_settings(self) -> bool:
+        """Write static codec files from a closed owning DB scope, off loop.
+
+        OAuth/proxy values belong to each child command; generating these static
+        files must not acquire or refresh credentials over the network.
         """
-        Update Streamlink config based on current application settings.
+        from app.database import SessionLocal
+        from app.models import GlobalSettings
 
-        Pulls settings from:
-        1. Database (GlobalSettings: OAuth token via TwitchTokenService, proxy, codecs)
-        2. Environment variables (fallback for TWITCH_OAUTH_TOKEN)
+        def update() -> bool:
+            with (self._session_factory or SessionLocal)() as db:
+                row = db.query(GlobalSettings).first()
+                codecs = (row.supported_codecs if row else None) or "av1,h265,h264"
+            self.config_dir.mkdir(parents=True, exist_ok=True)
+            return self.generate_twitch_config(supported_codecs=codecs)
 
-        This is called at:
-        - Application startup
-        - When user changes proxy settings
-        - When user changes codec preferences
-
-        Args:
-            db_session: Optional database session (if None, creates new one)
-
-        Returns:
-            True if config was successfully updated, False otherwise
-        """
         try:
-            from app.config.settings import settings
-            from app.database import SessionLocal
-            from app.models import GlobalSettings
-            from app.services.system.twitch_token_service import TwitchTokenService
-
-            # Get proxy and codec settings from database
-            close_session = False
-            if db_session is None:
-                db_session = SessionLocal()
-                close_session = True
-
-            try:
-                global_settings = db_session.query(GlobalSettings).first()
-
-                # === Get OAuth token from TwitchTokenService (handles refresh) ===
-                token_service = TwitchTokenService(db_session)
-                oauth_token = await token_service.get_valid_access_token()
-
-                if global_settings:
-                    http_proxy = global_settings.http_proxy
-                    https_proxy = global_settings.https_proxy
-                    supported_codecs = (
-                        global_settings.supported_codecs or "av1,h265,h264"
-                    )
-                else:
-                    # Fallback to defaults if no settings in database
-                    http_proxy = settings.HTTP_PROXY
-                    https_proxy = settings.HTTPS_PROXY
-                    supported_codecs = "av1,h265,h264"
-
-                logger.debug(
-                    f"🔧 Config settings: codecs={supported_codecs}, oauth={'✅' if oauth_token else '❌'}"
-                )
-
-                # Generate config with current settings
-                return self.generate_twitch_config(
-                    oauth_token=oauth_token,
-                    http_proxy=http_proxy,
-                    https_proxy=https_proxy,
-                    supported_codecs=supported_codecs,
-                )
-            finally:
-                if close_session:
-                    db_session.close()
-
-        except Exception as e:
-            logger.error(f"❌ Failed to update streamlink config from settings: {e}")
+            async with self._update_lock:
+                return await run_in_thread_pool(update)
+        except Exception as error:
+            logger.error(
+                "Failed to update Streamlink configuration (%s)", type(error).__name__
+            )
             return False
 
     async def regenerate_config(self) -> bool:
@@ -264,7 +205,9 @@ class StreamlinkConfigService:
 
         return success
 
-    def get_available_qualities(self, has_oauth_token: bool = False) -> list[dict]:
+    def get_available_qualities(
+        self, has_oauth_token: bool = False
+    ) -> list[dict[str, str | bool | None]]:
         """
         Get available quality options based on OAuth token availability.
 
@@ -277,7 +220,7 @@ class StreamlinkConfigService:
         Returns:
             List of quality options with availability status
         """
-        qualities = [
+        qualities: list[dict[str, str | bool | None]] = [
             {
                 "value": "best",
                 "label": "Best Available",

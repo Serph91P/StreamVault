@@ -1,4 +1,4 @@
-"""From #842 / 19b69390: worker ownership, keywords and context propagation."""
+"""The hybrid boundary retains its worker until owned resources are closed."""
 
 import asyncio
 import threading
@@ -10,11 +10,11 @@ from app.utils.async_db_utils import run_in_thread_pool
 
 
 @pytest.mark.asyncio
-async def test_blocking_boundary_forwards_keywords_and_request_context():
+async def test_blocking_boundary_forwards_keywords_and_request_context() -> None:
     token = request_context.set("boundary-request")
     try:
 
-        def operation(*, label):
+        def operation(*, label: str) -> tuple[str, str | None]:
             return label, request_context.get()
 
         assert await run_in_thread_pool(operation, label="result") == (
@@ -26,7 +26,7 @@ async def test_blocking_boundary_forwards_keywords_and_request_context():
 
 
 @pytest.mark.asyncio
-async def test_blocking_boundary_preserves_request_context_without_keywords():
+async def test_blocking_boundary_preserves_request_context_without_keywords() -> None:
     token = request_context.set("boundary-request")
     try:
         assert await run_in_thread_pool(request_context.get) == "boundary-request"
@@ -35,8 +35,8 @@ async def test_blocking_boundary_preserves_request_context_without_keywords():
 
 
 @pytest.mark.asyncio
-async def test_blocking_boundary_propagates_worker_failure():
-    def operation():
+async def test_blocking_boundary_propagates_worker_failure() -> None:
+    def operation() -> None:
         raise ValueError("synthetic worker failure")
 
     with pytest.raises(ValueError, match="synthetic worker failure"):
@@ -44,13 +44,14 @@ async def test_blocking_boundary_propagates_worker_failure():
 
 
 @pytest.mark.asyncio
-async def test_repeated_cancellation_waits_for_actual_worker_cleanup():
+async def test_repeated_cancellation_waits_for_actual_worker_cleanup() -> None:
     loop = asyncio.get_running_loop()
-    entered, closed = asyncio.Event(), asyncio.Event()
+    entered = asyncio.Event()
+    closed = asyncio.Event()
     release = threading.Event()
     event_loop_thread = threading.get_ident()
 
-    def operation():
+    def operation() -> None:
         assert threading.get_ident() != event_loop_thread
         loop.call_soon_threadsafe(entered.set)
         try:

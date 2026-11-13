@@ -5,10 +5,17 @@ Extracted from streamer_service.py God Class
 Handles all Twitch API interactions and EventSub subscriptions.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Dict, Any, Optional, List
-from app.services.api.twitch_api import twitch_api
-from app.events.handler_registry import EventHandlerRegistry
+from typing import TYPE_CHECKING, Dict, Any, Optional, List
+from app.services.api.twitch_api import (
+    TwitchAPIService,
+    twitch_api as default_twitch_api,
+)
+
+if TYPE_CHECKING:
+    from app.events.handler_registry import EventHandlerRegistry
 
 logger = logging.getLogger("streamvault")
 
@@ -16,8 +23,13 @@ logger = logging.getLogger("streamvault")
 class TwitchIntegrationService:
     """Handles Twitch API calls and EventSub management"""
 
-    def __init__(self, event_registry: EventHandlerRegistry):
-        self.twitch_api = twitch_api
+    def __init__(
+        self,
+        event_registry: EventHandlerRegistry,
+        *,
+        twitch_api: TwitchAPIService | None = None,
+    ) -> None:
+        self.twitch_api = twitch_api if twitch_api is not None else default_twitch_api
         self.event_registry = event_registry
 
     async def get_users_by_login(self, usernames: List[str]) -> List[Dict[str, Any]]:
@@ -36,8 +48,8 @@ class TwitchIntegrationService:
             if users and len(users) > 0:
                 return users[0]
             return None
-        except Exception as e:
-            logger.error(f"Error fetching user data for {username}: {e}")
+        except Exception:
+            logger.error("Error fetching Twitch user data")
             return None
 
     async def get_stream_info(self, twitch_id: str) -> Optional[Dict[str, Any]]:
@@ -45,8 +57,8 @@ class TwitchIntegrationService:
         try:
             streams = await self.twitch_api.get_streams(user_ids=[twitch_id])
             return streams[0] if streams else None
-        except Exception as e:
-            logger.error(f"Error fetching stream info for {twitch_id}: {e}")
+        except Exception:
+            logger.error("Error fetching Twitch stream info")
             return None
 
     async def get_game_data(self, game_id: str) -> Optional[Dict[str, Any]]:
@@ -65,8 +77,8 @@ class TwitchIntegrationService:
                     game_data["box_art_url"] = box_art_url
                 return game_data
             return None
-        except Exception as e:
-            logger.error(f"Error fetching game data for {game_id}: {e}")
+        except Exception:
+            logger.error("Error fetching Twitch game data")
             return None
 
     async def get_multiple_stream_info(
@@ -76,8 +88,8 @@ class TwitchIntegrationService:
         try:
             streams = await self.twitch_api.get_streams(user_ids=twitch_ids)
             return streams or []
-        except Exception as e:
-            logger.error(f"Error fetching stream info for multiple users: {e}")
+        except Exception:
+            logger.error("Error fetching Twitch stream info for multiple users")
             return []
 
     async def get_multiple_user_info(
@@ -87,8 +99,8 @@ class TwitchIntegrationService:
         try:
             users = await self.twitch_api.get_users_by_id(twitch_ids)
             return users or []
-        except Exception as e:
-            logger.error(f"Error fetching user info for multiple users: {e}")
+        except Exception:
+            logger.error("Error fetching Twitch user info for multiple users")
             return []
 
     async def subscribe_to_events(self, twitch_id: str):
@@ -96,8 +108,8 @@ class TwitchIntegrationService:
         try:
             await self.event_registry.subscribe_to_events(twitch_id)
             logger.info(f"Successfully subscribed to EventSub events for {twitch_id}")
-        except Exception as e:
-            logger.error(f"Failed to subscribe to EventSub events for {twitch_id}: {e}")
+        except Exception:
+            logger.error("Failed to subscribe to EventSub events")
             raise
 
     async def unsubscribe_from_events(self, twitch_id: str):
@@ -107,10 +119,8 @@ class TwitchIntegrationService:
             logger.info(
                 f"Successfully unsubscribed from EventSub events for {twitch_id}"
             )
-        except Exception as e:
-            logger.error(
-                f"Failed to unsubscribe from EventSub events for {twitch_id}: {e}"
-            )
+        except Exception:
+            logger.error("Failed to unsubscribe from EventSub events")
             raise
 
     async def get_categories(
@@ -123,8 +133,8 @@ class TwitchIntegrationService:
             elif category_ids:
                 return await self.twitch_api.get_games_by_id(category_ids)
             return []
-        except Exception as e:
-            logger.error(f"Error fetching categories: {e}")
+        except Exception:
+            logger.error("Error fetching Twitch categories")
             return []
 
     async def get_top_games(self, limit: int = 20) -> List[Dict[str, Any]]:
@@ -139,8 +149,8 @@ class TwitchIntegrationService:
                         "{height}", "380"
                     )
             return games
-        except Exception as e:
-            logger.error(f"Error fetching top games: {e}")
+        except Exception:
+            logger.error("Error fetching Twitch top games")
             return []
 
     async def search_categories(self, query: str) -> List[Dict[str, Any]]:
@@ -155,8 +165,8 @@ class TwitchIntegrationService:
                         "{height}", "380"
                     )
             return games
-        except Exception as e:
-            logger.error(f"Error searching categories for '{query}': {e}")
+        except Exception:
+            logger.error("Error searching Twitch categories")
             return []
 
     async def validate_streamer_exists(self, username: str) -> bool:
@@ -164,8 +174,8 @@ class TwitchIntegrationService:
         try:
             user_data = await self.get_user_data(username)
             return user_data is not None
-        except Exception as e:
-            logger.error(f"Error validating streamer {username}: {e}")
+        except Exception:
+            logger.error("Error validating Twitch streamer")
             return False
 
     async def get_streamer_followers(self, twitch_id: str) -> Optional[int]:
@@ -190,16 +200,16 @@ class TwitchIntegrationService:
 
             # Return dict mapping twitch_id to live status
             return {twitch_id: twitch_id in live_streamers for twitch_id in twitch_ids}
-        except Exception as e:
-            logger.error(f"Error checking bulk stream status: {e}")
+        except Exception:
+            logger.error("Error checking Twitch bulk stream status")
             return {twitch_id: False for twitch_id in twitch_ids}
 
     async def refresh_user_data(self, twitch_id: str) -> Optional[Dict[str, Any]]:
         """Refresh user data from Twitch API (profile image, display name, etc.)"""
         try:
             return await self.get_streamer_info(twitch_id)
-        except Exception as e:
-            logger.error(f"Error refreshing user data for {twitch_id}: {e}")
+        except Exception:
+            logger.error("Error refreshing Twitch user data")
             return None
 
     def get_twitch_profile_url(self, username: str) -> str:

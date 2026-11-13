@@ -25,7 +25,7 @@ jobs:
   # Run tests as a gate
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:

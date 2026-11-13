@@ -43,7 +43,7 @@ class TestResult:
 
 
 class StreamVaultTestService:
-    def __init__(self):
+    def __init__(self) -> None:
         # Only initialize services that don't require dependencies
         self.recording_service = RecordingService()
         self.metadata_service = MetadataService()
@@ -1380,7 +1380,3 @@ class StreamVaultTestService:
 
         except Exception as e:
             logger.error(f"Failed to cleanup test data: {e}")
-
-
-# Global test service instance
-test_service = StreamVaultTestService()

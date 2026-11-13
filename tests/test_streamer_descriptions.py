@@ -7,8 +7,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.dependencies import get_image_service, get_streamer_service
-from app.database import get_db
+from app.dependencies import get_db, get_image_service, get_streamer_service
 from app.models import Streamer
 from app.routes.streamers import router
 from app.services.streamers.streamer_repository import StreamerRepository

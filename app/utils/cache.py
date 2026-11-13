@@ -10,7 +10,7 @@ from threading import Lock
 class SimpleCache:
     """Thread-safe in-memory cache with TTL support"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: Dict[str, tuple] = {}  # key -> (value, expire_time)
         self._lock = Lock()
 

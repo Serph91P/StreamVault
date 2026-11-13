@@ -1,0 +1,723 @@
+{
+  "added_heads": {
+    "/api/videos/public/{stream_id}": {
+      "description": "Stream video with token-based authentication for external players like VLC",
+      "operationId": "head_public_video",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "stream_id",
+          "required": true,
+          "schema": {
+            "title": "Stream Id",
+            "type": "integer"
+          }
+        },
+        {
+          "in": "query",
+          "name": "token",
+          "required": true,
+          "schema": {
+            "title": "Token",
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "description": "Successful Response"
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          },
+          "description": "Validation Error"
+        }
+      },
+      "summary": "Stream Video Public",
+      "tags": [
+        "videos"
+      ]
+    },
+    "/api/videos/{stream_id}/stream": {
+      "description": "Stream a video file by stream ID with range request support",
+      "operationId": "head_stored_video",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "stream_id",
+          "required": true,
+          "schema": {
+            "title": "Stream Id",
+            "type": "integer"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "description": "Successful Response"
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          },
+          "description": "Validation Error"
+        }
+      },
+      "summary": "Stream Video By Id",
+      "tags": [
+        "videos"
+      ]
+    }
+  },
+  "added_paths": {
+    "/api/videos/catalog": {
+      "get": {
+        "operationId": "get_video_catalog_api_videos_catalog_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "streamer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Streamer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "streamer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Streamer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recording",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Recording"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "date",
+              "enum": [
+                "date",
+                "title",
+                "streamer",
+                "duration",
+                "size"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "asc",
+                    "desc"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created Before"
+            }
+          },
+          {
+            "in": "query",
+            "name": "duration",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "short",
+                    "medium",
+                    "long"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Duration"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Video Catalog",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/api/videos/{stream_id}/metadata": {
+      "get": {
+        "operationId": "get_video_metadata_api_videos__stream_id__metadata_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stream_id",
+            "required": true,
+            "schema": {
+              "title": "Stream Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Video Metadata",
+        "tags": [
+          "videos"
+        ]
+      }
+    }
+  },
+  "canonical_postgresql_schema": [
+    {
+      "create_table_postgresql": "CREATE TABLE background_tasks (\n\tid VARCHAR(128) NOT NULL, \n\ttask_type VARCHAR(128) NOT NULL, \n\tpayload JSON NOT NULL, \n\tstreamer_key VARCHAR(256) NOT NULL, \n\tpriority INTEGER NOT NULL, \n\tstatus VARCHAR(20) NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tready_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tstarted_at TIMESTAMP WITH TIME ZONE, \n\tcompleted_at TIMESTAMP WITH TIME ZONE, \n\tretry_count INTEGER NOT NULL, \n\tmax_retries INTEGER NOT NULL, \n\terror_message TEXT, \n\towner_token VARCHAR(36), \n\towner_pid INTEGER, \n\towner_started FLOAT, \n\towner_host VARCHAR(256), \n\tCONSTRAINT pk_background_tasks PRIMARY KEY (id)\n)",
+      "indexes_postgresql": [
+        "CREATE INDEX ix_background_tasks_dispatch ON background_tasks (status, ready_at, priority, created_at)"
+      ],
+      "table": "background_tasks"
+    },
+    {
+      "create_table_postgresql": "CREATE TABLE background_task_dependencies (\n\ttask_id VARCHAR(128) NOT NULL, \n\tdependency_id VARCHAR(128) NOT NULL, \n\tCONSTRAINT pk_background_task_dependencies PRIMARY KEY (task_id, dependency_id), \n\tCONSTRAINT fk_background_task_dependencies_task_id_background_tasks FOREIGN KEY(task_id) REFERENCES background_tasks (id) ON DELETE CASCADE, \n\tCONSTRAINT fk_background_task_dependencies_dependency_id_background_tasks FOREIGN KEY(dependency_id) REFERENCES background_tasks (id) ON DELETE CASCADE\n)",
+      "indexes_postgresql": [
+        "CREATE INDEX ix_background_task_dependencies_dependency_id ON background_task_dependencies (dependency_id)"
+      ],
+      "table": "background_task_dependencies"
+    },
+    {
+      "create_table_postgresql": "CREATE TABLE video_catalog_entries (\n\tstream_id INTEGER NOT NULL, \n\tfile_path VARCHAR, \n\tfile_size BIGINT NOT NULL, \n\tduration FLOAT, \n\tstarted_at TIMESTAMP WITH TIME ZONE, \n\tended_at TIMESTAMP WITH TIME ZONE, \n\trecording_id INTEGER, \n\tis_recording BOOLEAN NOT NULL, \n\thas_thumbnail BOOLEAN NOT NULL, \n\tstate VARCHAR(16) NOT NULL, \n\tchecked_at TIMESTAMP WITH TIME ZONE, \n\terror_type VARCHAR(64), \n\tdirty BOOLEAN NOT NULL, \n\trevision INTEGER NOT NULL, \n\tCONSTRAINT pk_video_catalog_entries PRIMARY KEY (stream_id), \n\tCONSTRAINT fk_video_catalog_entries_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE\n)",
+      "indexes_postgresql": [
+        "CREATE INDEX ix_video_catalog_entries_checked_at ON video_catalog_entries (checked_at)",
+        "CREATE INDEX ix_video_catalog_entries_dirty ON video_catalog_entries (dirty)",
+        "CREATE INDEX ix_video_catalog_entries_state ON video_catalog_entries (state)"
+      ],
+      "table": "video_catalog_entries"
+    }
+  ],
+  "model_source_sha256": {
+    "app/models/background_task.py": "bf1bb1091559f0a0ead571ef6c565484034679ebe590d8e6d7aaf44192c33add",
+    "app/models/video_catalog.py": "d712ef1dc70d8a437c4e16151b5a76b4ba43ba7fb5d706437ed6740a4329c978"
+  },
+  "models": {
+    "BackgroundTask": {
+      "columns": [
+        {
+          "attribute": "id",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "id",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "task_type",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "task_type",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "payload",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "payload",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "streamer_key",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "streamer_key",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "priority",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "priority",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "status",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "status",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "created_at",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "created_at",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "ready_at",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "ready_at",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "started_at",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "started_at",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "completed_at",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "completed_at",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "retry_count",
+          "autoincrement": "auto",
+          "default": "0",
+          "name": "retry_count",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "max_retries",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "max_retries",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "error_message",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "error_message",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "owner_token",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "owner_token",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "owner_pid",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "owner_pid",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "owner_started",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "owner_started",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "owner_host",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "owner_host",
+          "nullable": true,
+          "onupdate": null
+        }
+      ],
+      "ddl": {
+        "postgresql": {
+          "indexes": [
+            "CREATE INDEX ix_background_tasks_dispatch ON background_tasks (status, ready_at, priority, created_at)"
+          ],
+          "table": "\nCREATE TABLE background_tasks (\n\tid VARCHAR(128) NOT NULL, \n\ttask_type VARCHAR(128) NOT NULL, \n\tpayload JSON NOT NULL, \n\tstreamer_key VARCHAR(256) NOT NULL, \n\tpriority INTEGER NOT NULL, \n\tstatus VARCHAR(20) NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tready_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tstarted_at TIMESTAMP WITH TIME ZONE, \n\tcompleted_at TIMESTAMP WITH TIME ZONE, \n\tretry_count INTEGER NOT NULL, \n\tmax_retries INTEGER NOT NULL, \n\terror_message TEXT, \n\towner_token VARCHAR(36), \n\towner_pid INTEGER, \n\towner_started FLOAT, \n\towner_host VARCHAR(256), \n\tCONSTRAINT pk_background_tasks PRIMARY KEY (id)\n)\n\n"
+        },
+        "sqlite": {
+          "indexes": [
+            "CREATE INDEX ix_background_tasks_dispatch ON background_tasks (status, ready_at, priority, created_at)"
+          ],
+          "table": "\nCREATE TABLE background_tasks (\n\tid VARCHAR(128) NOT NULL, \n\ttask_type VARCHAR(128) NOT NULL, \n\tpayload JSON NOT NULL, \n\tstreamer_key VARCHAR(256) NOT NULL, \n\tpriority INTEGER NOT NULL, \n\tstatus VARCHAR(20) NOT NULL, \n\tcreated_at DATETIME NOT NULL, \n\tready_at DATETIME NOT NULL, \n\tstarted_at DATETIME, \n\tcompleted_at DATETIME, \n\tretry_count INTEGER NOT NULL, \n\tmax_retries INTEGER NOT NULL, \n\terror_message TEXT, \n\towner_token VARCHAR(36), \n\towner_pid INTEGER, \n\towner_started FLOAT, \n\towner_host VARCHAR(256), \n\tCONSTRAINT pk_background_tasks PRIMARY KEY (id)\n)\n\n"
+        }
+      },
+      "relationships": {},
+      "table": "background_tasks"
+    },
+    "BackgroundTaskDependency": {
+      "columns": [
+        {
+          "attribute": "task_id",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "task_id",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "dependency_id",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "dependency_id",
+          "nullable": false,
+          "onupdate": null
+        }
+      ],
+      "ddl": {
+        "postgresql": {
+          "indexes": [
+            "CREATE INDEX ix_background_task_dependencies_dependency_id ON background_task_dependencies (dependency_id)"
+          ],
+          "table": "\nCREATE TABLE background_task_dependencies (\n\ttask_id VARCHAR(128) NOT NULL, \n\tdependency_id VARCHAR(128) NOT NULL, \n\tCONSTRAINT pk_background_task_dependencies PRIMARY KEY (task_id, dependency_id), \n\tCONSTRAINT fk_background_task_dependencies_task_id_background_tasks FOREIGN KEY(task_id) REFERENCES background_tasks (id) ON DELETE CASCADE, \n\tCONSTRAINT fk_background_task_dependencies_dependency_id_background_tasks FOREIGN KEY(dependency_id) REFERENCES background_tasks (id) ON DELETE CASCADE\n)\n\n"
+        },
+        "sqlite": {
+          "indexes": [
+            "CREATE INDEX ix_background_task_dependencies_dependency_id ON background_task_dependencies (dependency_id)"
+          ],
+          "table": "\nCREATE TABLE background_task_dependencies (\n\ttask_id VARCHAR(128) NOT NULL, \n\tdependency_id VARCHAR(128) NOT NULL, \n\tCONSTRAINT pk_background_task_dependencies PRIMARY KEY (task_id, dependency_id), \n\tCONSTRAINT fk_background_task_dependencies_task_id_background_tasks FOREIGN KEY(task_id) REFERENCES background_tasks (id) ON DELETE CASCADE, \n\tCONSTRAINT fk_background_task_dependencies_dependency_id_background_tasks FOREIGN KEY(dependency_id) REFERENCES background_tasks (id) ON DELETE CASCADE\n)\n\n"
+        }
+      },
+      "relationships": {},
+      "table": "background_task_dependencies"
+    },
+    "VideoCatalogEntry": {
+      "columns": [
+        {
+          "attribute": "stream_id",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "stream_id",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "file_path",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "file_path",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "file_size",
+          "autoincrement": "auto",
+          "default": "0",
+          "name": "file_size",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "duration",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "duration",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "started_at",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "started_at",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "ended_at",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "ended_at",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "recording_id",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "recording_id",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "is_recording",
+          "autoincrement": "auto",
+          "default": "False",
+          "name": "is_recording",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "has_thumbnail",
+          "autoincrement": "auto",
+          "default": "False",
+          "name": "has_thumbnail",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "state",
+          "autoincrement": "auto",
+          "default": "pending",
+          "name": "state",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "checked_at",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "checked_at",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "error_type",
+          "autoincrement": "auto",
+          "default": null,
+          "name": "error_type",
+          "nullable": true,
+          "onupdate": null
+        },
+        {
+          "attribute": "dirty",
+          "autoincrement": "auto",
+          "default": "False",
+          "name": "dirty",
+          "nullable": false,
+          "onupdate": null
+        },
+        {
+          "attribute": "revision",
+          "autoincrement": "auto",
+          "default": "0",
+          "name": "revision",
+          "nullable": false,
+          "onupdate": null
+        }
+      ],
+      "ddl": {
+        "postgresql": {
+          "indexes": [
+            "CREATE INDEX ix_video_catalog_entries_checked_at ON video_catalog_entries (checked_at)",
+            "CREATE INDEX ix_video_catalog_entries_dirty ON video_catalog_entries (dirty)",
+            "CREATE INDEX ix_video_catalog_entries_state ON video_catalog_entries (state)"
+          ],
+          "table": "\nCREATE TABLE video_catalog_entries (\n\tstream_id INTEGER NOT NULL, \n\tfile_path VARCHAR, \n\tfile_size BIGINT NOT NULL, \n\tduration FLOAT, \n\tstarted_at TIMESTAMP WITH TIME ZONE, \n\tended_at TIMESTAMP WITH TIME ZONE, \n\trecording_id INTEGER, \n\tis_recording BOOLEAN NOT NULL, \n\thas_thumbnail BOOLEAN NOT NULL, \n\tstate VARCHAR(16) NOT NULL, \n\tchecked_at TIMESTAMP WITH TIME ZONE, \n\terror_type VARCHAR(64), \n\tdirty BOOLEAN NOT NULL, \n\trevision INTEGER NOT NULL, \n\tCONSTRAINT pk_video_catalog_entries PRIMARY KEY (stream_id), \n\tCONSTRAINT fk_video_catalog_entries_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE\n)\n\n"
+        },
+        "sqlite": {
+          "indexes": [
+            "CREATE INDEX ix_video_catalog_entries_checked_at ON video_catalog_entries (checked_at)",
+            "CREATE INDEX ix_video_catalog_entries_dirty ON video_catalog_entries (dirty)",
+            "CREATE INDEX ix_video_catalog_entries_state ON video_catalog_entries (state)"
+          ],
+          "table": "\nCREATE TABLE video_catalog_entries (\n\tstream_id INTEGER NOT NULL, \n\tfile_path VARCHAR, \n\tfile_size BIGINT NOT NULL, \n\tduration FLOAT, \n\tstarted_at DATETIME, \n\tended_at DATETIME, \n\trecording_id INTEGER, \n\tis_recording BOOLEAN NOT NULL, \n\thas_thumbnail BOOLEAN NOT NULL, \n\tstate VARCHAR(16) NOT NULL, \n\tchecked_at DATETIME, \n\terror_type VARCHAR(64), \n\tdirty BOOLEAN NOT NULL, \n\trevision INTEGER NOT NULL, \n\tCONSTRAINT pk_video_catalog_entries PRIMARY KEY (stream_id), \n\tCONSTRAINT fk_video_catalog_entries_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE\n)\n\n"
+        }
+      },
+      "relationships": {},
+      "table": "video_catalog_entries"
+    }
+  },
+  "source_head": "71ced55a0700535f66cb2c142a48ca339580d7ea"
+}

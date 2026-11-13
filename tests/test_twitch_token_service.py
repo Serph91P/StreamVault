@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import asyncio
+import json
 
 import pytest
 from datetime import datetime, timedelta
@@ -11,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import GlobalSettings
 from app.routes.twitch_auth import _build_connection_status
+from app.services.http_client import HTTPReply
 
 _module_path = (
     Path(__file__).resolve().parents[1] / "app/services/system/twitch_token_service.py"
@@ -32,12 +34,30 @@ class _Query:
     def first(self):
         return self.value
 
+    def filter(self, *conditions):
+        return self
+
+    def update(self, values, **kwargs):
+        if self.value is None:
+            return 0
+        for column, value in values.items():
+            setattr(self.value, getattr(column, "key", column), value)
+        return 1
+
 
 class _Db:
     def __init__(self, settings):
         self.settings = settings
+        if settings is not None and not hasattr(settings, "id"):
+            settings.id = None
         self.committed = False
         self.rolled_back = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return None
 
     def query(self, _model):
         return _Query(self.settings)
@@ -60,6 +80,34 @@ class _Encryption:
         return value.removeprefix("enc:")
 
 
+_created_services = []
+
+
+def _new_service(session_factory=None):
+    service = TwitchTokenService(
+        session_factory=session_factory or (lambda: service.db),
+        settings=SimpleNamespace(TWITCH_OAUTH_TOKEN=None),
+    )
+    _created_services.append(service)
+    return service
+
+
+@pytest.fixture(autouse=True)
+async def owned_service_protocol(monkeypatch):
+    _created_services.clear()
+    monkeypatch.setattr(_module, "get_proxy_encryption", lambda db: _Encryption())
+
+    async def no_implicit_provider(*args, **kwargs):
+        raise AssertionError("Policy unit tests must supply their provider reply")
+
+    monkeypatch.setattr(_module.ManagedHTTPClient, "request", no_implicit_provider)
+    try:
+        yield
+    finally:
+        for service in _created_services:
+            await service.close()
+
+
 @pytest.mark.asyncio
 async def test_manual_database_token_preferred_over_environment_token(monkeypatch):
     stored = SimpleNamespace(
@@ -67,7 +115,7 @@ async def test_manual_database_token_preferred_over_environment_token(monkeypatc
         twitch_refresh_token=None,
         twitch_token_expires_at=datetime.utcnow() + timedelta(hours=2),
     )
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN="env-token")
     service.encryption = _Encryption()
@@ -89,7 +137,7 @@ async def test_environment_token_used_as_fallback_when_database_token_expired(
         twitch_refresh_token=None,
         twitch_token_expires_at=datetime.utcnow() - timedelta(minutes=1),
     )
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN="env-token")
     service.encryption = _Encryption()
@@ -109,7 +157,7 @@ async def test_environment_token_preferred_over_refreshable_oauth_token(monkeypa
         twitch_refresh_token="enc:refresh-token",
         twitch_token_expires_at=datetime.utcnow() + timedelta(hours=2),
     )
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN="env-browser-token")
     service.encryption = _Encryption()
@@ -129,7 +177,7 @@ async def test_store_manual_access_token_encrypts_and_clears_refresh_token(monke
         twitch_refresh_token="enc:old-refresh",
         twitch_token_expires_at=None,
     )
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
     service.encryption = _Encryption()
@@ -138,7 +186,7 @@ async def test_store_manual_access_token_encrypts_and_clears_refresh_token(monke
         assert token == "manual-token"
         return {"expires_in": 3600}
 
-    monkeypatch.setattr(service, "validate_token", _validate)
+    monkeypatch.setattr(service, "_validate_token", _validate)
 
     success, validation = await service.store_manual_access_token("OAuth manual-token")
 
@@ -160,7 +208,7 @@ async def test_store_manual_access_token_uses_default_expiry_when_expires_in_mis
         twitch_refresh_token="enc:old-refresh",
         twitch_token_expires_at=None,
     )
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
     service.encryption = _Encryption()
@@ -169,7 +217,7 @@ async def test_store_manual_access_token_uses_default_expiry_when_expires_in_mis
         assert token == "manual-token"
         return {"client_id": "client", "login": "user"}
 
-    monkeypatch.setattr(service, "validate_token", _validate)
+    monkeypatch.setattr(service, "_validate_token", _validate)
 
     success, validation = await service.store_manual_access_token("manual-token")
 
@@ -190,7 +238,7 @@ async def test_store_manual_access_token_uses_default_expiry_when_expires_in_zer
         twitch_refresh_token="enc:old-refresh",
         twitch_token_expires_at=None,
     )
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
     service.encryption = _Encryption()
@@ -198,7 +246,7 @@ async def test_store_manual_access_token_uses_default_expiry_when_expires_in_zer
     async def _validate(_token):
         return {"expires_in": 0}
 
-    monkeypatch.setattr(service, "validate_token", _validate)
+    monkeypatch.setattr(service, "_validate_token", _validate)
 
     success, validation = await service.store_manual_access_token("manual-token")
 
@@ -215,7 +263,7 @@ async def test_revalidate_stored_manual_token_repairs_stale_expiry(monkeypatch):
         twitch_refresh_token=None,
         twitch_token_expires_at=datetime.utcnow() - timedelta(days=1),
     )
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
     service.encryption = _Encryption()
@@ -224,7 +272,7 @@ async def test_revalidate_stored_manual_token_repairs_stale_expiry(monkeypatch):
         assert token == "manual-token"
         return {"expires_in": 7200}
 
-    monkeypatch.setattr(service, "validate_token", _validate)
+    monkeypatch.setattr(service, "_validate_token", _validate)
 
     assert await service.revalidate_stored_manual_token(stored) is True
     assert stored.twitch_token_expires_at > datetime.utcnow() + timedelta(hours=1)
@@ -240,7 +288,7 @@ async def test_revalidate_stored_manual_token_uses_default_expiry_when_expires_i
         twitch_refresh_token=None,
         twitch_token_expires_at=datetime.utcnow() - timedelta(days=1),
     )
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
     service.encryption = _Encryption()
@@ -249,7 +297,7 @@ async def test_revalidate_stored_manual_token_uses_default_expiry_when_expires_i
         assert token == "manual-token"
         return {"client_id": "client", "login": "user"}
 
-    monkeypatch.setattr(service, "validate_token", _validate)
+    monkeypatch.setattr(service, "_validate_token", _validate)
 
     assert await service.revalidate_stored_manual_token(stored) is True
     assert stored.twitch_token_expires_at > datetime.utcnow() + timedelta(days=59)
@@ -266,7 +314,7 @@ async def test_revalidate_stored_manual_token_keeps_stale_expiry_when_invalid(
         twitch_refresh_token=None,
         twitch_token_expires_at=stale_expiry,
     )
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=None)
     service.encryption = _Encryption()
@@ -274,7 +322,7 @@ async def test_revalidate_stored_manual_token_keeps_stale_expiry_when_invalid(
     async def _validate(_token):
         return None
 
-    monkeypatch.setattr(service, "validate_token", _validate)
+    monkeypatch.setattr(service, "_validate_token", _validate)
 
     assert await service.revalidate_stored_manual_token(stored) is False
     assert stored.twitch_token_expires_at == stale_expiry
@@ -282,7 +330,7 @@ async def test_revalidate_stored_manual_token_keeps_stale_expiry_when_invalid(
 
 
 def _recording_service(stored, env_token=None):
-    service = TwitchTokenService.__new__(TwitchTokenService)
+    service = _new_service()
     service.db = _Db(stored)
     service.settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=env_token)
     service.encryption = _Encryption()
@@ -331,14 +379,14 @@ async def test_recording_token_definitive_invalidity_expires_same_stored_version
     async def _invalid(_token):
         return "invalid"
 
-    def _invalidate(version):
+    async def _invalidate(version):
         invalidated.append(version)
         stored.twitch_token_expires_at = datetime.utcnow() - timedelta(seconds=1)
         return True
 
     monkeypatch.setattr(service, "_validate_recording_token", _invalid, raising=False)
     monkeypatch.setattr(
-        service, "invalidate_recording_token", _invalidate, raising=False
+        service, "_invalidate_recording_token", _invalidate, raising=False
     )
 
     resolution = await service.resolve_recording_token()
@@ -428,9 +476,9 @@ async def test_recording_oauth_refresh_uses_refresh_lock(monkeypatch):
             lock_events.append("exited")
 
     async def _refresh(settings):
-        settings.twitch_access_token = "enc:fresh-oauth"
-        settings.twitch_token_expires_at = datetime.utcnow() + timedelta(hours=2)
-        return "fresh-oauth"
+        stored.twitch_access_token = "enc:fresh-oauth"
+        stored.twitch_token_expires_at = datetime.utcnow() + timedelta(hours=2)
+        return "fresh-oauth", service._stored_token_version(await service._read_state())
 
     async def _valid(_token):
         return "valid"
@@ -461,36 +509,21 @@ async def test_recording_live_validation_classifies_http_response(
     monkeypatch, status, payload, expected
 ):
     request = {}
+    native_timeout = asyncio.timeout
 
-    class _Response:
-        async def __aenter__(self):
-            return self
+    def observed_timeout(delay):
+        request["timeout"] = delay
+        return native_timeout(delay)
 
-        async def __aexit__(self, *_args):
-            return False
+    async def transport(method, url, *, headers, follow_redirects=False):
+        request.update(url=url, headers=headers, allow_redirects=follow_redirects)
+        if not 200 <= status < 300:
+            raise _module.HTTPClientError("status", status_code=status)
+        return HTTPReply(status, {}, json.dumps(payload).encode())
 
-        async def json(self):
-            return payload
-
-    response = _Response()
-    response.status = status
-
-    class _Session:
-        def __init__(self, *, timeout):
-            request["timeout"] = timeout.total
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *_args):
-            return False
-
-        def get(self, url, **kwargs):
-            request.update(url=url, **kwargs)
-            return response
-
-    monkeypatch.setattr(_module.aiohttp, "ClientSession", _Session)
     service = _recording_service(None)
+    monkeypatch.setattr(_module.asyncio, "timeout", observed_timeout)
+    monkeypatch.setattr(service.http_client, "request", transport)
 
     result = await service._validate_recording_token("never-log-this")
 
@@ -500,7 +533,7 @@ async def test_recording_live_validation_classifies_http_response(
     assert request["url"] == service.VALIDATE_URL
 
 
-def test_recording_token_invalidation_is_guarded_against_replacement(tmp_path):
+async def test_recording_token_invalidation_is_guarded_against_replacement(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'tokens.db'}", future=True)
     Base.metadata.create_all(engine, tables=[GlobalSettings.__table__])
     Session = sessionmaker(bind=engine, expire_on_commit=False)
@@ -528,9 +561,9 @@ def test_recording_token_invalidation_is_guarded_against_replacement(tmp_path):
         stored.twitch_token_expires_at = new_expiry
         db.commit()
 
-        service = TwitchTokenService.__new__(TwitchTokenService)
+        service = _new_service(session_factory=Session)
         service.db = db
-        assert service.invalidate_recording_token(version) is False
+        assert await service.invalidate_recording_token(version) is False
 
         db.expire_all()
         current = db.get(GlobalSettings, 1)
@@ -540,7 +573,7 @@ def test_recording_token_invalidation_is_guarded_against_replacement(tmp_path):
     engine.dispose()
 
 
-def test_definitive_manual_token_invalidation_makes_status_invalid(tmp_path):
+async def test_definitive_manual_token_invalidation_makes_status_invalid(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'status.db'}", future=True)
     Base.metadata.create_all(engine, tables=[GlobalSettings.__table__])
     Session = sessionmaker(bind=engine, expire_on_commit=False)
@@ -556,7 +589,7 @@ def test_definitive_manual_token_invalidation_makes_status_invalid(tmp_path):
             )
         )
         db.commit()
-        service = TwitchTokenService.__new__(TwitchTokenService)
+        service = _new_service(session_factory=Session)
         service.db = db
         version = RecordingStoredTokenVersion(
             settings_id=1,
@@ -565,7 +598,7 @@ def test_definitive_manual_token_invalidation_makes_status_invalid(tmp_path):
             expires_at=expiry,
         )
 
-        assert service.invalidate_recording_token(version) is True
+        assert await service.invalidate_recording_token(version) is True
         db.expire_all()
         status = _build_connection_status(db.get(GlobalSettings, 1), None)
         assert status["connected"] is True
@@ -583,9 +616,7 @@ def test_definitive_manual_token_invalidation_makes_status_invalid(tmp_path):
         )
 
         assert (
-            asyncio.run(
-                service.revalidate_stored_manual_token(db.get(GlobalSettings, 1))
-            )
+            await service.revalidate_stored_manual_token(await service.get_state())
             is False
         )
 

@@ -4,12 +4,12 @@ import asyncio
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
-import aiohttp
 from aiohttp import web
 import pytest
 import pytest_asyncio
 
 from app.services.api import twitch_api as module
+from app.services.http_client import HTTPPolicy, ManagedHTTPClient
 from app.utils.retry_decorator import NonRetryableError
 
 
@@ -30,9 +30,11 @@ async def provider(monkeypatch):
     )
 
     async def token(request):
-        assert request.query["grant_type"] == "client_credentials"
-        assert request.query["client_id"] == "synthetic-id"
-        assert request.query["client_secret"] in {"synthetic-secret", ""}
+        form = await request.post()
+        assert form["grant_type"] == "client_credentials"
+        assert form["client_id"] == "synthetic-id"
+        assert form["client_secret"] in {"synthetic-secret", ""}
+        assert not request.query
         state.posts += 1
         state.token_started.set()
         if state.token_release is not None:
@@ -64,36 +66,29 @@ async def provider(monkeypatch):
     site = web.TCPSite(runner, "127.0.0.1", 0)
     await site.start()
     port = site._server.sockets[0].getsockname()[1]
-    real_session = aiohttp.ClientSession
+    http = ManagedHTTPClient(HTTPPolicy())
+    original_request = http.request
 
-    def local_session(*args, **kwargs):
-        session = real_session(*args, **kwargs)
-        original_request = session._request
+    async def local_request(method, url, **options):
+        parsed = urlsplit(str(url))
+        assert parsed.hostname in {"api.twitch.tv", "id.twitch.tv"}
+        return await original_request(
+            method, f"http://127.0.0.1:{port}{parsed.path}", **options
+        )
 
-        async def local_request(method, url, **options):
-            parsed = urlsplit(str(url))
-            assert parsed.hostname in {"api.twitch.tv", "id.twitch.tv"}
-            return await original_request(
-                method, f"http://127.0.0.1:{port}{parsed.path}", **options
-            )
-
-        session._request = local_request
-        return session
-
-    monkeypatch.setattr(module.aiohttp, "ClientSession", local_session)
-    monkeypatch.setattr(
-        module,
-        "settings",
-        SimpleNamespace(
+    monkeypatch.setattr(http, "request", local_request)
+    client = module.TwitchAPIService(
+        settings=SimpleNamespace(
             TWITCH_APP_ID="synthetic-id", TWITCH_APP_SECRET="synthetic-secret"
         ),
+        http_client=http,
     )
-    client = module.TwitchAPIService()
     try:
         yield client, state
     finally:
         if state.token_release is not None:
             state.token_release.set()
+        await client.close()
         await runner.cleanup()
 
 

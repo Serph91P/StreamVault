@@ -6,14 +6,20 @@ import pytest
 
 import app.routes.videos as videos
 import app.services.images.category_image_service as category_images
-import app.services.images.image_download_service as image_downloads
 from app.services.images.category_image_service import CategoryImageService
 from app.services.images.image_download_service import ImageDownloadService
+from app.config.settings import Settings
 from app.services.processing.recording_task_factory import RecordingTaskFactory
 
 
 def _image_download_service(media_dir: Path) -> ImageDownloadService:
-    service = ImageDownloadService.__new__(ImageDownloadService)
+    service = ImageDownloadService(
+        settings=Settings(
+            ENVIRONMENT="test",
+            RECORDING_DIRECTORY=str(media_dir.parent),
+            _env_file=None,
+        )
+    )
     service._initialized = True
     service.images_base_dir = media_dir
     service._failed_downloads = set()
@@ -23,23 +29,24 @@ def _image_download_service(media_dir: Path) -> ImageDownloadService:
 
 def _category_image_service(categories_dir: Path) -> CategoryImageService:
     download_service = _image_download_service(categories_dir.parent)
-    service = CategoryImageService.__new__(CategoryImageService)
-    service.download_service = download_service
+    service = CategoryImageService(download_service)
     service.categories_dir = categories_dir
     service._category_cache = {}
+    service._cache_loaded = True
     service._background_tasks = set()
     return service
 
 
-class _ImageContent:
-    async def iter_chunked(self, _size: int):
-        yield b"image"
-
-
 class _ImageResponse:
-    status = 200
+    status_code = 200
     headers = {"content-type": "image/jpeg"}
-    content = _ImageContent()
+
+    @property
+    def chunks(self):
+        return self._chunks()
+
+    async def _chunks(self):
+        yield b"image"
 
     async def __aenter__(self):
         return self
@@ -49,7 +56,7 @@ class _ImageResponse:
 
 
 class _ImageSession:
-    def get(self, _url: str) -> _ImageResponse:
+    def stream(self, _method: str, _url: str, **_kwargs) -> _ImageResponse:
         return _ImageResponse()
 
 
@@ -162,7 +169,7 @@ async def test_download_rechecks_destination_before_filesystem_sinks(
         lambda path, **_kwargs: filesystem_sinks.append(("mkdir", path)),
     )
     monkeypatch.setattr(
-        image_downloads.aiofiles,
+        Path,
         "open",
         lambda path, _mode: filesystem_sinks.append(("open", path)),
     )

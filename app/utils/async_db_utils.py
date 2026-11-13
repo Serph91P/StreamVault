@@ -7,6 +7,7 @@ layer over that lifecycle.
 """
 
 import asyncio
+from collections.abc import Callable
 from typing import Any, List
 from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
@@ -132,12 +133,13 @@ async def batch_process_items(
             await asyncio.sleep(sleep_duration)
 
 
-async def run_in_thread_pool(func, *args, **kwargs):
+async def run_in_thread_pool[T, **P](
+    func: Callable[P, T], *args: P.args, **kwargs: P.kwargs
+) -> T:
     """Offload a complete resource scope, preserving context and draining on cancel.
 
     The callback must create/use/close its sessions and return values, not ORM rows.
     Blocking operations retain their own driver/operation timeout budgets.
-    Adapted from #842 / 19b69390; no application factory migration is imported.
     """
     worker = asyncio.create_task(
         asyncio.to_thread(func, *args, **kwargs), name="streamvault:blocking-operation"

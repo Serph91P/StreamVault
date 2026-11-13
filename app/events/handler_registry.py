@@ -1,43 +1,71 @@
+from __future__ import annotations
+
 import logging
-import aiohttp
+
 import asyncio
-from typing import Dict, Callable, Awaitable, Any, Optional
-from datetime import datetime, timezone, timedelta
+from typing import Dict, Callable, Awaitable, Any, Optional, TYPE_CHECKING
+from datetime import datetime
 from cachetools import TTLCache
 
 from app.database import SessionLocal
+from app.events.event_catalog import (
+    prepare_offline,
+    offline_recording_id,
+    prepare_online,
+    update_broadcaster_exists,
+    prepare_update,
+    update_category_exists,
+    prepare_update_category,
+    publish_update_category_image,
+)
+from app.utils.async_db_utils import run_in_thread_pool
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from app.services.communication.websocket_manager import ConnectionManager
 from app.services.notification_service import NotificationService
 from app.services.recording.config_manager import ConfigManager
-from app.services.api.twitch_api import twitch_api
+from app.services.api.twitch_api import (
+    TwitchAPIService,
+    twitch_api as default_twitch_api,
+)
 from app.models import (
-    Streamer,
     Stream,
-    StreamEvent,
-    Category,
-    User,
-    FavoriteCategory,
-    NotificationSettings,
     Recording,
 )
-from app.config.settings import settings as app_settings
+from app.config.settings import Settings, settings as app_settings
 from app.config.constants import CACHE_CONFIG, ASYNC_DELAYS
 
 logger = logging.getLogger("streamvault")
 
+if TYPE_CHECKING:
+    from app.services.recording.recording_manager import RecordingManager
+    from app.services.unified_image_service import UnifiedImageService
 
-def get_recording_manager():
+
+def get_recording_manager() -> RecordingManager:
     from app.dependencies import get_recording_manager as resolve_recording_manager
 
     return resolve_recording_manager()
 
 
 class EventHandlerRegistry:
-    def __init__(self, connection_manager: ConnectionManager, settings=None):
-        self.recording_service = get_recording_manager()
-        self.config_manager = ConfigManager()
+    def __init__(
+        self,
+        connection_manager: ConnectionManager,
+        settings: Settings | None = None,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+        recording_manager: RecordingManager | None = None,
+        notification_service: NotificationService | None = None,
+        twitch_api: TwitchAPIService | None = None,
+        image_service: UnifiedImageService | None = None,
+    ):
+        self.recording_service = recording_manager or get_recording_manager()
+        self._session_factory = session_factory
+        self._image_service = image_service
+        self.config_manager = ConfigManager(
+            session_factory=session_factory, settings=settings
+        )
         self.handlers: Dict[str, Callable[[Any], Awaitable[None]]] = {
             "stream.online": self.handle_stream_online,
             "stream.offline": self.handle_stream_offline,
@@ -45,38 +73,24 @@ class EventHandlerRegistry:
         }
         self.manager = connection_manager
         self.settings = settings or app_settings
-        self.notification_service = NotificationService(
-            websocket_manager=connection_manager
+        self.notification_service = notification_service or NotificationService(
+            websocket_manager=connection_manager,
+            session_factory=session_factory,
+            settings=settings,
         )
-        self._access_token = None
-        self.eventsub = None
+        self.twitch_api = twitch_api or default_twitch_api
+
+        self.eventsub: dict[str, str | None] | None = None
         # TTLCache for event deduplication (prevents memory leaks with automatic expiration)
-        self._processed_events = TTLCache(
+        self._processed_events: TTLCache[str, datetime] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
             ttl=CACHE_CONFIG.EVENT_DEDUPLICATION_TTL,
         )
 
     async def get_access_token(self) -> str:
-        if not self._access_token:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://id.twitch.tv/oauth2/token",
-                    params={
-                        "client_id": self.settings.TWITCH_APP_ID,
-                        "client_secret": self.settings.TWITCH_APP_SECRET,
-                        "grant_type": "client_credentials",
-                    },
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        self._access_token = data["access_token"]
-                    else:
-                        raise ValueError(
-                            f"Failed to get access token: {response.status}"
-                        )
-        return self._access_token
+        return await self.twitch_api.get_access_token()
 
-    async def initialize_eventsub(self):
+    async def initialize_eventsub(self) -> None:
         if self.eventsub:
             logger.debug("EventSub already initialized, skipping...")
             return
@@ -94,74 +108,46 @@ class EventHandlerRegistry:
 
         logger.info("EventSub initialized successfully")
 
-    async def subscribe_to_events(self, twitch_id: str):
+    async def subscribe_to_events(self, twitch_id: str) -> None:
         if not self.eventsub:
             raise ValueError("EventSub not initialized")
-
-        access_token = await self.get_access_token()
-        logger.debug(f"Starting batch subscription process for twitch_id: {twitch_id}")
-
-        async with aiohttp.ClientSession() as session:
-            for event_type in self.handlers.keys():
-                try:
-                    async with session.post(
-                        "https://api.twitch.tv/helix/eventsub/subscriptions",
-                        headers={
-                            "Client-ID": self.settings.TWITCH_APP_ID,
-                            "Authorization": f"Bearer {access_token}",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "type": event_type,
-                            "version": "1",
-                            "condition": {"broadcaster_user_id": twitch_id},
-                            "transport": {
-                                "method": "webhook",
-                                "callback": self.eventsub["callback_url"],
-                                "secret": self.eventsub["secret"],
-                            },
-                        },
-                    ) as response:
-                        if response.status == 202:
-                            logger.info(
-                                f"Subscribed to {event_type} for twitch_id: {twitch_id}"
-                            )
-                        else:
-                            error_data = await response.json()
-                            logger.error(
-                                f"Failed to subscribe to {event_type}. Status: {response.status}, Error: {error_data}"
-                            )
-                except Exception as e:
-                    logger.error(f"Error subscribing to {event_type}: {e}")
-                    raise
+        for event_type in self.handlers:
+            status = await self.twitch_api.create_eventsub_subscription(
+                {
+                    "type": event_type,
+                    "version": "2" if event_type == "channel.update" else "1",
+                    "condition": {"broadcaster_user_id": twitch_id},
+                    "transport": {
+                        "method": "webhook",
+                        "callback": self.eventsub["callback_url"],
+                        "secret": self.eventsub["secret"],
+                    },
+                }
+            )
+            if status == 202:
+                logger.info("Subscribed to %s for twitch_id: %s", event_type, twitch_id)
+            else:
+                logger.error("EventSub subscription rejected (HTTP %s)", status)
 
     async def verify_subscription(
         self, subscription_id: str, max_attempts: int = 10
     ) -> bool:
-        access_token = await self.get_access_token()
-
-        for attempt in range(max_attempts):
+        await self.get_access_token()
+        for _ in range(max_attempts):
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://api.twitch.tv/helix/eventsub/subscriptions",
-                        headers={
-                            "Client-ID": self.settings.TWITCH_APP_ID,
-                            "Authorization": f"Bearer {access_token}",
-                        },
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            for sub in data.get("data", []):
-                                if (
-                                    sub["id"] == subscription_id
-                                    and sub["status"] == "enabled"
-                                ):
-                                    return True
-                        await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
-            except Exception as e:
-                logger.error(f"Error verifying subscription {subscription_id}: {e}")
-                await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
+                payload = await self.list_subscriptions()
+                values = payload.get("data", [])
+                if isinstance(values, list):
+                    for sub in values:
+                        if (
+                            isinstance(sub, dict)
+                            and sub.get("id") == subscription_id
+                            and sub.get("status") == "enabled"
+                        ):
+                            return True
+            except Exception as exc:
+                logger.error("EventSub verification failed (%s)", type(exc).__name__)
+            await asyncio.sleep(ASYNC_DELAYS.HANDLER_REGISTRY_RETRY)
         return False
 
     def is_duplicate_message(
@@ -217,303 +203,85 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error forgetting event fingerprint: {e}", exc_info=True)
 
-    async def handle_stream_online(self, data: dict):
-        logger.info(
-            f"🎬 STREAM_ONLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}, started_at={data.get('started_at')}"
-        )
-
+    async def handle_stream_online(self, data: dict[str, str]) -> None:
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
-
-            with SessionLocal() as db:
-                streamer = (
-                    db.query(Streamer)
-                    .filter(Streamer.twitch_id == data["broadcaster_user_id"])
-                    .first()
+            snapshot = await run_in_thread_pool(
+                prepare_online,
+                self._session_factory or SessionLocal,
+                data,
+                user_info,
+                self.config_manager.is_recording_enabled,
+            )
+            if snapshot is None:
+                return
+            if not snapshot.new_stream:
+                if snapshot.resume_recording:
+                    await self.recording_service.start_recording(
+                        snapshot.stream_id, snapshot.streamer_id, force_mode=False
+                    )
+                return
+            await self.notification_service.send_stream_notification(
+                streamer_name=snapshot.username,
+                event_type="online",
+                details={
+                    "streamer_id": snapshot.streamer_id,
+                    "stream_id": snapshot.stream_id,
+                    "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
+                    "started_at": data["started_at"],
+                    "title": snapshot.title,
+                    "category_name": snapshot.category_name,
+                    "language": snapshot.language,
+                    "profile_image_url": snapshot.profile_image_url,
+                    "twitch_login": data["broadcaster_user_login"],
+                    "is_live": True,
+                },
+            )
+            if await run_in_thread_pool(
+                self.config_manager.is_recording_enabled, snapshot.streamer_id
+            ):
+                await self.recording_service.start_recording(
+                    snapshot.stream_id, snapshot.streamer_id, force_mode=False
                 )
-
-                if streamer:
-                    # Deduplicate: Twitch redelivers stream.online when we do
-                    # not ACK in time. A second Stream row would leave duplicate
-                    # un-ended streams and mis-route channel.update chapter
-                    # events to the wrong recording.
-                    existing_stream = (
-                        db.query(Stream)
-                        .filter(Stream.streamer_id == streamer.id)
-                        .filter(Stream.twitch_stream_id == data["id"])
-                        .first()
-                    )
-                    if existing_stream:
-                        logger.info(
-                            f"🎬 STREAM_ALREADY_KNOWN: twitch_stream_id={data['id']} "
-                            f"already mapped to stream_id={existing_stream.id}; "
-                            "skipping duplicate stream.online event"
-                        )
-                        # A retry after a failed first attempt must still be able
-                        # to start the recording (dedup must not swallow it) —
-                        # but never for a stream that has already ended.
-                        if (
-                            existing_stream.ended_at is None
-                            and self.config_manager.is_recording_enabled(streamer.id)
-                        ):
-                            active_recording = (
-                                db.query(Recording)
-                                .filter(
-                                    Recording.stream_id == existing_stream.id,
-                                    Recording.status == "recording",
-                                )
-                                .first()
-                            )
-                            if not active_recording:
-                                logger.info(
-                                    f"🎬 RESUMING_RECORDING_FOR_KNOWN_STREAM: stream_id={existing_stream.id}"
-                                )
-                                await self.recording_service.start_recording(
-                                    existing_stream.id, streamer.id, force_mode=False
-                                )
-                        return
-
-                    if user_info and user_info.get("profile_image_url"):
-                        streamer.profile_image_url = user_info["profile_image_url"]
-                    if user_info and user_info.get("description"):
-                        streamer.description = user_info["description"]
-
-                    started_at = datetime.fromisoformat(
-                        data["started_at"].replace("Z", "+00:00")
-                    )
-
-                    # Close any stale still-open streams for this streamer so
-                    # channel.update events can never attach to an old session.
-                    stale_streams = (
-                        db.query(Stream)
-                        .filter(Stream.streamer_id == streamer.id)
-                        .filter(Stream.ended_at.is_(None))
-                        .all()
-                    )
-                    for stale_stream in stale_streams:
-                        logger.warning(
-                            f"🧹 CLOSING_STALE_STREAM: stream_id={stale_stream.id} "
-                            f"(twitch_stream_id={stale_stream.twitch_stream_id}) was "
-                            "still open when a new stream started"
-                        )
-                        stale_stream.ended_at = started_at
-
-                    stream = Stream(
-                        streamer_id=streamer.id,
-                        started_at=started_at,
-                        twitch_stream_id=data["id"],
-                        title=streamer.title,
-                        category_name=streamer.category_name,
-                        language=streamer.language,
-                    )
-                    db.add(stream)
-                    db.flush()
-
-                    # Debugging: Check that the stream was created correctly
-                    logger.info(
-                        f"🔍 STREAM_CREATED: stream_id={stream.id}, streamer_id={stream.streamer_id}, streamer_username={streamer.username}"
-                    )
-
-                    initial_event = StreamEvent(
-                        stream_id=stream.id,
-                        event_type="stream.online",
-                        title=streamer.title,
-                        category_name=streamer.category_name,
-                        language=streamer.language,
-                        timestamp=started_at,
-                    )
-                    db.add(initial_event)
-
-                    if streamer.category_name:
-                        pre_stream_event = StreamEvent(
-                            stream_id=stream.id,
-                            event_type="channel.update",
-                            title=streamer.title,
-                            category_name=streamer.category_name,
-                            language=streamer.language,
-                            timestamp=started_at - timedelta(seconds=1),
-                        )
-                        db.add(pre_stream_event)
-                        logger.debug(
-                            f"Added pre-stream category event for {streamer.category_name}"
-                        )
-
-                    streamer.is_live = True
-                    streamer.last_updated = datetime.now(timezone.utc)
-                    db.commit()
-
-                    # Send notification only via notification_service to avoid duplicates
-                    logger.info(
-                        f"🎬 SENDING_STREAM_ONLINE_NOTIFICATION: streamer={streamer.username}, streamer_id={streamer.id}"
-                    )
-                    await self.notification_service.send_stream_notification(
-                        streamer_name=streamer.username,
-                        event_type="online",
-                        details={
-                            "streamer_id": streamer.id,
-                            "stream_id": stream.id,
-                            "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                            "started_at": data["started_at"],
-                            "title": streamer.title,
-                            "category_name": streamer.category_name,
-                            "language": streamer.language,
-                            # Use current profile image (cached if available)
-                            "profile_image_url": streamer.profile_image_url,
-                            "twitch_login": data["broadcaster_user_login"],
-                            "is_live": True,
-                        },
-                    )
-
-                    logger.info(
-                        f"🎬 STREAM_ONLINE_NOTIFICATION_SENT: streamer={streamer.username}"
-                    )
-
-                    # Check if recording is enabled for this streamer before starting
-                    if self.config_manager.is_recording_enabled(streamer.id):
-                        logger.info(
-                            f"🎬 RECORDING_ENABLED: Starting recording for streamer={streamer.username} (ID: {streamer.id})"
-                        )
-                        streamer_id = streamer.id
-                        stream_id = stream.id
-
-                        # Additional debugging for mismatch tracking
-                        logger.info(
-                            f"🔍 RECORDING_START_PARAMS: stream_id={stream_id}, streamer_id={streamer_id}, stream.streamer_id={stream.streamer_id}"
-                        )
-
-                        # Normal EventSub recordings use standard settings
-                        await self.recording_service.start_recording(
-                            stream_id, streamer_id, force_mode=False
-                        )
-                    else:
-                        logger.info(
-                            f"🎬 RECORDING_DISABLED: Not starting recording for streamer={streamer.username} (ID: {streamer.id}) - recording is disabled for this streamer"
-                        )
-
         except SQLAlchemyError as e:
             logger.error(f"Database error handling stream online event: {e}")
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
 
-    async def handle_stream_offline(self, data: dict):
-        logger.info(
-            f"🎬 STREAM_OFFLINE_EVENT: broadcaster_user_id={data.get('broadcaster_user_id')}, broadcaster_user_name={data.get('broadcaster_user_name')}"
-        )
-
+    async def handle_stream_offline(self, data: dict[str, str]) -> None:
         try:
-            logger.info(f"Stream offline event received: {data}")
-            with SessionLocal() as db:
-                streamer = (
-                    db.query(Streamer)
-                    .filter(Streamer.twitch_id == data["broadcaster_user_id"])
-                    .first()
+            session_factory = self._session_factory or SessionLocal
+            snapshot = await run_in_thread_pool(
+                prepare_offline, session_factory, data["broadcaster_user_id"]
+            )
+            if snapshot is None:
+                return
+            await self.notification_service.send_stream_notification(
+                streamer_name=snapshot.username,
+                event_type="offline",
+                details={
+                    "streamer_id": snapshot.streamer_id,
+                    "stream_id": snapshot.stream_id,
+                    "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
+                    "profile_image_url": snapshot.profile_image_url,
+                    "twitch_login": data["broadcaster_user_login"],
+                    "is_live": False,
+                },
+            )
+            # Read fresh after notification, preserving the existing stop ordering.
+            recording_id = await run_in_thread_pool(
+                offline_recording_id, session_factory, snapshot
+            )
+            if recording_id is not None:
+                await self.recording_service.stop_recording(
+                    recording_id, reason="automatic"
                 )
-
-                if streamer:
-                    streamer.is_live = False
-                    streamer.last_updated = datetime.now(timezone.utc)
-
-                    open_streams = (
-                        db.query(Stream)
-                        .filter(Stream.streamer_id == streamer.id)
-                        .filter(Stream.ended_at.is_(None))
-                        .order_by(Stream.started_at.desc())
-                        .all()
-                    )
-                    stream = open_streams[0] if open_streams else None
-                    ended_at = datetime.now(timezone.utc)
-
-                    # Close ALL open streams — leftover un-ended rows would
-                    # attract future channel.update chapter events.
-                    # Recordings attached to older streams are intentionally not
-                    # stopped here; the recovery machinery (zombie cleanup) owns them.
-                    for open_stream in open_streams:
-                        open_stream.ended_at = ended_at
-
-                    if stream:
-                        # Update last stream info on streamer for offline display
-                        streamer.last_stream_title = stream.title
-                        streamer.last_stream_category_name = stream.category_name
-                        streamer.last_stream_ended_at = stream.ended_at
-                        # Note: last_stream_viewer_count will be updated when recording finishes
-                        # (not available in stream.offline event)
-
-                    db.commit()
-
-                    # Send notification only via notification_service to avoid duplicates
-                    logger.info(
-                        f"🎬 SENDING_STREAM_OFFLINE_NOTIFICATION: streamer={streamer.username}, streamer_id={streamer.id}"
-                    )
-                    await self.notification_service.send_stream_notification(
-                        streamer_name=streamer.username,
-                        event_type="offline",
-                        details={
-                            "streamer_id": streamer.id,
-                            "stream_id": stream.id if stream else None,
-                            "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                            # Use current profile image (cached if available)
-                            "profile_image_url": streamer.profile_image_url,
-                            "twitch_login": data["broadcaster_user_login"],
-                            "is_live": False,
-                        },
-                    )
-
-                    logger.info(
-                        f"🎬 STREAM_OFFLINE_NOTIFICATION_SENT: streamer={streamer.username}"
-                    )
-                    logger.info(f"🎬 STOPPING_RECORDING: streamer_id={streamer.id}")
-
-                    # Find active recording for this streamer
-                    if stream and stream.id:
-                        # Find recording by stream ID if stream exists
-                        active_recording = (
-                            db.query(Recording)
-                            .filter(
-                                Recording.stream_id == stream.id,
-                                Recording.status == "recording",
-                            )
-                            .first()
-                        )
-                    else:
-                        # Fallback: Find recording by streamer ID if stream is None
-                        logger.warning(
-                            f"🎬 STREAM_IS_NONE: Finding recording by streamer_id={streamer.id}"
-                        )
-                        # Get the most recent stream for this streamer
-                        recent_stream = (
-                            db.query(Stream)
-                            .filter(Stream.streamer_id == streamer.id)
-                            .order_by(Stream.created_at.desc())
-                            .first()
-                        )
-
-                        if recent_stream:
-                            active_recording = (
-                                db.query(Recording)
-                                .filter(
-                                    Recording.stream_id == recent_stream.id,
-                                    Recording.status == "recording",
-                                )
-                                .first()
-                            )
-                        else:
-                            active_recording = None
-
-                    if active_recording:
-                        stream_id_info = stream.id if stream else "None"
-                        logger.info(
-                            f"🎬 FOUND_ACTIVE_RECORDING: recording_id={active_recording.id}, stream_id={stream_id_info}, streamer_id={streamer.id}"
-                        )
-                        # Automatic stop when stream goes offline
-                        await self.recording_service.stop_recording(
-                            active_recording.id, reason="automatic"
-                        )
-                    else:
-                        stream_id_info = stream.id if stream else "None"
-                        logger.warning(
-                            f"🎬 NO_ACTIVE_RECORDING_FOUND: streamer_id={streamer.id}, stream_id={stream_id_info}, status_filter='recording'"
-                        )
-
+            else:
+                logger.warning(
+                    "No active recording for offline streamer_id=%s stream_id=%s",
+                    snapshot.streamer_id,
+                    snapshot.stream_id,
+                )
         except SQLAlchemyError as e:
             logger.error(f"Database error handling stream offline event: {e}")
         except Exception as e:
@@ -551,250 +319,123 @@ class EventHandlerRegistry:
             .first()
         )
 
-    async def handle_stream_update(self, data: dict):
+    async def handle_stream_update(self, data: dict[str, str]) -> None:
+        sessions = self._session_factory or SessionLocal
         try:
-            logger.debug(f"Processing stream update event: {data}")
-            with SessionLocal() as db:
-                streamer = (
-                    db.query(Streamer)
-                    .filter(Streamer.twitch_id == data["broadcaster_user_id"])
-                    .first()
-                )
-
-                if not streamer:
-                    logger.warning(
-                        f"channel.update for unknown broadcaster {data.get('broadcaster_user_id')}; ignoring"
-                    )
-                    return
-
-                logger.debug(f"Found streamer: {streamer.username} (ID: {streamer.id})")
-                # Resolve category name: prefer payload, else use category_id lookup
-                incoming_category_name = data.get("category_name")
-                category_id = data.get("category_id")
-                effective_category_name = incoming_category_name
-                if not effective_category_name and category_id:
-                    try:
-                        from app.services.streamer_service import StreamerService
-
-                        streamer_service = StreamerService(
-                            db=db,
-                            websocket_manager=self.manager,
-                            event_registry=self,
-                        )
-                        game_data = await streamer_service.get_game_data(category_id)
-                        if game_data and game_data.get("name"):
-                            effective_category_name = game_data.get("name")
-                            logger.debug(
-                                f"Resolved category name via category_id {category_id}: {effective_category_name}"
-                            )
-                    except Exception as e:
-                        logger.debug(
-                            f"Failed to resolve category name for id {category_id}: {e}"
-                        )
-
-                streamer.title = data.get("title")
-                streamer.category_name = effective_category_name
-                streamer.language = data.get("language")
-                streamer.last_updated = datetime.now(timezone.utc)
-
-                db.commit()
-                logger.debug(f"Updated streamer info in database: {streamer.title}")
-
-                stream = self._resolve_event_target_stream(db, streamer.id)
-
-                if stream:
-                    # Also update the active stream with the latest title/category/language
-                    try:
-                        if data.get("title"):
-                            stream.title = data.get("title")
-                        if effective_category_name:
-                            stream.category_name = effective_category_name
-                        if data.get("language"):
-                            stream.language = data.get("language")
-                    except Exception as e:
-                        logger.debug(
-                            f"Could not update active stream fields from channel.update: {e}"
-                        )
-
-                    stream_event = StreamEvent(
-                        stream_id=stream.id,
-                        event_type="channel.update",
-                        title=data.get("title"),
-                        category_name=effective_category_name,
-                        language=data.get("language"),
-                        timestamp=datetime.now(timezone.utc),
-                    )
-                    db.add(stream_event)
-                    db.commit()
-                else:
-                    logger.info(
-                        f"Streamer {streamer.username} is offline, storing update for future use"
-                    )
-
-                # Send notification via notification_service - settings check handled internally
-                logger.debug(
-                    f"Attempting to send notification for {streamer.username}, event_type=update"
-                )
-                notification_result = await self.notification_service.send_stream_notification(
-                    streamer_name=streamer.username,
-                    event_type="update",
-                    details={
-                        "streamer_id": streamer.id,
-                        "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                        "title": data.get("title"),
-                        "category_name": effective_category_name,
-                        "language": data.get("language"),
-                        # Use current profile image (cached if available)
-                        "profile_image_url": streamer.profile_image_url,
-                        "twitch_login": data["broadcaster_user_login"],
-                        "is_live": streamer.is_live,
-                    },
-                )
-                logger.debug(f"Notification result: {notification_result}")
-
-                logger.debug("Notifications sent successfully")
-                category_name = effective_category_name
-                category_id = data.get("category_id")
-
-                if category_name and category_id:
-                    from app.services.streamer_service import StreamerService
-
-                    category = (
-                        db.query(Category)
-                        .filter(Category.twitch_id == category_id)
-                        .first()
-                    )
-
-                    if not category:
-                        # Get game data and download image immediately
-                        streamer_service = StreamerService(
-                            db=db, websocket_manager=self.manager, event_registry=self
-                        )
-                        game_data = await streamer_service.get_game_data(category_id)
-
-                        # Create category with HTTP URL initially
-                        category = Category(
-                            twitch_id=category_id,
-                            name=category_name
-                            or (game_data.get("name") if game_data else None),
-                            box_art_url=game_data.get("box_art_url")
-                            if game_data
-                            else None,
-                        )
-                        db.add(category)
-                        db.commit()  # Commit first so category has an ID
-
-                        # Now immediately download and set correct local URL
-                        if game_data and game_data.get("box_art_url"):
-                            try:
-                                # Import the image service
-                                from app.services.unified_image_service import (
-                                    unified_image_service,
-                                )
-
-                                # Download the image and get local URL
-                                local_url = (
-                                    await unified_image_service.download_category_image(
-                                        category_name, game_data.get("box_art_url")
-                                    )
-                                )
-
-                                if local_url:
-                                    category.box_art_url = local_url
-                                    logger.info(
-                                        f"Set category {category_name} image URL to: {local_url}"
-                                    )
-
-                            except Exception as img_error:
-                                logger.error(
-                                    f"Failed to download category image for {category_name}: {img_error}"
-                                )
-
-                    else:
-                        category.name = category_name
-                        category.last_seen = datetime.now(timezone.utc)
-
-                    db.commit()
-
-                    users_with_favorite = (
-                        db.query(User)
-                        .join(FavoriteCategory)
-                        .filter(FavoriteCategory.category_id == category.id)
-                        .all()
-                    )
-
-                    if users_with_favorite:
-                        for user in users_with_favorite:
-                            settings = (
-                                db.query(NotificationSettings)
-                                .filter(NotificationSettings.streamer_id == streamer.id)
-                                .first()
-                            )
-
-                            if settings and settings.notify_favorite_category:
-                                await self.notification_service.send_stream_notification(
-                                    streamer_name=streamer.username,
-                                    event_type="favorite_category",
-                                    details={
-                                        "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
-                                        "title": data.get("title"),
-                                        "category_name": category_name,
-                                        "language": data.get("language"),
-                                        "profile_image_url": streamer.profile_image_url,
-                                        "twitch_login": data["broadcaster_user_login"],
-                                    },
-                                )
-        except SQLAlchemyError as e:
-            logger.error(f"Database error handling stream update event: {e}")
-        except Exception as e:
-            logger.error(f"Error handling stream update event: {e}", exc_info=True)
-
-    async def list_subscriptions(self):
-        logger.debug("Entering list_subscriptions()")
-        access_token = await self.get_access_token()
-        logger.debug(f"Using access_token: {access_token[:6]}... (truncated)")
-
-        async with aiohttp.ClientSession() as session:
-            url = "https://api.twitch.tv/helix/eventsub/subscriptions"
-            headers = {
-                "Client-ID": self.settings.TWITCH_APP_ID,
-                "Authorization": f"Bearer {access_token}",
-            }
-            logger.debug(
-                f"Requesting Twitch subscriptions {url} with headers={headers}"
+            if not await run_in_thread_pool(
+                update_broadcaster_exists, sessions, data["broadcaster_user_id"]
+            ):
+                logger.warning("channel.update for unknown broadcaster; ignoring")
+                return
+            category_name, category_id = (
+                data.get("category_name"),
+                data.get("category_id"),
             )
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    logger.debug(f"Received subscription data: {data}")
-                    return data
-                else:
-                    logger.error(
-                        f"Failed to list subscriptions: HTTP {response.status}"
+            game_data = None
+            if not category_name and category_id:
+                try:
+                    games = await self.twitch_api.get_games_by_id([category_id])
+                    game_data = games[0] if games else None
+                    name = game_data.get("name") if game_data else None
+                    if isinstance(name, str):
+                        category_name = name
+                except Exception as error:
+                    logger.debug(
+                        "Category name lookup failed (%s)", type(error).__name__
                     )
-                    return {"data": []}
-
-    async def delete_subscription(self, subscription_id: str):
-        access_token = await self.get_access_token()
-
-        async with aiohttp.ClientSession() as session:
-            async with session.delete(
-                f"https://api.twitch.tv/helix/eventsub/subscriptions?id={subscription_id}",
-                headers={
-                    "Client-ID": self.settings.TWITCH_APP_ID,
-                    "Authorization": f"Bearer {access_token}",
+            snapshot = await run_in_thread_pool(
+                prepare_update,
+                sessions,
+                data,
+                category_name,
+                self._resolve_event_target_stream,
+            )
+            if snapshot is None:
+                return
+            details = {
+                "url": f"https://twitch.tv/{data['broadcaster_user_login']}",
+                "title": data.get("title"),
+                "category_name": category_name,
+                "language": data.get("language"),
+                "profile_image_url": snapshot.profile_image_url,
+                "twitch_login": data["broadcaster_user_login"],
+            }
+            await self.notification_service.send_stream_notification(
+                streamer_name=snapshot.username,
+                event_type="update",
+                details={
+                    **details,
+                    "streamer_id": snapshot.streamer_id,
+                    "is_live": snapshot.is_live,
                 },
-            ) as response:
-                if response.status == 204:
-                    return {"id": subscription_id, "status": "deleted"}
-                else:
-                    return {
-                        "id": subscription_id,
-                        "status": "failed",
-                        "error": f"Status code: {response.status}",
-                    }
+            )
+            if category_name and category_id:
+                exists = await run_in_thread_pool(
+                    update_category_exists, sessions, category_id
+                )
+                if not exists and game_data is None:
+                    games = await self.twitch_api.get_games_by_id([category_id])
+                    game_data = games[0] if games else None
+                source = game_data.get("box_art_url") if game_data else None
+                source = source if isinstance(source, str) else None
+                identity, favorite_count = await run_in_thread_pool(
+                    prepare_update_category,
+                    sessions,
+                    category_id,
+                    category_name,
+                    source,
+                    snapshot.streamer_id,
+                )
+                if not exists and source:
+                    try:
+                        image_service = self._image_service
+                        if image_service is None:
+                            from app.services.unified_image_service import (
+                                unified_image_service,
+                            )
 
-    async def unsubscribe_from_events(self, twitch_id: str):
+                            image_service = unified_image_service
+                        local_url = await image_service.download_category_image(
+                            category_name, source
+                        )
+                        if local_url:
+                            await run_in_thread_pool(
+                                publish_update_category_image,
+                                sessions,
+                                identity,
+                                local_url,
+                            )
+                    except Exception as error:
+                        logger.error(
+                            "Category image download failed (%s)", type(error).__name__
+                        )
+                for _ in range(favorite_count):
+                    await self.notification_service.send_stream_notification(
+                        streamer_name=snapshot.username,
+                        event_type="favorite_category",
+                        details=dict(details),
+                    )
+        except SQLAlchemyError as error:
+            logger.error(
+                "Database error handling stream update (%s)", type(error).__name__
+            )
+        except Exception as error:
+            logger.error("Error handling stream update (%s)", type(error).__name__)
+
+    async def list_subscriptions(self) -> dict[str, object]:
+        return await self.twitch_api.list_eventsub_subscriptions()
+
+    async def delete_subscription(self, subscription_id: str) -> dict[str, str]:
+        status = await self.twitch_api.delete_eventsub_subscription(subscription_id)
+        if status == 204:
+            return {"id": subscription_id, "status": "deleted"}
+        return {
+            "id": subscription_id,
+            "status": "failed",
+            "error": f"Status code: {status}",
+        }
+
+    async def unsubscribe_from_events(self, twitch_id: str) -> None:
         """Unsubscribe from all EventSub events for a specific streamer"""
         try:
             # Get all subscriptions
@@ -808,10 +449,21 @@ class EventHandlerRegistry:
 
             # Find and delete subscriptions for this broadcaster
             deleted_count = 0
-            for sub in subscriptions["data"]:
-                if sub.get("condition", {}).get("broadcaster_user_id") == twitch_id:
+            values = subscriptions["data"]
+            if not isinstance(values, list):
+                raise ValueError("Invalid EventSub subscription data")
+            for sub in values:
+                if not isinstance(sub, dict):
+                    raise ValueError("Invalid EventSub subscription row")
+                subscription_id = sub.get("id")
+                condition = sub.get("condition", {})
+                if not isinstance(subscription_id, str) or not isinstance(
+                    condition, dict
+                ):
+                    raise ValueError("Invalid EventSub subscription identity")
+                if condition.get("broadcaster_user_id") == twitch_id:
                     try:
-                        await self.delete_subscription(sub["id"])
+                        await self.delete_subscription(subscription_id)
                         deleted_count += 1
                         logger.info(
                             f"Deleted subscription {sub['id']} ({sub.get('type')}) for {twitch_id}"
@@ -832,13 +484,19 @@ class EventHandlerRegistry:
             )
             raise
 
-    async def delete_all_subscriptions(self):
+    async def delete_all_subscriptions(self) -> dict[str, object]:
         subs = await self.list_subscriptions()
         results = []
 
-        for sub in subs.get("data", []):
+        values = subs.get("data", [])
+        if not isinstance(values, list):
+            raise ValueError("Invalid EventSub subscription data")
+        for sub in values:
+            if not isinstance(sub, dict) or not isinstance(sub.get("id"), str):
+                raise ValueError("Invalid EventSub subscription identity")
+            subscription_id = sub["id"]
             try:
-                result = await self.delete_subscription(sub["id"])
+                result = await self.delete_subscription(subscription_id)
                 results.append(result)
             except Exception as e:
                 logger.error(f"Failed to delete subscription {sub['id']}: {e}")
@@ -855,7 +513,7 @@ class EventHandlerRegistry:
     async def get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user info from Twitch API including profile image"""
         try:
-            users = await twitch_api.get_users_by_id([user_id])
+            users = await self.twitch_api.get_users_by_id([user_id])
             return users[0] if users else None
         except Exception as e:
             logger.error(f"Error fetching user info: {e}")

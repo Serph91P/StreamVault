@@ -1,0 +1,2797 @@
+{
+  "ActiveRecordingState": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "stream_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "stream_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "recording_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "recording_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "process_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "process_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "process_identifier",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "process_identifier",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "streamer_name",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "streamer_name",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "started_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "started_at",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "ts_output_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "ts_output_path",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "force_mode",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "force_mode",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "quality",
+        "autoincrement": "auto",
+        "default": "best",
+        "name": "quality",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "status",
+        "autoincrement": "auto",
+        "default": "active",
+        "name": "status",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_heartbeat",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_heartbeat",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "config_json",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "config_json",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "updated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "updated_at",
+        "nullable": true,
+        "onupdate": "now()"
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_active_recordings_heartbeat ON active_recordings_state (last_heartbeat)",
+          "CREATE INDEX ix_active_recordings_status ON active_recordings_state (status)",
+          "CREATE INDEX ix_active_recordings_stream_id ON active_recordings_state (stream_id)"
+        ],
+        "table": "\nCREATE TABLE active_recordings_state (\n\tid SERIAL NOT NULL, \n\tstream_id INTEGER NOT NULL, \n\trecording_id INTEGER NOT NULL, \n\tprocess_id INTEGER NOT NULL, \n\tprocess_identifier VARCHAR(100) NOT NULL, \n\tstreamer_name VARCHAR(100) NOT NULL, \n\tstarted_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tts_output_path VARCHAR(500) NOT NULL, \n\tforce_mode BOOLEAN, \n\tquality VARCHAR(50), \n\tstatus VARCHAR(50), \n\tlast_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL, \n\tconfig_json TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_active_recordings_state PRIMARY KEY (id), \n\tCONSTRAINT uq_active_recordings_state_stream_id UNIQUE (stream_id), \n\tCONSTRAINT fk_active_recordings_state_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE, \n\tCONSTRAINT fk_active_recordings_state_recording_id_recordings FOREIGN KEY(recording_id) REFERENCES recordings (id)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_active_recordings_heartbeat ON active_recordings_state (last_heartbeat)",
+          "CREATE INDEX ix_active_recordings_status ON active_recordings_state (status)",
+          "CREATE INDEX ix_active_recordings_stream_id ON active_recordings_state (stream_id)"
+        ],
+        "table": "\nCREATE TABLE active_recordings_state (\n\tid INTEGER NOT NULL, \n\tstream_id INTEGER NOT NULL, \n\trecording_id INTEGER NOT NULL, \n\tprocess_id INTEGER NOT NULL, \n\tprocess_identifier VARCHAR(100) NOT NULL, \n\tstreamer_name VARCHAR(100) NOT NULL, \n\tstarted_at DATETIME NOT NULL, \n\tts_output_path VARCHAR(500) NOT NULL, \n\tforce_mode BOOLEAN, \n\tquality VARCHAR(50), \n\tstatus VARCHAR(50), \n\tlast_heartbeat DATETIME NOT NULL, \n\tconfig_json TEXT, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_active_recordings_state PRIMARY KEY (id), \n\tCONSTRAINT uq_active_recordings_state_stream_id UNIQUE (stream_id), \n\tCONSTRAINT fk_active_recordings_state_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE, \n\tCONSTRAINT fk_active_recordings_state_recording_id_recordings FOREIGN KEY(recording_id) REFERENCES recordings (id)\n)\n\n"
+      }
+    },
+    "relationships": {
+      "recording": {
+        "back_populates": null,
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Recording",
+        "uselist": false
+      },
+      "stream": {
+        "back_populates": "active_recording_state",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Stream",
+        "uselist": false
+      }
+    },
+    "table": "active_recordings_state"
+  },
+  "ApiKey": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "user_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "user_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "name",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "name",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "key_hash",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "key_hash",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "key_prefix",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "key_prefix",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_used_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_used_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "revoked_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "revoked_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "expires_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "expires_at",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_api_keys_user_id ON api_keys (user_id)",
+          "CREATE UNIQUE INDEX ix_api_keys_key_hash ON api_keys (key_hash)"
+        ],
+        "table": "\nCREATE TABLE api_keys (\n\tid SERIAL NOT NULL, \n\tuser_id INTEGER NOT NULL, \n\tname VARCHAR NOT NULL, \n\tkey_hash VARCHAR NOT NULL, \n\tkey_prefix VARCHAR(12) NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tlast_used_at TIMESTAMP WITH TIME ZONE, \n\trevoked_at TIMESTAMP WITH TIME ZONE, \n\texpires_at TIMESTAMP WITH TIME ZONE, \n\tCONSTRAINT pk_api_keys PRIMARY KEY (id), \n\tCONSTRAINT fk_api_keys_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_api_keys_user_id ON api_keys (user_id)",
+          "CREATE UNIQUE INDEX ix_api_keys_key_hash ON api_keys (key_hash)"
+        ],
+        "table": "\nCREATE TABLE api_keys (\n\tid INTEGER NOT NULL, \n\tuser_id INTEGER NOT NULL, \n\tname VARCHAR NOT NULL, \n\tkey_hash VARCHAR NOT NULL, \n\tkey_prefix VARCHAR(12) NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tlast_used_at DATETIME, \n\trevoked_at DATETIME, \n\texpires_at DATETIME, \n\tCONSTRAINT pk_api_keys PRIMARY KEY (id), \n\tCONSTRAINT fk_api_keys_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "api_keys"
+  },
+  "Category": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "twitch_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "twitch_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "name",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "name",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "box_art_url",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "box_art_url",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "first_seen",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "first_seen",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_seen",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_seen",
+        "nullable": true,
+        "onupdate": "now()"
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE categories (\n\tid SERIAL NOT NULL, \n\ttwitch_id VARCHAR NOT NULL, \n\tname VARCHAR NOT NULL, \n\tbox_art_url VARCHAR, \n\tfirst_seen TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tlast_seen TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_categories PRIMARY KEY (id), \n\tCONSTRAINT uq_categories_twitch_id UNIQUE (twitch_id)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE categories (\n\tid INTEGER NOT NULL, \n\ttwitch_id VARCHAR NOT NULL, \n\tname VARCHAR NOT NULL, \n\tbox_art_url VARCHAR, \n\tfirst_seen DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tlast_seen DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_categories PRIMARY KEY (id), \n\tCONSTRAINT uq_categories_twitch_id UNIQUE (twitch_id)\n)\n\n"
+      }
+    },
+    "relationships": {
+      "favorites": {
+        "back_populates": "category",
+        "cascade": [
+          "delete",
+          "delete-orphan",
+          "expunge",
+          "merge",
+          "refresh-expire",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "FavoriteCategory",
+        "uselist": true
+      }
+    },
+    "table": "categories"
+  },
+  "FavoriteCategory": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "user_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "user_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "category_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "category_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE favorite_categories (\n\tid SERIAL NOT NULL, \n\tuser_id INTEGER, \n\tcategory_id INTEGER, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_favorite_categories PRIMARY KEY (id), \n\tCONSTRAINT uq_user_category UNIQUE (user_id, category_id), \n\tCONSTRAINT fk_favorite_categories_user_id_users FOREIGN KEY(user_id) REFERENCES users (id), \n\tCONSTRAINT fk_favorite_categories_category_id_categories FOREIGN KEY(category_id) REFERENCES categories (id)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE favorite_categories (\n\tid INTEGER NOT NULL, \n\tuser_id INTEGER, \n\tcategory_id INTEGER, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_favorite_categories PRIMARY KEY (id), \n\tCONSTRAINT uq_user_category UNIQUE (user_id, category_id), \n\tCONSTRAINT fk_favorite_categories_user_id_users FOREIGN KEY(user_id) REFERENCES users (id), \n\tCONSTRAINT fk_favorite_categories_category_id_categories FOREIGN KEY(category_id) REFERENCES categories (id)\n)\n\n"
+      }
+    },
+    "relationships": {
+      "category": {
+        "back_populates": "favorites",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Category",
+        "uselist": false
+      },
+      "user": {
+        "back_populates": "favorite_categories",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "User",
+        "uselist": false
+      }
+    },
+    "table": "favorite_categories"
+  },
+  "GlobalSettings": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "notification_url",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "notification_url",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notifications_enabled",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notifications_enabled",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_online_global",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notify_online_global",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_offline_global",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notify_offline_global",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_update_global",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notify_update_global",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_favorite_category_global",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notify_favorite_category_global",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "http_proxy",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "http_proxy",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "https_proxy",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "https_proxy",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_recording_started",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "notify_recording_started",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_recording_failed",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notify_recording_failed",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_recording_completed",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "notify_recording_completed",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "supported_codecs",
+        "autoincrement": "auto",
+        "default": "h264,h265",
+        "name": "supported_codecs",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "prefer_higher_quality",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "prefer_higher_quality",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "twitch_max_concurrent_upstreams",
+        "autoincrement": "auto",
+        "default": "5",
+        "name": "twitch_max_concurrent_upstreams",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "proxy_encryption_key",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "proxy_encryption_key",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "twitch_refresh_token",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "twitch_refresh_token",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "twitch_token_expires_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "twitch_token_expires_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "twitch_access_token",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "twitch_access_token",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE global_settings (\n\tid SERIAL NOT NULL, \n\tnotification_url VARCHAR, \n\tnotifications_enabled BOOLEAN, \n\tnotify_online_global BOOLEAN, \n\tnotify_offline_global BOOLEAN, \n\tnotify_update_global BOOLEAN, \n\tnotify_favorite_category_global BOOLEAN, \n\thttp_proxy VARCHAR, \n\thttps_proxy VARCHAR, \n\tnotify_recording_started BOOLEAN, \n\tnotify_recording_failed BOOLEAN, \n\tnotify_recording_completed BOOLEAN, \n\tsupported_codecs VARCHAR, \n\tprefer_higher_quality BOOLEAN, \n\ttwitch_max_concurrent_upstreams INTEGER DEFAULT '5' NOT NULL, \n\tproxy_encryption_key VARCHAR, \n\ttwitch_refresh_token TEXT, \n\ttwitch_token_expires_at TIMESTAMP WITHOUT TIME ZONE, \n\ttwitch_access_token TEXT, \n\tCONSTRAINT pk_global_settings PRIMARY KEY (id)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE global_settings (\n\tid INTEGER NOT NULL, \n\tnotification_url VARCHAR, \n\tnotifications_enabled BOOLEAN, \n\tnotify_online_global BOOLEAN, \n\tnotify_offline_global BOOLEAN, \n\tnotify_update_global BOOLEAN, \n\tnotify_favorite_category_global BOOLEAN, \n\thttp_proxy VARCHAR, \n\thttps_proxy VARCHAR, \n\tnotify_recording_started BOOLEAN, \n\tnotify_recording_failed BOOLEAN, \n\tnotify_recording_completed BOOLEAN, \n\tsupported_codecs VARCHAR, \n\tprefer_higher_quality BOOLEAN, \n\ttwitch_max_concurrent_upstreams INTEGER DEFAULT '5' NOT NULL, \n\tproxy_encryption_key VARCHAR, \n\ttwitch_refresh_token TEXT, \n\ttwitch_token_expires_at DATETIME, \n\ttwitch_access_token TEXT, \n\tCONSTRAINT pk_global_settings PRIMARY KEY (id)\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "global_settings"
+  },
+  "NotificationSettings": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "streamer_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "streamer_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_online",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notify_online",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_offline",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notify_offline",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_update",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notify_update",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "notify_favorite_category",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "notify_favorite_category",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_notification_settings_id ON notification_settings (id)",
+          "CREATE INDEX ix_notification_settings_streamer_id ON notification_settings (streamer_id)"
+        ],
+        "table": "\nCREATE TABLE notification_settings (\n\tid SERIAL NOT NULL, \n\tstreamer_id INTEGER NOT NULL, \n\tnotify_online BOOLEAN, \n\tnotify_offline BOOLEAN, \n\tnotify_update BOOLEAN, \n\tnotify_favorite_category BOOLEAN, \n\tCONSTRAINT pk_notification_settings PRIMARY KEY (id), \n\tCONSTRAINT fk_notification_settings_streamer_id_streamers FOREIGN KEY(streamer_id) REFERENCES streamers (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_notification_settings_id ON notification_settings (id)",
+          "CREATE INDEX ix_notification_settings_streamer_id ON notification_settings (streamer_id)"
+        ],
+        "table": "\nCREATE TABLE notification_settings (\n\tid INTEGER NOT NULL, \n\tstreamer_id INTEGER NOT NULL, \n\tnotify_online BOOLEAN, \n\tnotify_offline BOOLEAN, \n\tnotify_update BOOLEAN, \n\tnotify_favorite_category BOOLEAN, \n\tCONSTRAINT pk_notification_settings PRIMARY KEY (id), \n\tCONSTRAINT fk_notification_settings_streamer_id_streamers FOREIGN KEY(streamer_id) REFERENCES streamers (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {
+      "streamer": {
+        "back_populates": "notification_settings",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Streamer",
+        "uselist": false
+      }
+    },
+    "table": "notification_settings"
+  },
+  "NotificationState": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "user_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "user_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_read_timestamp",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_read_timestamp",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_cleared_timestamp",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_cleared_timestamp",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "updated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "updated_at",
+        "nullable": true,
+        "onupdate": "now()"
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE UNIQUE INDEX ix_notification_state_user_id ON notification_state (user_id)"
+        ],
+        "table": "\nCREATE TABLE notification_state (\n\tid SERIAL NOT NULL, \n\tuser_id INTEGER NOT NULL, \n\tlast_read_timestamp TIMESTAMP WITH TIME ZONE, \n\tlast_cleared_timestamp TIMESTAMP WITH TIME ZONE, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_notification_state PRIMARY KEY (id), \n\tCONSTRAINT fk_notification_state_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE UNIQUE INDEX ix_notification_state_user_id ON notification_state (user_id)"
+        ],
+        "table": "\nCREATE TABLE notification_state (\n\tid INTEGER NOT NULL, \n\tuser_id INTEGER NOT NULL, \n\tlast_read_timestamp DATETIME, \n\tlast_cleared_timestamp DATETIME, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_notification_state PRIMARY KEY (id), \n\tCONSTRAINT fk_notification_state_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {
+      "user": {
+        "back_populates": "notification_state",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "User",
+        "uselist": false
+      }
+    },
+    "table": "notification_state"
+  },
+  "ProxySettings": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "_proxy_url_encrypted",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "proxy_url",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "priority",
+        "autoincrement": "auto",
+        "default": "0",
+        "name": "priority",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "enabled",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "enabled",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_health_check",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_health_check",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "health_status",
+        "autoincrement": "auto",
+        "default": "unknown",
+        "name": "health_status",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "consecutive_failures",
+        "autoincrement": "auto",
+        "default": "0",
+        "name": "consecutive_failures",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "average_response_time_ms",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "average_response_time_ms",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "total_recordings",
+        "autoincrement": "auto",
+        "default": "0",
+        "name": "total_recordings",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "failed_recordings",
+        "autoincrement": "auto",
+        "default": "0",
+        "name": "failed_recordings",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "success_rate",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "success_rate",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "updated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "updated_at",
+        "nullable": true,
+        "onupdate": "now()"
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_proxy_enabled ON proxy_settings (enabled)",
+          "CREATE INDEX ix_proxy_enabled_health_priority ON proxy_settings (enabled, health_status, priority)",
+          "CREATE INDEX ix_proxy_health_status ON proxy_settings (health_status)",
+          "CREATE INDEX ix_proxy_priority ON proxy_settings (priority)"
+        ],
+        "table": "\nCREATE TABLE proxy_settings (\n\tid SERIAL NOT NULL, \n\tproxy_url VARCHAR(1000) NOT NULL, \n\tpriority INTEGER NOT NULL, \n\tenabled BOOLEAN NOT NULL, \n\tlast_health_check TIMESTAMP WITH TIME ZONE, \n\thealth_status VARCHAR(20) NOT NULL, \n\tconsecutive_failures INTEGER NOT NULL, \n\taverage_response_time_ms INTEGER, \n\ttotal_recordings INTEGER NOT NULL, \n\tfailed_recordings INTEGER NOT NULL, \n\tsuccess_rate FLOAT, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_proxy_settings PRIMARY KEY (id)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_proxy_enabled ON proxy_settings (enabled)",
+          "CREATE INDEX ix_proxy_enabled_health_priority ON proxy_settings (enabled, health_status, priority)",
+          "CREATE INDEX ix_proxy_health_status ON proxy_settings (health_status)",
+          "CREATE INDEX ix_proxy_priority ON proxy_settings (priority)"
+        ],
+        "table": "\nCREATE TABLE proxy_settings (\n\tid INTEGER NOT NULL, \n\tproxy_url VARCHAR(1000) NOT NULL, \n\tpriority INTEGER NOT NULL, \n\tenabled BOOLEAN NOT NULL, \n\tlast_health_check DATETIME, \n\thealth_status VARCHAR(20) NOT NULL, \n\tconsecutive_failures INTEGER NOT NULL, \n\taverage_response_time_ms INTEGER, \n\ttotal_recordings INTEGER NOT NULL, \n\tfailed_recordings INTEGER NOT NULL, \n\tsuccess_rate FLOAT, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_proxy_settings PRIMARY KEY (id)\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "proxy_settings"
+  },
+  "PushSubscription": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "endpoint",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "endpoint",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "subscription_data",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "subscription_data",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "user_agent",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "user_agent",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "is_active",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "is_active",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "updated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "updated_at",
+        "nullable": true,
+        "onupdate": "now()"
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE push_subscriptions (\n\tid SERIAL NOT NULL, \n\tendpoint VARCHAR NOT NULL, \n\tsubscription_data TEXT NOT NULL, \n\tuser_agent VARCHAR, \n\tis_active BOOLEAN NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_push_subscriptions PRIMARY KEY (id), \n\tCONSTRAINT uq_push_subscriptions_endpoint UNIQUE (endpoint)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE push_subscriptions (\n\tid INTEGER NOT NULL, \n\tendpoint VARCHAR NOT NULL, \n\tsubscription_data TEXT NOT NULL, \n\tuser_agent VARCHAR, \n\tis_active BOOLEAN NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_push_subscriptions PRIMARY KEY (id), \n\tCONSTRAINT uq_push_subscriptions_endpoint UNIQUE (endpoint)\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "push_subscriptions"
+  },
+  "Recording": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "stream_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "stream_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "start_time",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "start_time",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "end_time",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "end_time",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "status",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "status",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "duration",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "duration",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "error_message",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "error_message",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "failure_reason",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "failure_reason",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "failure_timestamp",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "failure_timestamp",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX idx_recordings_status_time ON recordings (status, start_time)",
+          "CREATE INDEX idx_recordings_stream_status ON recordings (stream_id, status)",
+          "CREATE INDEX ix_recordings_start_time ON recordings (start_time)",
+          "CREATE INDEX ix_recordings_status ON recordings (status)",
+          "CREATE INDEX ix_recordings_stream_id ON recordings (stream_id)"
+        ],
+        "table": "\nCREATE TABLE recordings (\n\tid SERIAL NOT NULL, \n\tstream_id INTEGER NOT NULL, \n\tstart_time TIMESTAMP WITH TIME ZONE NOT NULL, \n\tend_time TIMESTAMP WITH TIME ZONE, \n\tstatus VARCHAR NOT NULL, \n\tduration INTEGER, \n\tpath VARCHAR, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\terror_message VARCHAR, \n\tfailure_reason VARCHAR, \n\tfailure_timestamp TIMESTAMP WITH TIME ZONE, \n\tCONSTRAINT pk_recordings PRIMARY KEY (id), \n\tCONSTRAINT fk_recordings_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX idx_recordings_status_time ON recordings (status, start_time)",
+          "CREATE INDEX idx_recordings_stream_status ON recordings (stream_id, status)",
+          "CREATE INDEX ix_recordings_start_time ON recordings (start_time)",
+          "CREATE INDEX ix_recordings_status ON recordings (status)",
+          "CREATE INDEX ix_recordings_stream_id ON recordings (stream_id)"
+        ],
+        "table": "\nCREATE TABLE recordings (\n\tid INTEGER NOT NULL, \n\tstream_id INTEGER NOT NULL, \n\tstart_time DATETIME NOT NULL, \n\tend_time DATETIME, \n\tstatus VARCHAR NOT NULL, \n\tduration INTEGER, \n\tpath VARCHAR, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\terror_message VARCHAR, \n\tfailure_reason VARCHAR, \n\tfailure_timestamp DATETIME, \n\tCONSTRAINT pk_recordings PRIMARY KEY (id), \n\tCONSTRAINT fk_recordings_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {
+      "stream": {
+        "back_populates": "recordings",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Stream",
+        "uselist": false
+      }
+    },
+    "table": "recordings"
+  },
+  "RecordingProcessingState": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "recording_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "recording_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "stream_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "stream_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "streamer_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "streamer_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "metadata_status",
+        "autoincrement": "auto",
+        "default": "pending",
+        "name": "metadata_status",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "chapters_status",
+        "autoincrement": "auto",
+        "default": "pending",
+        "name": "chapters_status",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "mp4_remux_status",
+        "autoincrement": "auto",
+        "default": "pending",
+        "name": "mp4_remux_status",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "mp4_validation_status",
+        "autoincrement": "auto",
+        "default": "pending",
+        "name": "mp4_validation_status",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "thumbnail_status",
+        "autoincrement": "auto",
+        "default": "pending",
+        "name": "thumbnail_status",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "cleanup_status",
+        "autoincrement": "auto",
+        "default": "pending",
+        "name": "cleanup_status",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_error",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_error",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "task_ids_json",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "task_ids_json",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "updated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "updated_at",
+        "nullable": true,
+        "onupdate": "now()"
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_recording_processing_state_stream_id ON recording_processing_state (stream_id)",
+          "CREATE INDEX ix_recording_processing_state_streamer_id ON recording_processing_state (streamer_id)",
+          "CREATE INDEX ix_rps_stream_id ON recording_processing_state (stream_id)",
+          "CREATE INDEX ix_rps_updated_at ON recording_processing_state (updated_at)",
+          "CREATE UNIQUE INDEX ix_rps_recording_id ON recording_processing_state (recording_id)"
+        ],
+        "table": "\nCREATE TABLE recording_processing_state (\n\tid SERIAL NOT NULL, \n\trecording_id INTEGER NOT NULL, \n\tstream_id INTEGER NOT NULL, \n\tstreamer_id INTEGER NOT NULL, \n\tmetadata_status VARCHAR(20) NOT NULL, \n\tchapters_status VARCHAR(20) NOT NULL, \n\tmp4_remux_status VARCHAR(20) NOT NULL, \n\tmp4_validation_status VARCHAR(20) NOT NULL, \n\tthumbnail_status VARCHAR(20) NOT NULL, \n\tcleanup_status VARCHAR(20) NOT NULL, \n\tlast_error TEXT, \n\ttask_ids_json TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_recording_processing_state PRIMARY KEY (id), \n\tCONSTRAINT uq_recording_processing_state_recording_id UNIQUE (recording_id), \n\tCONSTRAINT fk_recording_processing_state_recording_id_recordings FOREIGN KEY(recording_id) REFERENCES recordings (id) ON DELETE CASCADE, \n\tCONSTRAINT fk_recording_processing_state_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE, \n\tCONSTRAINT fk_recording_processing_state_streamer_id_streamers FOREIGN KEY(streamer_id) REFERENCES streamers (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_recording_processing_state_stream_id ON recording_processing_state (stream_id)",
+          "CREATE INDEX ix_recording_processing_state_streamer_id ON recording_processing_state (streamer_id)",
+          "CREATE INDEX ix_rps_stream_id ON recording_processing_state (stream_id)",
+          "CREATE INDEX ix_rps_updated_at ON recording_processing_state (updated_at)",
+          "CREATE UNIQUE INDEX ix_rps_recording_id ON recording_processing_state (recording_id)"
+        ],
+        "table": "\nCREATE TABLE recording_processing_state (\n\tid INTEGER NOT NULL, \n\trecording_id INTEGER NOT NULL, \n\tstream_id INTEGER NOT NULL, \n\tstreamer_id INTEGER NOT NULL, \n\tmetadata_status VARCHAR(20) NOT NULL, \n\tchapters_status VARCHAR(20) NOT NULL, \n\tmp4_remux_status VARCHAR(20) NOT NULL, \n\tmp4_validation_status VARCHAR(20) NOT NULL, \n\tthumbnail_status VARCHAR(20) NOT NULL, \n\tcleanup_status VARCHAR(20) NOT NULL, \n\tlast_error TEXT, \n\ttask_ids_json TEXT, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_recording_processing_state PRIMARY KEY (id), \n\tCONSTRAINT uq_recording_processing_state_recording_id UNIQUE (recording_id), \n\tCONSTRAINT fk_recording_processing_state_recording_id_recordings FOREIGN KEY(recording_id) REFERENCES recordings (id) ON DELETE CASCADE, \n\tCONSTRAINT fk_recording_processing_state_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE, \n\tCONSTRAINT fk_recording_processing_state_streamer_id_streamers FOREIGN KEY(streamer_id) REFERENCES streamers (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "recording_processing_state"
+  },
+  "RecordingSettings": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "enabled",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "enabled",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "output_directory",
+        "autoincrement": "auto",
+        "default": "/recordings",
+        "name": "output_directory",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "filename_template",
+        "autoincrement": "auto",
+        "default": "{streamer}/{streamer}_{year}-{month}-{day}_{hour}-{minute}_{title}_{game}",
+        "name": "filename_template",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "default_quality",
+        "autoincrement": "auto",
+        "default": "best",
+        "name": "default_quality",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "use_chapters",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "use_chapters",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "filename_preset",
+        "autoincrement": "auto",
+        "default": "default",
+        "name": "filename_preset",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "use_category_as_chapter_title",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "use_category_as_chapter_title",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "max_streams_per_streamer",
+        "autoincrement": "auto",
+        "default": "0",
+        "name": "max_streams_per_streamer",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "cleanup_policy",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "cleanup_policy",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "enable_proxy",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "enable_proxy",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "proxy_health_check_enabled",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "proxy_health_check_enabled",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "proxy_health_check_interval_seconds",
+        "autoincrement": "auto",
+        "default": "300",
+        "name": "proxy_health_check_interval_seconds",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "proxy_max_consecutive_failures",
+        "autoincrement": "auto",
+        "default": "3",
+        "name": "proxy_max_consecutive_failures",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "fallback_to_direct_connection",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "fallback_to_direct_connection",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE recording_settings (\n\tid SERIAL NOT NULL, \n\tenabled BOOLEAN, \n\toutput_directory VARCHAR, \n\tfilename_template VARCHAR, \n\tdefault_quality VARCHAR, \n\tuse_chapters BOOLEAN, \n\tfilename_preset VARCHAR, \n\tuse_category_as_chapter_title BOOLEAN, \n\tmax_streams_per_streamer INTEGER, \n\tcleanup_policy VARCHAR, \n\tenable_proxy BOOLEAN, \n\tproxy_health_check_enabled BOOLEAN, \n\tproxy_health_check_interval_seconds INTEGER, \n\tproxy_max_consecutive_failures INTEGER, \n\tfallback_to_direct_connection BOOLEAN, \n\tCONSTRAINT pk_recording_settings PRIMARY KEY (id)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE recording_settings (\n\tid INTEGER NOT NULL, \n\tenabled BOOLEAN, \n\toutput_directory VARCHAR, \n\tfilename_template VARCHAR, \n\tdefault_quality VARCHAR, \n\tuse_chapters BOOLEAN, \n\tfilename_preset VARCHAR, \n\tuse_category_as_chapter_title BOOLEAN, \n\tmax_streams_per_streamer INTEGER, \n\tcleanup_policy VARCHAR, \n\tenable_proxy BOOLEAN, \n\tproxy_health_check_enabled BOOLEAN, \n\tproxy_health_check_interval_seconds INTEGER, \n\tproxy_max_consecutive_failures INTEGER, \n\tfallback_to_direct_connection BOOLEAN, \n\tCONSTRAINT pk_recording_settings PRIMARY KEY (id)\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "recording_settings"
+  },
+  "RefreshToken": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "user_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "user_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "family_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "family_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "token_hash",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "token_hash",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "expires_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "expires_at",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "family_expires_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "family_expires_at",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "used_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "used_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "revoked_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "revoked_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "parent_token_hash",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "parent_token_hash",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_refresh_tokens_family_id ON refresh_tokens (family_id)",
+          "CREATE INDEX ix_refresh_tokens_user_id ON refresh_tokens (user_id)",
+          "CREATE UNIQUE INDEX ix_refresh_tokens_token_hash ON refresh_tokens (token_hash)"
+        ],
+        "table": "\nCREATE TABLE refresh_tokens (\n\tid SERIAL NOT NULL, \n\tuser_id INTEGER NOT NULL, \n\tfamily_id VARCHAR(64) NOT NULL, \n\ttoken_hash VARCHAR(64) NOT NULL, \n\texpires_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tfamily_expires_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tused_at TIMESTAMP WITH TIME ZONE, \n\trevoked_at TIMESTAMP WITH TIME ZONE, \n\tparent_token_hash VARCHAR(64), \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_refresh_tokens PRIMARY KEY (id), \n\tCONSTRAINT fk_refresh_tokens_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_refresh_tokens_family_id ON refresh_tokens (family_id)",
+          "CREATE INDEX ix_refresh_tokens_user_id ON refresh_tokens (user_id)",
+          "CREATE UNIQUE INDEX ix_refresh_tokens_token_hash ON refresh_tokens (token_hash)"
+        ],
+        "table": "\nCREATE TABLE refresh_tokens (\n\tid INTEGER NOT NULL, \n\tuser_id INTEGER NOT NULL, \n\tfamily_id VARCHAR(64) NOT NULL, \n\ttoken_hash VARCHAR(64) NOT NULL, \n\texpires_at DATETIME NOT NULL, \n\tfamily_expires_at DATETIME NOT NULL, \n\tused_at DATETIME, \n\trevoked_at DATETIME, \n\tparent_token_hash VARCHAR(64), \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_refresh_tokens PRIMARY KEY (id), \n\tCONSTRAINT fk_refresh_tokens_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {
+      "user": {
+        "back_populates": null,
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "User",
+        "uselist": false
+      }
+    },
+    "table": "refresh_tokens"
+  },
+  "Session": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "user_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "user_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "token",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "token",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE sessions (\n\tid SERIAL NOT NULL, \n\tuser_id INTEGER, \n\ttoken VARCHAR NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_sessions PRIMARY KEY (id), \n\tCONSTRAINT fk_sessions_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tCONSTRAINT uq_sessions_token UNIQUE (token)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE sessions (\n\tid INTEGER NOT NULL, \n\tuser_id INTEGER, \n\ttoken VARCHAR NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_sessions PRIMARY KEY (id), \n\tCONSTRAINT fk_sessions_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, \n\tCONSTRAINT uq_sessions_token UNIQUE (token)\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "sessions"
+  },
+  "Stream": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "streamer_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "streamer_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "title",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "title",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "category_name",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "category_name",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "language",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "language",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "started_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "started_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "ended_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "ended_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "twitch_stream_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "twitch_stream_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "recording_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "recording_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "episode_number",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "episode_number",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX idx_streams_category_recent ON streams (category_name, started_at)",
+          "CREATE INDEX idx_streams_streamer_active ON streams (streamer_id, ended_at)",
+          "CREATE INDEX idx_streams_streamer_recent ON streams (streamer_id, started_at)",
+          "CREATE INDEX idx_streams_time_range ON streams (started_at, ended_at)",
+          "CREATE INDEX ix_streams_category_name ON streams (category_name)",
+          "CREATE INDEX ix_streams_ended_at ON streams (ended_at)",
+          "CREATE INDEX ix_streams_started_at ON streams (started_at)",
+          "CREATE INDEX ix_streams_streamer_id ON streams (streamer_id)",
+          "CREATE UNIQUE INDEX ix_streams_twitch_stream_id ON streams (twitch_stream_id)"
+        ],
+        "table": "\nCREATE TABLE streams (\n\tid SERIAL NOT NULL, \n\tstreamer_id INTEGER NOT NULL, \n\ttitle VARCHAR, \n\tcategory_name VARCHAR, \n\tlanguage VARCHAR, \n\tstarted_at TIMESTAMP WITH TIME ZONE, \n\tended_at TIMESTAMP WITH TIME ZONE, \n\ttwitch_stream_id VARCHAR, \n\trecording_path VARCHAR, \n\tepisode_number INTEGER, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_streams PRIMARY KEY (id), \n\tCONSTRAINT fk_streams_streamer_id_streamers FOREIGN KEY(streamer_id) REFERENCES streamers (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX idx_streams_category_recent ON streams (category_name, started_at)",
+          "CREATE INDEX idx_streams_streamer_active ON streams (streamer_id, ended_at)",
+          "CREATE INDEX idx_streams_streamer_recent ON streams (streamer_id, started_at)",
+          "CREATE INDEX idx_streams_time_range ON streams (started_at, ended_at)",
+          "CREATE INDEX ix_streams_category_name ON streams (category_name)",
+          "CREATE INDEX ix_streams_ended_at ON streams (ended_at)",
+          "CREATE INDEX ix_streams_started_at ON streams (started_at)",
+          "CREATE INDEX ix_streams_streamer_id ON streams (streamer_id)",
+          "CREATE UNIQUE INDEX ix_streams_twitch_stream_id ON streams (twitch_stream_id)"
+        ],
+        "table": "\nCREATE TABLE streams (\n\tid INTEGER NOT NULL, \n\tstreamer_id INTEGER NOT NULL, \n\ttitle VARCHAR, \n\tcategory_name VARCHAR, \n\tlanguage VARCHAR, \n\tstarted_at DATETIME, \n\tended_at DATETIME, \n\ttwitch_stream_id VARCHAR, \n\trecording_path VARCHAR, \n\tepisode_number INTEGER, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_streams PRIMARY KEY (id), \n\tCONSTRAINT fk_streams_streamer_id_streamers FOREIGN KEY(streamer_id) REFERENCES streamers (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {
+      "active_recording_state": {
+        "back_populates": "stream",
+        "cascade": [
+          "delete",
+          "delete-orphan",
+          "expunge",
+          "merge",
+          "refresh-expire",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "ActiveRecordingState",
+        "uselist": false
+      },
+      "recordings": {
+        "back_populates": "stream",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Recording",
+        "uselist": true
+      },
+      "stream_events": {
+        "back_populates": "stream",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "StreamEvent",
+        "uselist": true
+      },
+      "stream_metadata": {
+        "back_populates": "stream",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "StreamMetadata",
+        "uselist": false
+      },
+      "streamer": {
+        "back_populates": "streams",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Streamer",
+        "uselist": false
+      }
+    },
+    "table": "streams"
+  },
+  "StreamEvent": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "stream_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "stream_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "event_type",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "event_type",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "title",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "title",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "category_name",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "category_name",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "language",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "language",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "timestamp",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "timestamp",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX idx_stream_events_stream_time ON stream_events (stream_id, timestamp)",
+          "CREATE INDEX idx_stream_events_stream_type ON stream_events (stream_id, event_type)",
+          "CREATE INDEX idx_stream_events_type_time ON stream_events (event_type, timestamp)",
+          "CREATE INDEX ix_stream_events_event_type ON stream_events (event_type)",
+          "CREATE INDEX ix_stream_events_stream_id ON stream_events (stream_id)",
+          "CREATE INDEX ix_stream_events_timestamp ON stream_events (timestamp)"
+        ],
+        "table": "\nCREATE TABLE stream_events (\n\tid SERIAL NOT NULL, \n\tstream_id INTEGER, \n\tevent_type VARCHAR NOT NULL, \n\ttitle VARCHAR, \n\tcategory_name VARCHAR, \n\tlanguage VARCHAR, \n\ttimestamp TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_stream_events PRIMARY KEY (id), \n\tCONSTRAINT fk_stream_events_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX idx_stream_events_stream_time ON stream_events (stream_id, timestamp)",
+          "CREATE INDEX idx_stream_events_stream_type ON stream_events (stream_id, event_type)",
+          "CREATE INDEX idx_stream_events_type_time ON stream_events (event_type, timestamp)",
+          "CREATE INDEX ix_stream_events_event_type ON stream_events (event_type)",
+          "CREATE INDEX ix_stream_events_stream_id ON stream_events (stream_id)",
+          "CREATE INDEX ix_stream_events_timestamp ON stream_events (timestamp)"
+        ],
+        "table": "\nCREATE TABLE stream_events (\n\tid INTEGER NOT NULL, \n\tstream_id INTEGER, \n\tevent_type VARCHAR NOT NULL, \n\ttitle VARCHAR, \n\tcategory_name VARCHAR, \n\tlanguage VARCHAR, \n\ttimestamp DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_stream_events PRIMARY KEY (id), \n\tCONSTRAINT fk_stream_events_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {
+      "stream": {
+        "back_populates": "stream_events",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Stream",
+        "uselist": false
+      }
+    },
+    "table": "stream_events"
+  },
+  "StreamMetadata": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "stream_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "stream_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "thumbnail_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "thumbnail_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "thumbnail_url",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "thumbnail_url",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "nfo_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "nfo_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "json_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "json_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "tvshow_nfo_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "tvshow_nfo_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "season_nfo_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "season_nfo_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "chapters_vtt_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "chapters_vtt_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "chapters_srt_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "chapters_srt_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "chapters_ffmpeg_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "chapters_ffmpeg_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "chapters_xml_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "chapters_xml_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "segments_dir_path",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "segments_dir_path",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "segments_removed",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "segments_removed",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "avg_viewers",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "avg_viewers",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "max_viewers",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "max_viewers",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "follower_count",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "follower_count",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_stream_metadata_stream_id ON stream_metadata (stream_id)"
+        ],
+        "table": "\nCREATE TABLE stream_metadata (\n\tid SERIAL NOT NULL, \n\tstream_id INTEGER, \n\tthumbnail_path VARCHAR, \n\tthumbnail_url VARCHAR, \n\tnfo_path VARCHAR, \n\tjson_path VARCHAR, \n\ttvshow_nfo_path VARCHAR, \n\tseason_nfo_path VARCHAR, \n\tchapters_vtt_path VARCHAR, \n\tchapters_srt_path VARCHAR, \n\tchapters_ffmpeg_path VARCHAR, \n\tchapters_xml_path VARCHAR, \n\tsegments_dir_path VARCHAR, \n\tsegments_removed BOOLEAN, \n\tavg_viewers INTEGER, \n\tmax_viewers INTEGER, \n\tfollower_count INTEGER, \n\tCONSTRAINT pk_stream_metadata PRIMARY KEY (id), \n\tCONSTRAINT fk_stream_metadata_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_stream_metadata_stream_id ON stream_metadata (stream_id)"
+        ],
+        "table": "\nCREATE TABLE stream_metadata (\n\tid INTEGER NOT NULL, \n\tstream_id INTEGER, \n\tthumbnail_path VARCHAR, \n\tthumbnail_url VARCHAR, \n\tnfo_path VARCHAR, \n\tjson_path VARCHAR, \n\ttvshow_nfo_path VARCHAR, \n\tseason_nfo_path VARCHAR, \n\tchapters_vtt_path VARCHAR, \n\tchapters_srt_path VARCHAR, \n\tchapters_ffmpeg_path VARCHAR, \n\tchapters_xml_path VARCHAR, \n\tsegments_dir_path VARCHAR, \n\tsegments_removed BOOLEAN, \n\tavg_viewers INTEGER, \n\tmax_viewers INTEGER, \n\tfollower_count INTEGER, \n\tCONSTRAINT pk_stream_metadata PRIMARY KEY (id), \n\tCONSTRAINT fk_stream_metadata_stream_id_streams FOREIGN KEY(stream_id) REFERENCES streams (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {
+      "stream": {
+        "back_populates": "stream_metadata",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Stream",
+        "uselist": false
+      }
+    },
+    "table": "stream_metadata"
+  },
+  "Streamer": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "twitch_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "twitch_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "username",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "username",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "is_live",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "is_live",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "title",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "title",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "category_name",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "category_name",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "language",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "language",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_updated",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_updated",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "profile_image_url",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "profile_image_url",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "original_profile_image_url",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "original_profile_image_url",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "offline_image_url",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "offline_image_url",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "original_offline_image_url",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "original_offline_image_url",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "description",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "description",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "is_favorite",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "is_favorite",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "auto_record",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "auto_record",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "is_test_data",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "is_test_data",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_stream_title",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_stream_title",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_stream_category_name",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_stream_category_name",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_stream_viewer_count",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_stream_viewer_count",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "last_stream_ended_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "last_stream_ended_at",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_streamers_auto_record ON streamers (auto_record)",
+          "CREATE INDEX ix_streamers_category_name ON streamers (category_name)",
+          "CREATE INDEX ix_streamers_id ON streamers (id)",
+          "CREATE INDEX ix_streamers_is_favorite ON streamers (is_favorite)",
+          "CREATE INDEX ix_streamers_is_live ON streamers (is_live)",
+          "CREATE INDEX ix_streamers_is_test_data ON streamers (is_test_data)",
+          "CREATE INDEX ix_streamers_username ON streamers (username)",
+          "CREATE UNIQUE INDEX ix_streamers_twitch_id ON streamers (twitch_id)"
+        ],
+        "table": "\nCREATE TABLE streamers (\n\tid SERIAL NOT NULL, \n\ttwitch_id VARCHAR NOT NULL, \n\tusername VARCHAR NOT NULL, \n\tis_live BOOLEAN, \n\ttitle VARCHAR, \n\tcategory_name VARCHAR, \n\tlanguage VARCHAR, \n\tlast_updated TIMESTAMP WITH TIME ZONE, \n\tprofile_image_url VARCHAR, \n\toriginal_profile_image_url VARCHAR, \n\toffline_image_url VARCHAR, \n\toriginal_offline_image_url VARCHAR, \n\tdescription TEXT, \n\tis_favorite BOOLEAN, \n\tauto_record BOOLEAN, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tis_test_data BOOLEAN NOT NULL, \n\tlast_stream_title VARCHAR, \n\tlast_stream_category_name VARCHAR, \n\tlast_stream_viewer_count INTEGER, \n\tlast_stream_ended_at TIMESTAMP WITH TIME ZONE, \n\tCONSTRAINT pk_streamers PRIMARY KEY (id)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_streamers_auto_record ON streamers (auto_record)",
+          "CREATE INDEX ix_streamers_category_name ON streamers (category_name)",
+          "CREATE INDEX ix_streamers_id ON streamers (id)",
+          "CREATE INDEX ix_streamers_is_favorite ON streamers (is_favorite)",
+          "CREATE INDEX ix_streamers_is_live ON streamers (is_live)",
+          "CREATE INDEX ix_streamers_is_test_data ON streamers (is_test_data)",
+          "CREATE INDEX ix_streamers_username ON streamers (username)",
+          "CREATE UNIQUE INDEX ix_streamers_twitch_id ON streamers (twitch_id)"
+        ],
+        "table": "\nCREATE TABLE streamers (\n\tid INTEGER NOT NULL, \n\ttwitch_id VARCHAR NOT NULL, \n\tusername VARCHAR NOT NULL, \n\tis_live BOOLEAN, \n\ttitle VARCHAR, \n\tcategory_name VARCHAR, \n\tlanguage VARCHAR, \n\tlast_updated DATETIME, \n\tprofile_image_url VARCHAR, \n\toriginal_profile_image_url VARCHAR, \n\toffline_image_url VARCHAR, \n\toriginal_offline_image_url VARCHAR, \n\tdescription TEXT, \n\tis_favorite BOOLEAN, \n\tauto_record BOOLEAN, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tis_test_data BOOLEAN NOT NULL, \n\tlast_stream_title VARCHAR, \n\tlast_stream_category_name VARCHAR, \n\tlast_stream_viewer_count INTEGER, \n\tlast_stream_ended_at DATETIME, \n\tCONSTRAINT pk_streamers PRIMARY KEY (id)\n)\n\n"
+      }
+    },
+    "relationships": {
+      "notification_settings": {
+        "back_populates": "streamer",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "NotificationSettings",
+        "uselist": true
+      },
+      "recording_settings": {
+        "back_populates": "streamer",
+        "cascade": [
+          "delete",
+          "delete-orphan",
+          "expunge",
+          "merge",
+          "refresh-expire",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "StreamerRecordingSettings",
+        "uselist": false
+      },
+      "streams": {
+        "back_populates": "streamer",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Stream",
+        "uselist": true
+      }
+    },
+    "table": "streamers"
+  },
+  "StreamerRecordingSettings": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "streamer_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "streamer_id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "enabled",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "enabled",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "quality",
+        "autoincrement": "auto",
+        "default": "best",
+        "name": "quality",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "custom_filename",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "custom_filename",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "max_streams",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "max_streams",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "cleanup_policy",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "cleanup_policy",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "use_global_cleanup_policy",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "use_global_cleanup_policy",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "supported_codecs",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "supported_codecs",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "twitch_auth_priority",
+        "autoincrement": "auto",
+        "default": "0",
+        "name": "twitch_auth_priority",
+        "nullable": false,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_streamer_recording_settings_streamer_id ON streamer_recording_settings (streamer_id)"
+        ],
+        "table": "\nCREATE TABLE streamer_recording_settings (\n\tid SERIAL NOT NULL, \n\tstreamer_id INTEGER NOT NULL, \n\tenabled BOOLEAN, \n\tquality VARCHAR, \n\tcustom_filename VARCHAR, \n\tmax_streams INTEGER, \n\tcleanup_policy VARCHAR, \n\tuse_global_cleanup_policy BOOLEAN, \n\tsupported_codecs VARCHAR, \n\ttwitch_auth_priority INTEGER DEFAULT '0' NOT NULL, \n\tCONSTRAINT pk_streamer_recording_settings PRIMARY KEY (id), \n\tCONSTRAINT fk_streamer_recording_settings_streamer_id_streamers FOREIGN KEY(streamer_id) REFERENCES streamers (id) ON DELETE CASCADE\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_streamer_recording_settings_streamer_id ON streamer_recording_settings (streamer_id)"
+        ],
+        "table": "\nCREATE TABLE streamer_recording_settings (\n\tid INTEGER NOT NULL, \n\tstreamer_id INTEGER NOT NULL, \n\tenabled BOOLEAN, \n\tquality VARCHAR, \n\tcustom_filename VARCHAR, \n\tmax_streams INTEGER, \n\tcleanup_policy VARCHAR, \n\tuse_global_cleanup_policy BOOLEAN, \n\tsupported_codecs VARCHAR, \n\ttwitch_auth_priority INTEGER DEFAULT '0' NOT NULL, \n\tCONSTRAINT pk_streamer_recording_settings PRIMARY KEY (id), \n\tCONSTRAINT fk_streamer_recording_settings_streamer_id_streamers FOREIGN KEY(streamer_id) REFERENCES streamers (id) ON DELETE CASCADE\n)\n\n"
+      }
+    },
+    "relationships": {
+      "streamer": {
+        "back_populates": "recording_settings",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "Streamer",
+        "uselist": false
+      }
+    },
+    "table": "streamer_recording_settings"
+  },
+  "SystemConfig": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "key",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "key",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "value",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "value",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "description",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "description",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "updated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "updated_at",
+        "nullable": true,
+        "onupdate": "now()"
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE system_config (\n\tid SERIAL NOT NULL, \n\tkey VARCHAR NOT NULL, \n\tvalue TEXT NOT NULL, \n\tdescription VARCHAR, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_system_config PRIMARY KEY (id), \n\tCONSTRAINT uq_system_config_key UNIQUE (key)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE system_config (\n\tid INTEGER NOT NULL, \n\t\"key\" VARCHAR NOT NULL, \n\tvalue TEXT NOT NULL, \n\tdescription VARCHAR, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_system_config PRIMARY KEY (id), \n\tCONSTRAINT uq_system_config_key UNIQUE (\"key\")\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "system_config"
+  },
+  "SystemState": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": "auto",
+        "default": "1",
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "welcome_completed",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "welcome_completed",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "welcome_completed_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "welcome_completed_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "updated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "updated_at",
+        "nullable": true,
+        "onupdate": "now()"
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE system_state (\n\tid INTEGER NOT NULL, \n\twelcome_completed BOOLEAN NOT NULL, \n\twelcome_completed_at TIMESTAMP WITH TIME ZONE, \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_system_state PRIMARY KEY (id)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE system_state (\n\tid INTEGER NOT NULL, \n\twelcome_completed BOOLEAN NOT NULL, \n\twelcome_completed_at DATETIME, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_system_state PRIMARY KEY (id)\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "system_state"
+  },
+  "TwitchUpstreamCoordinationState": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": "auto",
+        "default": "1",
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "lock_version",
+        "autoincrement": "auto",
+        "default": "0",
+        "name": "lock_version",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "updated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "updated_at",
+        "nullable": false,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE twitch_upstream_coordination_state (\n\tid INTEGER NOT NULL, \n\tlock_version INTEGER DEFAULT '0' NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tCONSTRAINT pk_twitch_upstream_coordination_state PRIMARY KEY (id), \n\tCONSTRAINT ck_twitch_upstream_coordination_state_ck_twitch_upstrea_12d3 CHECK (id = 1)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE twitch_upstream_coordination_state (\n\tid INTEGER NOT NULL, \n\tlock_version INTEGER DEFAULT '0' NOT NULL, \n\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL, \n\tCONSTRAINT pk_twitch_upstream_coordination_state PRIMARY KEY (id), \n\tCONSTRAINT ck_twitch_upstream_coordination_state_ck_twitch_upstream_coordination_singleton CHECK (id = 1)\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "twitch_upstream_coordination_state"
+  },
+  "TwitchUpstreamLease": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "channel_key",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "channel_key",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "auth_key",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "auth_key",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "owner_user_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "owner_user_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "recording_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "recording_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "live_session_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "live_session_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "purpose",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "purpose",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "state",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "state",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "generation",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "generation",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "process_pid",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "process_pid",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "process_group_id",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "process_group_id",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "process_started_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "process_started_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "process_start_fingerprint",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "process_start_fingerprint",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "reserved_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "reserved_at",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "activated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "activated_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "heartbeat_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "heartbeat_at",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "expires_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "expires_at",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "released_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "released_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "release_reason",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "release_reason",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "auth_priority",
+        "autoincrement": "auto",
+        "default": "0",
+        "name": "auth_priority",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "anonymous_available",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "anonymous_available",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "auth_requested",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "auth_requested",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "handoff_target_channel",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "handoff_target_channel",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "handoff_action",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "handoff_action",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "handoff_reason",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "handoff_reason",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "handoff_requested_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "handoff_requested_at",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "partial_recording_warning",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "partial_recording_warning",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "updated_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "updated_at",
+        "nullable": false,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [
+          "CREATE INDEX ix_twitch_upstream_leases_auth_state ON twitch_upstream_leases (auth_key, state)",
+          "CREATE INDEX ix_twitch_upstream_leases_owner_state ON twitch_upstream_leases (owner_user_id, state)",
+          "CREATE INDEX ix_twitch_upstream_leases_recording_id ON twitch_upstream_leases (recording_id)",
+          "CREATE INDEX ix_twitch_upstream_leases_state_expiry ON twitch_upstream_leases (state, expires_at)",
+          "CREATE UNIQUE INDEX uq_twitch_upstream_leases_channel_key ON twitch_upstream_leases (channel_key)"
+        ],
+        "table": "\nCREATE TABLE twitch_upstream_leases (\n\tid SERIAL NOT NULL, \n\tchannel_key VARCHAR(255) NOT NULL, \n\tauth_key VARCHAR(128), \n\towner_user_id INTEGER, \n\trecording_id INTEGER, \n\tlive_session_id VARCHAR(64), \n\tpurpose VARCHAR(16) NOT NULL, \n\tstate VARCHAR(16) NOT NULL, \n\tgeneration INTEGER NOT NULL, \n\tprocess_pid INTEGER, \n\tprocess_group_id INTEGER, \n\tprocess_started_at TIMESTAMP WITH TIME ZONE, \n\tprocess_start_fingerprint VARCHAR(128), \n\treserved_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tactivated_at TIMESTAMP WITH TIME ZONE, \n\theartbeat_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\texpires_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\treleased_at TIMESTAMP WITH TIME ZONE, \n\trelease_reason VARCHAR(64), \n\tauth_priority INTEGER DEFAULT '0' NOT NULL, \n\tanonymous_available BOOLEAN DEFAULT '1' NOT NULL, \n\tauth_requested BOOLEAN DEFAULT '0' NOT NULL, \n\thandoff_target_channel VARCHAR(255), \n\thandoff_action VARCHAR(16), \n\thandoff_reason VARCHAR(64), \n\thandoff_requested_at TIMESTAMP WITH TIME ZONE, \n\tpartial_recording_warning BOOLEAN DEFAULT '0' NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE NOT NULL, \n\tCONSTRAINT pk_twitch_upstream_leases PRIMARY KEY (id), \n\tCONSTRAINT ck_twitch_upstream_leases_ck_twitch_upstream_leases_purpose CHECK (purpose IN ('RECORDING', 'LIVE', 'ROTATION', 'RECOVERY')), \n\tCONSTRAINT ck_twitch_upstream_leases_ck_twitch_upstream_leases_state CHECK (state IN ('STARTING', 'ACTIVE', 'ROTATING', 'RECOVERING', 'RELEASED')), \n\tCONSTRAINT fk_twitch_upstream_leases_owner_user_id_users FOREIGN KEY(owner_user_id) REFERENCES users (id) ON DELETE SET NULL, \n\tCONSTRAINT fk_twitch_upstream_leases_recording_id_recordings FOREIGN KEY(recording_id) REFERENCES recordings (id) ON DELETE SET NULL\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [
+          "CREATE INDEX ix_twitch_upstream_leases_auth_state ON twitch_upstream_leases (auth_key, state)",
+          "CREATE INDEX ix_twitch_upstream_leases_owner_state ON twitch_upstream_leases (owner_user_id, state)",
+          "CREATE INDEX ix_twitch_upstream_leases_recording_id ON twitch_upstream_leases (recording_id)",
+          "CREATE INDEX ix_twitch_upstream_leases_state_expiry ON twitch_upstream_leases (state, expires_at)",
+          "CREATE UNIQUE INDEX uq_twitch_upstream_leases_channel_key ON twitch_upstream_leases (channel_key)"
+        ],
+        "table": "\nCREATE TABLE twitch_upstream_leases (\n\tid INTEGER NOT NULL, \n\tchannel_key VARCHAR(255) NOT NULL, \n\tauth_key VARCHAR(128), \n\towner_user_id INTEGER, \n\trecording_id INTEGER, \n\tlive_session_id VARCHAR(64), \n\tpurpose VARCHAR(16) NOT NULL, \n\tstate VARCHAR(16) NOT NULL, \n\tgeneration INTEGER NOT NULL, \n\tprocess_pid INTEGER, \n\tprocess_group_id INTEGER, \n\tprocess_started_at DATETIME, \n\tprocess_start_fingerprint VARCHAR(128), \n\treserved_at DATETIME NOT NULL, \n\tactivated_at DATETIME, \n\theartbeat_at DATETIME NOT NULL, \n\texpires_at DATETIME NOT NULL, \n\treleased_at DATETIME, \n\trelease_reason VARCHAR(64), \n\tauth_priority INTEGER DEFAULT '0' NOT NULL, \n\tanonymous_available BOOLEAN DEFAULT '1' NOT NULL, \n\tauth_requested BOOLEAN DEFAULT '0' NOT NULL, \n\thandoff_target_channel VARCHAR(255), \n\thandoff_action VARCHAR(16), \n\thandoff_reason VARCHAR(64), \n\thandoff_requested_at DATETIME, \n\tpartial_recording_warning BOOLEAN DEFAULT '0' NOT NULL, \n\tcreated_at DATETIME NOT NULL, \n\tupdated_at DATETIME NOT NULL, \n\tCONSTRAINT pk_twitch_upstream_leases PRIMARY KEY (id), \n\tCONSTRAINT ck_twitch_upstream_leases_ck_twitch_upstream_leases_purpose CHECK (purpose IN ('RECORDING', 'LIVE', 'ROTATION', 'RECOVERY')), \n\tCONSTRAINT ck_twitch_upstream_leases_ck_twitch_upstream_leases_state CHECK (state IN ('STARTING', 'ACTIVE', 'ROTATING', 'RECOVERING', 'RELEASED')), \n\tCONSTRAINT fk_twitch_upstream_leases_owner_user_id_users FOREIGN KEY(owner_user_id) REFERENCES users (id) ON DELETE SET NULL, \n\tCONSTRAINT fk_twitch_upstream_leases_recording_id_recordings FOREIGN KEY(recording_id) REFERENCES recordings (id) ON DELETE SET NULL\n)\n\n"
+      }
+    },
+    "relationships": {},
+    "table": "twitch_upstream_leases"
+  },
+  "User": {
+    "columns": [
+      {
+        "attribute": "id",
+        "autoincrement": true,
+        "default": null,
+        "name": "id",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "username",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "username",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "password",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "password",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "is_admin",
+        "autoincrement": "auto",
+        "default": "False",
+        "name": "is_admin",
+        "nullable": true,
+        "onupdate": null
+      },
+      {
+        "attribute": "is_active",
+        "autoincrement": "auto",
+        "default": "True",
+        "name": "is_active",
+        "nullable": false,
+        "onupdate": null
+      },
+      {
+        "attribute": "created_at",
+        "autoincrement": "auto",
+        "default": null,
+        "name": "created_at",
+        "nullable": true,
+        "onupdate": null
+      }
+    ],
+    "ddl": {
+      "postgresql": {
+        "indexes": [],
+        "table": "\nCREATE TABLE users (\n\tid SERIAL NOT NULL, \n\tusername VARCHAR NOT NULL, \n\tpassword VARCHAR NOT NULL, \n\tis_admin BOOLEAN, \n\tis_active BOOLEAN DEFAULT 'true' NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tCONSTRAINT pk_users PRIMARY KEY (id), \n\tCONSTRAINT uq_users_username UNIQUE (username)\n)\n\n"
+      },
+      "sqlite": {
+        "indexes": [],
+        "table": "\nCREATE TABLE users (\n\tid INTEGER NOT NULL, \n\tusername VARCHAR NOT NULL, \n\tpassword VARCHAR NOT NULL, \n\tis_admin BOOLEAN, \n\tis_active BOOLEAN DEFAULT 'true' NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tCONSTRAINT pk_users PRIMARY KEY (id), \n\tCONSTRAINT uq_users_username UNIQUE (username)\n)\n\n"
+      }
+    },
+    "relationships": {
+      "favorite_categories": {
+        "back_populates": "user",
+        "cascade": [
+          "delete",
+          "delete-orphan",
+          "expunge",
+          "merge",
+          "refresh-expire",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "FavoriteCategory",
+        "uselist": true
+      },
+      "notification_state": {
+        "back_populates": "user",
+        "cascade": [
+          "merge",
+          "save-update"
+        ],
+        "lazy": "select",
+        "target": "NotificationState",
+        "uselist": true
+      }
+    },
+    "table": "users"
+  }
+}

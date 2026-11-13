@@ -33,8 +33,10 @@ async def test_move_preserves_same_file_and_real_other_target(tmp_path,already_p
 
 @pytest.mark.asyncio
 async def test_lifecycle_cannot_publish_while_segment_owner_is_finalizing():
+    from unittest.mock import AsyncMock
+
     manager=RecordingLifecycleManager.__new__(RecordingLifecycleManager)
-    manager.database_service=SimpleNamespace(get_recording_by_id=lambda _:Recording(stream_id=7))
+    manager.database_service=SimpleNamespace(get_recording_by_id=AsyncMock(return_value=SimpleNamespace(stream_id=7)))
     manager.process_manager=SimpleNamespace(active_processes={},long_stream_processes={'stream_7':{}})
     assert await manager._check_recording_process(1) is True
     manager.process_manager.long_stream_processes.clear()

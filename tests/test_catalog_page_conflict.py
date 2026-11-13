@@ -31,6 +31,7 @@ def test_revalidation_conflict_preserves_newer_index_and_returns_retry(catalog_s
         VideoCatalogService(db).reconcile_batch()
     app=FastAPI(); app.include_router(videos.router)
     monkeypatch.setattr(videos,'SessionLocal',sessions)
+    app.dependency_overrides[dependencies.get_application_session_factory]=lambda: sessions
     app.dependency_overrides[dependencies.get_current_identity]=lambda:dependencies.AuthIdentity(subject='local-fixture',roles=frozenset(),scopes=frozenset(),auth_method='legacy-session',interactive=True)
     stat=Path.stat; changed=[]
     def concurrent_cleanup(path,*args,**kwargs):

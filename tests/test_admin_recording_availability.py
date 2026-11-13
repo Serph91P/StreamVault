@@ -250,7 +250,7 @@ def test_commit_failure_returns_500_and_rolls_back_every_path(repair):
     media = root / "owned.mp4"
     media.write_bytes(b"unchanged")
     seed(repair, candidates=[(media, "completed")])
-    session_class = repair[2].class_
+    session_class = repair[0].app.state.database_lifecycle.sync_session_factory.class_
 
     def fail_commit(_session):
         raise RuntimeError("synthetic commit failure")
