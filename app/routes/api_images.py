@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_image_service, get_image_sync_service
 from app.models import Streamer, Category
+from app.services.unified_image_service import UnifiedImageService
+from app.services.images.image_sync_service import ImageSyncService
 from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
@@ -22,12 +24,12 @@ def _category_image_info_names(engine: Engine) -> list[str]:
         return list(session.scalars(select(Category.name)).all())
 
 
-@router.get("/streamer/{streamer_id}")
+@router.get("/streamer/{streamer_id}", response_model=None)
 def get_streamer_image_info(
     streamer_id: int,
     db: Session = Depends(get_db),
-    image_service=Depends(get_image_service),
-):
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, object]:
     """Get image information for a streamer"""
     try:
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
@@ -53,13 +55,13 @@ def get_streamer_image_info(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/streamer/{streamer_id}/download")
+@router.post("/streamer/{streamer_id}/download", response_model=None)
 def download_streamer_image(
     streamer_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    image_service=Depends(get_image_service),
-):
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, str]:
     """Download and cache a streamer's profile image"""
     try:
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
@@ -86,10 +88,10 @@ def download_streamer_image(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/category/{category_name}")
+@router.get("/category/{category_name}", response_model=None)
 async def get_category_image_info(
-    category_name: str, image_service=Depends(get_image_service)
-):
+    category_name: str, image_service: UnifiedImageService = Depends(get_image_service)
+) -> dict[str, object]:
     """Get image information for a category"""
     try:
         # Get cached image URL or fallback
@@ -105,12 +107,12 @@ async def get_category_image_info(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/category/{category_name}/download")
+@router.post("/category/{category_name}/download", response_model=None)
 async def download_category_image(
     category_name: str,
     background_tasks: BackgroundTasks,
-    image_service=Depends(get_image_service),
-):
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, str]:
     """Download and cache a category image"""
     try:
         # Add download task to background
@@ -123,7 +125,9 @@ async def download_category_image(
 
 
 @router.get("/stats")
-def get_image_stats(image_service=Depends(get_image_service)):
+def get_image_stats(
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> JSONResponse:
     """Get statistics about cached images"""
     try:
         stats = image_service.get_stats()
@@ -133,10 +137,11 @@ def get_image_stats(image_service=Depends(get_image_service)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/sync")
+@router.post("/sync", response_model=None)
 async def sync_all_images(
-    background_tasks: BackgroundTasks, image_service=Depends(get_image_service)
-):
+    background_tasks: BackgroundTasks,
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, str]:
     """Trigger sync of all images"""
     try:
         background_tasks.add_task(image_service.sync_all_profile_images)
@@ -147,10 +152,11 @@ async def sync_all_images(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/cleanup")
+@router.post("/cleanup", response_model=None)
 async def cleanup_orphaned_images(
-    background_tasks: BackgroundTasks, image_service=Depends(get_image_service)
-):
+    background_tasks: BackgroundTasks,
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, str]:
     """Clean up orphaned images"""
     try:
         background_tasks.add_task(image_service.cleanup_orphaned_images)
@@ -160,10 +166,11 @@ async def cleanup_orphaned_images(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/streamers")
+@router.get("/streamers", response_model=None)
 def get_all_streamers_image_info(
-    db: Session = Depends(get_db), image_service=Depends(get_image_service)
-):
+    db: Session = Depends(get_db),
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> list[dict[str, object]]:
     """Get image information for all streamers"""
     try:
         streamers = db.query(Streamer).all()
@@ -190,10 +197,11 @@ def get_all_streamers_image_info(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/categories")
+@router.get("/categories", response_model=None)
 async def get_all_categories_image_info(
-    db: Session = Depends(get_db), image_service=Depends(get_image_service)
-):
+    db: Session = Depends(get_db),
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> list[dict[str, str | bool | None]]:
     """Get image information for all categories"""
     try:
         category_names = await run_in_thread_pool(
@@ -218,10 +226,11 @@ async def get_all_categories_image_info(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/sync/check-missing")
+@router.post("/sync/check-missing", response_model=None)
 async def check_missing_images(
-    background_tasks: BackgroundTasks, sync_service=Depends(get_image_sync_service)
-):
+    background_tasks: BackgroundTasks,
+    sync_service: ImageSyncService = Depends(get_image_sync_service),
+) -> dict[str, str]:
     """Check for missing images and sync them"""
     try:
         background_tasks.add_task(sync_service.check_and_sync_missing_images)
@@ -231,11 +240,11 @@ async def check_missing_images(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/sync/queue-status")
+@router.get("/sync/queue-status", response_model=None)
 async def get_sync_queue_status(
-    sync_service=Depends(get_image_sync_service),
-    image_service=Depends(get_image_service),
-):
+    sync_service: ImageSyncService = Depends(get_image_sync_service),
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, int | bool]:
     """Get the current status of the image sync queue"""
     try:
         return {

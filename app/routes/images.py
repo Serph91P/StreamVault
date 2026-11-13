@@ -8,15 +8,19 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_image_service
 from app.models import Streamer
+from app.services.unified_image_service import UnifiedImageService
 
 logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/data/images", tags=["images"])
 
 
 @router.get("/profiles/{filename}")
-def serve_profile_image(filename: str, image_service=Depends(get_image_service)):
+def serve_profile_image(
+    filename: str, image_service: UnifiedImageService = Depends(get_image_service)
+) -> FileResponse:
     """Serve a cached profile image"""
     try:
+        assert image_service.profiles_dir is not None
         file_path = image_service.profiles_dir / filename
         if file_path.exists() and file_path.is_file():
             return FileResponse(
@@ -33,9 +37,12 @@ def serve_profile_image(filename: str, image_service=Depends(get_image_service))
 
 
 @router.get("/categories/{filename}")
-def serve_category_image(filename: str, image_service=Depends(get_image_service)):
+def serve_category_image(
+    filename: str, image_service: UnifiedImageService = Depends(get_image_service)
+) -> FileResponse:
     """Serve a cached category image"""
     try:
+        assert image_service.categories_dir is not None
         file_path = image_service.categories_dir / filename
         if file_path.exists() and file_path.is_file():
             return FileResponse(
@@ -53,10 +60,13 @@ def serve_category_image(filename: str, image_service=Depends(get_image_service)
 
 @router.get("/artwork/{streamer_id}/{filename}")
 def serve_artwork_image(
-    streamer_id: str, filename: str, image_service=Depends(get_image_service)
-):
+    streamer_id: str,
+    filename: str,
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> FileResponse:
     """Serve a cached artwork image"""
     try:
+        assert image_service.artwork_dir is not None
         file_path = image_service.artwork_dir / f"streamer_{streamer_id}" / filename
         if file_path.exists() and file_path.is_file():
             return FileResponse(
@@ -73,7 +83,9 @@ def serve_artwork_image(
 
 
 @router.get("/stats")
-def get_image_stats(image_service=Depends(get_image_service)):
+def get_image_stats(
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> JSONResponse:
     """Get statistics about cached images"""
     try:
         return JSONResponse(content=image_service.get_stats())
@@ -82,10 +94,11 @@ def get_image_stats(image_service=Depends(get_image_service)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/sync/profiles")
+@router.post("/sync/profiles", response_model=None)
 async def sync_profile_images(
-    background_tasks: BackgroundTasks, image_service=Depends(get_image_service)
-):
+    background_tasks: BackgroundTasks,
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, str]:
     """Trigger sync of all profile images"""
     try:
         background_tasks.add_task(image_service.sync_all_profile_images)
@@ -95,10 +108,11 @@ async def sync_profile_images(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/sync/categories")
+@router.post("/sync/categories", response_model=None)
 async def sync_category_images(
-    background_tasks: BackgroundTasks, image_service=Depends(get_image_service)
-):
+    background_tasks: BackgroundTasks,
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, str]:
     """Trigger sync of all category images"""
     try:
         background_tasks.add_task(image_service.sync_all_category_images)
@@ -108,10 +122,11 @@ async def sync_category_images(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/cleanup")
+@router.post("/cleanup", response_model=None)
 async def cleanup_orphaned_images(
-    background_tasks: BackgroundTasks, image_service=Depends(get_image_service)
-):
+    background_tasks: BackgroundTasks,
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, str]:
     """Clean up orphaned images"""
     try:
         background_tasks.add_task(image_service.cleanup_orphaned_images)
@@ -121,12 +136,12 @@ async def cleanup_orphaned_images(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/profile/{streamer_id}")
+@router.get("/profile/{streamer_id}", response_model=None)
 def get_profile_image_url(
     streamer_id: int,
     db: Session = Depends(get_db),
-    image_service=Depends(get_image_service),
-):
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> dict[str, str | None]:
     """Get the URL for a streamer's profile image"""
     try:
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
@@ -143,10 +158,10 @@ def get_profile_image_url(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/category/{category_name}")
+@router.get("/category/{category_name}", response_model=None)
 async def get_category_image_url(
-    category_name: str, image_service=Depends(get_image_service)
-):
+    category_name: str, image_service: UnifiedImageService = Depends(get_image_service)
+) -> dict[str, str | None]:
     """Get the URL for a category image"""
     try:
         return {"image_url": await image_service.get_category_image_url(category_name)}
