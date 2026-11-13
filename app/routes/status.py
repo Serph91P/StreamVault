@@ -409,7 +409,7 @@ def get_streamers_status(
                         "is_favorite": streamer.is_favorite,
                         "auto_record": streamer.auto_record,
                         "last_seen": latest_stream.created_at.isoformat()
-                        if latest_stream
+                        if latest_stream and latest_stream.created_at is not None
                         else None,
                         "current_title": latest_stream.title
                         if latest_stream and is_live
@@ -555,6 +555,9 @@ def get_notifications_status(
                 )
 
                 for event in events:
+                    assert (
+                        event.timestamp is not None
+                    )  # Excluded by the SQL cutoff predicate.
                     recent_events.append(
                         {
                             "id": event.id,

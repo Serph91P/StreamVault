@@ -94,6 +94,54 @@ async def test_status_populated_catalogue_preserves_owned_values(
         )
 
 
+@pytest.mark.asyncio
+async def test_status_nullable_legacy_creation_time_has_no_fabricated_last_seen(
+    image_applications,
+):
+    """A persisted NULL timestamp must not turn the whole status response into500."""
+    from sqlalchemy import update
+    from app.models import Stream, StreamEvent
+
+    _, databases, clients, queries = image_applications
+    now = datetime.now(timezone.utc)
+
+    def seed(database, index):
+        with database.sync_session_factory() as session:
+            session.add(
+                Stream(id=71, streamer_id=1, title=f"own-{index}", created_at=now)
+            )
+            session.add(
+                StreamEvent(stream_id=71, event_type="channel_update", timestamp=now)
+            )
+            session.flush()
+            session.execute(
+                update(Stream)
+                .where(Stream.id == 71)
+                .values(created_at=None if index == 0 else now)
+            )
+            session.execute(update(StreamEvent).values(timestamp=None))
+            session.commit()
+
+    for index, database in enumerate(databases):
+        await run_in_thread_pool(seed, database, index)
+    for index, client in enumerate(clients):
+        queries.clear()
+        response = await client.get("/api/status/streamers")
+        assert response.status_code == 200, response.text
+        row = response.json()["streamers"][0]
+        assert row["last_title"] == f"own-{index}"
+        assert row["last_seen"] == (
+            None if index == 0 else now.replace(tzinfo=None).isoformat()
+        )
+        notifications = await client.get("/api/status/notifications")
+        assert notifications.status_code == 200
+        assert notifications.json()["recent_events"] == []
+        assert queries and get_ident() not in [thread for thread, _ in queries]
+        assert all(
+            database.sync_engine.pool.checkedout() == 0 for database in databases
+        )
+
+
 @pytest.mark.parametrize(
     "name",
     [
