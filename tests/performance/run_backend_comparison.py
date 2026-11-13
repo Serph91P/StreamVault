@@ -67,6 +67,7 @@ def main():
             "postgres:18-alpine",
         )
         containers.append(pg)
+        record["pg_image_id"] = command("docker", "inspect", "-f", "{{.Image}}", pg)
         deadline = time.monotonic() + 60
         while subprocess.run(
             ["docker", "exec", pg, "pg_isready", "-U", "postgres", "-d", database],

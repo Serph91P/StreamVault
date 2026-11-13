@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -38,7 +39,7 @@ class _MemoryCache:
 
 
 @pytest.fixture
-def recording_application(monkeypatch):
+def recording_application(monkeypatch, tmp_path):
     url = os.environ.get("STREAMVAULT_POSTGRES_TEST_URL")
     if not url:
         pytest.skip("requires isolated STREAMVAULT_POSTGRES_TEST_URL")
@@ -69,6 +70,20 @@ def recording_application(monkeypatch):
     application.dependency_overrides[recording_routes.get_recording_status_cache] = (
         lambda: cache
     )
+    from app.config.settings import Settings
+    from app.services.unified_image_service import UnifiedImageService
+    from app.services.system.logging_service import LoggingService
+
+    configuration = Settings(
+        _env_file=None,
+        ENVIRONMENT="test",
+        DATABASE_URL=url,
+        RECORDING_DIRECTORY=str(tmp_path / "recordings"),
+    )
+    images = UnifiedImageService(settings=configuration, session_factory=Session)
+    logs = LoggingService(logs_base_dir=str(tmp_path / "logs"), isolated=True)
+    application.dependency_overrides[recording_routes.get_image_service] = lambda: images
+    application.dependency_overrides[recording_routes.get_logging_service] = lambda: logs
     monkeypatch.setattr(recording_routes, "SessionLocal", Session)
     from app.utils import cache as cache_module
 
@@ -76,6 +91,8 @@ def recording_application(monkeypatch):
     try:
         yield application, Session
     finally:
+        asyncio.run(images.close())
+        logs.close()
         Base.metadata.drop_all(engine, tables=tables)
         engine.dispose()
 
