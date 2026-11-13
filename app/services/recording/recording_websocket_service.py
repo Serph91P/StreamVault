@@ -6,16 +6,19 @@ Handles all WebSocket communications for recording status updates and real-time 
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from datetime import datetime
 
 logger = logging.getLogger("streamvault")
+
+if TYPE_CHECKING:
+    from app.services.communication.websocket_manager import ConnectionManager
 
 
 class RecordingWebSocketService:
     """Handles WebSocket communications for recording events"""
 
-    def __init__(self, websocket_manager=None):
+    def __init__(self, websocket_manager: "ConnectionManager | None" = None) -> None:
         self.websocket_manager = websocket_manager
 
     async def send_active_recordings_update(
