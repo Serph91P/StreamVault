@@ -32,6 +32,7 @@ from app.services.background_queue_service import (
 logger = logging.getLogger("streamvault")
 if TYPE_CHECKING:
     from app.services.recording.recording_manager import RecordingManager
+    from app.services.api.twitch_oauth_service import TwitchOAuthService
 
 event_registry = None
 recording_manager = None
@@ -298,7 +299,9 @@ def get_application_twitch_token_service(connection: HTTPConnection):
     return _get_application_twitch_token_service(connection.app)
 
 
-def get_application_twitch_oauth_service(connection: HTTPConnection):
+def get_application_twitch_oauth_service(
+    connection: HTTPConnection,
+) -> "TwitchOAuthService":
     from app.services.api.twitch_oauth_service import TwitchOAuthService
 
     app = connection.app
@@ -308,7 +311,8 @@ def get_application_twitch_oauth_service(connection: HTTPConnection):
                 settings=resolve_app_settings(app),
                 twitch_api=_get_application_twitch_api(app),
             )
-        return app.state.twitch_oauth_service
+        service: TwitchOAuthService = app.state.twitch_oauth_service
+        return service
 
 
 def _get_application_live_streaming_service(app: FastAPI):

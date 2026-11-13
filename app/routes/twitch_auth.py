@@ -1,5 +1,6 @@
 import aiohttp
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from starlette.requests import HTTPConnection
 from pydantic import BaseModel, Field
@@ -7,7 +8,10 @@ from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.streamer_service import StreamerService
 from app.dependencies import get_streamer_service, get_application_twitch_token_service
 from app.dependencies import get_application_twitch_oauth_service
-from app.services.system.twitch_token_service import TwitchTokenService
+from app.services.system.twitch_token_service import (
+    TwitchTokenService,
+    TwitchTokenState,
+)
 from app.utils.async_db_utils import run_in_thread_pool
 from typing import List, Dict, Any, Optional
 import logging
@@ -29,7 +33,7 @@ class ConnectionStatusResponse(BaseModel):
     has_env_token: bool = False
 
 
-def _normalize_expires_at(expires_at):
+def _normalize_expires_at(expires_at: datetime | None) -> tuple[str | None, bool]:
     if not expires_at:
         return None, False
 
@@ -42,7 +46,9 @@ def _normalize_expires_at(expires_at):
     return expires_at.isoformat(), datetime.now(timezone.utc) < expires_at_utc
 
 
-def _build_connection_status(global_settings, env_token: Optional[str]) -> dict:
+def _build_connection_status(
+    global_settings: TwitchTokenState | None, env_token: Optional[str]
+) -> dict[str, str | bool | None]:
     """Return status for the token source StreamVault will actually use."""
     has_env_token = bool(env_token and env_token.strip())
     has_db_token = bool(
@@ -102,14 +108,14 @@ def get_twitch_oauth_service(
     return get_application_twitch_oauth_service(connection)
 
 
-@router.get("/auth-url")
+@router.get("/auth-url", response_model=None)
 async def get_twitch_auth_url(
     state: str = Query(
         None,
         description="Return URL after OAuth (e.g., '/settings' or '/add-streamer')",
     ),
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
-):
+) -> dict[str, str]:
     """Get Twitch OAuth authorization URL
 
     Args:
@@ -124,9 +130,8 @@ async def twitch_callback(
     code: str = Query(...),
     state: str = Query(None, description="Return URL passed from OAuth initiation"),
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
-    response: Response = None,
     token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
-):
+) -> RedirectResponse:
     """Handle Twitch OAuth callback
 
     Args:
@@ -150,6 +155,9 @@ async def twitch_callback(
     if refresh_token:
         # Store refresh token in database for automatic renewal
         try:
+            assert isinstance(access_token, str)
+            assert isinstance(refresh_token, str)
+            assert isinstance(expires_in, (int, float))
             success = await token_service.store_oauth_tokens(
                 access_token=access_token,
                 refresh_token=refresh_token,
@@ -178,14 +186,14 @@ async def twitch_callback(
         return RedirectResponse(url="/settings?auth_success=true")
 
 
-@router.get("/followed-channels")
+@router.get("/followed-channels", response_model=None)
 async def get_followed_channels(
     connection: HTTPConnection,
     access_token: str = Query(
         None, description="Optional access token (retrieved from DB if not provided)"
     ),
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
-):
+) -> dict[str, list[dict[str, object]]]:
     """Get channels that the authenticated user follows.
 
     SECURITY: Token is retrieved from database if not provided,
@@ -226,12 +234,12 @@ async def get_followed_channels(
     return {"channels": followed_channels}
 
 
-@router.post("/import-streamers")
+@router.post("/import-streamers", response_model=None)
 async def import_streamers(
     streamers: List[Dict[str, Any]],
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
     streamer_service: StreamerService = Depends(get_streamer_service),
-):
+) -> dict[str, list[dict[str, object]]]:
     """Import selected streamers from followed channels"""
     if not streamers:
         raise HTTPException(status_code=400, detail="No streamers provided")
@@ -242,10 +250,10 @@ async def import_streamers(
     return results
 
 
-@router.get("/callback-url")
+@router.get("/callback-url", response_model=None)
 async def get_callback_url(
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
-):
+) -> dict[str, str]:
     """Get the configured callback URL for Twitch OAuth"""
     callback_url = oauth_service.redirect_uri
     return {"url": callback_url}
@@ -254,7 +262,7 @@ async def get_callback_url(
 @router.get("/connection-status", response_model=ConnectionStatusResponse)
 async def get_connection_status(
     token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
-):
+) -> dict[str, str | bool | None]:
     """Check if a Twitch token is available in DB or env fallback."""
     try:
         state = await token_service.get_state()
@@ -277,11 +285,11 @@ async def get_connection_status(
         }
 
 
-@router.post("/manual-token")
+@router.post("/manual-token", response_model=None)
 async def save_manual_token(
     payload: ManualTokenRequest,
     token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
-):
+) -> dict[str, object]:
     """Validate and store a manually supplied Twitch browser token encrypted in DB."""
     try:
         success, validation = await token_service.store_manual_access_token(
@@ -303,10 +311,10 @@ async def save_manual_token(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/disconnect")
+@router.post("/disconnect", response_model=None)
 async def disconnect_twitch(
     token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
-):
+) -> dict[str, str | bool]:
     """Disconnect Twitch OAuth (clear refresh token)"""
     try:
         success = await token_service.clear_tokens()

@@ -1,6 +1,7 @@
 """Real callback/router/token-store flow against synthetic loopback grants."""
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 from threading import get_ident
 
 import pytest
@@ -20,14 +21,15 @@ image_applications = test_proxy_http_ownership.image_applications
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("expires_in", [7200, 7200.5])
 async def test_callback_exchanges_once_and_persists_only_its_owner(
-    proxy_applications, monkeypatch, caplog
+    proxy_applications, monkeypatch, caplog, expires_in
 ):
     applications, databases, clients, queries = proxy_applications
     payload = {
         "access_token": "fixture-callback-access",
         "refresh_token": "fixture-callback-refresh",
-        "expires_in": 7200,
+        "expires_in": expires_in,
     }
     async with test_oauth_http_ownership.oauth_origin(payload) as (
         _,
@@ -58,6 +60,7 @@ async def test_callback_exchanges_once_and_persists_only_its_owner(
 
                 monkeypatch.setattr(actor._http, "request", local)
                 queries.clear()
+                before = datetime.now(timezone.utc).replace(tzinfo=None)
                 callback = await clients[index].get(
                     "/api/twitch/callback",
                     params={
@@ -76,6 +79,13 @@ async def test_callback_exchanges_once_and_persists_only_its_owner(
                 stored = get_application_twitch_token_service(connection)
                 state = await stored.get_state()
                 assert state is not None
+                assert state.twitch_token_expires_at is not None
+                after = datetime.now(timezone.utc).replace(tzinfo=None)
+                assert (
+                    before + timedelta(seconds=expires_in)
+                    <= state.twitch_token_expires_at
+                    <= after + timedelta(seconds=expires_in)
+                )
                 assert state.twitch_access_token != payload["access_token"]
                 assert state.twitch_refresh_token != payload["refresh_token"]
 

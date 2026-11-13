@@ -476,7 +476,7 @@ class TwitchTokenService:
                 )
 
     async def store_oauth_tokens(
-        self, access_token: str, refresh_token: str, expires_in: int = 14400
+        self, access_token: str, refresh_token: str, expires_in: int | float = 14400
     ) -> bool:
         return await self._operation(
             "store-oauth",
@@ -484,7 +484,7 @@ class TwitchTokenService:
         )
 
     async def _store_oauth_tokens(
-        self, access_token: str, refresh_token: str, expires_in: int
+        self, access_token: str, refresh_token: str, expires_in: int | float
     ) -> bool:
         def store(db: Session) -> bool:
             try:
