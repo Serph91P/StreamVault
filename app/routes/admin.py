@@ -20,10 +20,60 @@ from app.services.recording.recording_manager import RecordingManager
 from collections.abc import Callable
 from app.dependencies import require_admin_user
 from sqlalchemy.orm import Session, joinedload
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING, TypedDict, NotRequired
 from pydantic import BaseModel
 from app.routes.admin_post_processing import router as post_processing_router
 from app.services.system.temporary_cleanup_service import TemporaryCleanupRequest
+
+if TYPE_CHECKING:
+
+    class HealthResult(TypedDict):
+        timestamp: str
+        overall_status: str
+        checks: dict[str, dict[str, str]]
+
+    class DebugFile(TypedDict):
+        name: str
+        path: str
+        size: int
+        extension: str
+        size_mb: NotRequired[float]
+
+    class DebugSeason(TypedDict):
+        name: str
+        path: str
+        files: list[DebugFile]
+        file_count: NotRequired[int]
+        total_size_mb: NotRequired[float]
+
+    class DebugStreamer(TypedDict):
+        name: str
+        path: str
+        subdirectories: list[DebugSeason]
+        total_files: NotRequired[int]
+        total_size_mb: NotRequired[float]
+
+    class DebugFilesystem(TypedDict, total=False):
+        recordings_dir_exists: bool
+        subdirectories: list[DebugStreamer]
+        error: str
+
+    class DebugVideos(TypedDict):
+        streams: list[dict[str, object]]
+        recordings: list[dict[str, object]]
+        filesystem_check: DebugFilesystem
+        summary: dict[str, int]
+
+    class DebugDirectory(TypedDict):
+        base_recordings_dir: str
+        directories: list[DebugStreamer]
+        base_recordings_dir_exists: NotRequired[bool]
+
+    class RepairResult(TypedDict):
+        checked: int
+        fixed: int
+        errors: int
+        details: list[dict[str, object]]
 
 # Import test service locally to avoid initialization issues
 # from app.services.test_service import test_service  # REMOVED
@@ -38,7 +88,7 @@ UNKNOWN_TASK_TYPES = ["unknown", ""]
 _background_queue_service = None
 
 
-def get_background_queue_service():
+def get_background_queue_service() -> BackgroundQueueService:
     """Get background queue service with lazy loading"""
     global _background_queue_service
     if _background_queue_service is None:
@@ -167,7 +217,8 @@ def get_system_info(request: Request) -> Dict[str, Any]:
             )
 
         # System info
-        info = {
+        storage: dict[str, object] = {}
+        info: dict[str, object] = {
             "system": {
                 "platform": platform.platform(),
                 "python_version": platform.python_version(),
@@ -188,7 +239,7 @@ def get_system_info(request: Request) -> Dict[str, Any]:
                     },
                 }
             ),
-            "storage": {},
+            "storage": storage,
             "settings": {
                 "recording_directory": settings.RECORDING_DIRECTORY,
                 "vapid_configured": hasattr(settings, "VAPID_PUBLIC_KEY")
@@ -210,7 +261,7 @@ def get_system_info(request: Request) -> Dict[str, Any]:
                 total_gb = (stat.f_blocks * stat.f_frsize) / (1024**3)
                 used_gb = total_gb - free_gb
 
-                info["storage"]["recording_drive"] = {
+                storage["recording_drive"] = {
                     "total_gb": round(total_gb, 2),
                     "used_gb": round(used_gb, 2),
                     "free_gb": round(free_gb, 2),
@@ -219,7 +270,7 @@ def get_system_info(request: Request) -> Dict[str, Any]:
                     else 0,
                 }
         except Exception:
-            info["storage"]["error"] = "Storage check failed"
+            storage["error"] = "Storage check failed"
 
         return info
 
@@ -228,18 +279,22 @@ def get_system_info(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Failed to get system info")
 
 
-@router.post("/tests/quick-health")
+@router.post("/tests/quick-health", response_model=Dict)
 def quick_health_check(
     request: Request,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
-) -> Dict[str, Any]:
+) -> "HealthResult":
     """
     Run a quick health check of critical systems
     """
     try:
         import subprocess
 
-        health = {"timestamp": "", "overall_status": "healthy", "checks": {}}
+        health: HealthResult = {
+            "timestamp": "",
+            "overall_status": "healthy",
+            "checks": {},
+        }
 
         # Database check
         try:
@@ -439,8 +494,8 @@ def get_recent_logs(
 # If you need test functionality, create it as a dependency or initialize it properly in the route
 
 
-@router.post("/test/{test_name}")
-async def run_test(test_name: str, db: Session = Depends(get_db)):
+@router.post("/test/{test_name}", response_model=None)
+async def run_test(test_name: str, db: Session = Depends(get_db)) -> dict[str, object]:
     """Run a specific system test"""
     try:
         # Initialize test service here if needed, with proper dependencies
@@ -532,7 +587,7 @@ def debug_videos_database(
         from pathlib import Path
         from app.models import Stream, Streamer, Recording
 
-        result = {
+        result: DebugVideos = {
             "streams": [],
             "recordings": [],
             "filesystem_check": {},
@@ -549,7 +604,7 @@ def debug_videos_database(
         )  # Limit for performance
 
         for stream, streamer in streams:
-            stream_info = {
+            stream_info: dict[str, object] = {
                 "id": stream.id,
                 "title": stream.title,
                 "streamer_name": streamer.username,
@@ -630,7 +685,7 @@ def debug_videos_database(
             try:
                 for streamer_dir in recordings_dir.iterdir():
                     if streamer_dir.is_dir():
-                        streamer_info = {
+                        streamer_info: DebugStreamer = {
                             "name": streamer_dir.name,
                             "path": str(streamer_dir),
                             "subdirectories": [],
@@ -639,7 +694,7 @@ def debug_videos_database(
                         # List season directories
                         for season_dir in streamer_dir.iterdir():
                             if season_dir.is_dir():
-                                season_info = {
+                                season_info: DebugSeason = {
                                     "name": season_dir.name,
                                     "path": str(season_dir),
                                     "files": [],
@@ -700,7 +755,7 @@ def debug_recordings_directory(request: Request) -> Dict[str, Any]:
         from pathlib import Path
 
         configuration = resolve_app_settings(request.app)
-        result = {
+        result: DebugDirectory = {
             "base_recordings_dir": configuration.RECORDING_DIRECTORY,
             "directories": [],
         }
@@ -712,7 +767,7 @@ def debug_recordings_directory(request: Request) -> Dict[str, Any]:
             # List all streamer directories
             for streamer_dir in base_dir.iterdir():
                 if streamer_dir.is_dir():
-                    streamer_info = {
+                    streamer_info: DebugStreamer = {
                         "name": streamer_dir.name,
                         "path": str(streamer_dir),
                         "subdirectories": [],
@@ -723,7 +778,7 @@ def debug_recordings_directory(request: Request) -> Dict[str, Any]:
                     # List season directories
                     for season_dir in streamer_dir.iterdir():
                         if season_dir.is_dir():
-                            season_info = {
+                            season_info: DebugSeason = {
                                 "name": season_dir.name,
                                 "path": str(season_dir),
                                 "files": [],
@@ -873,19 +928,21 @@ def fix_recording_availability(
         from app.models import Stream
         from pathlib import Path
 
-        results = {"checked": 0, "fixed": 0, "errors": 0, "details": []}
+        results: RepairResult = {"checked": 0, "fixed": 0, "errors": 0, "details": []}
 
         with session_factory() as db:
             # Include all owners even when repairing only one streamer.
             streams = db.query(Stream).options(joinedload(Stream.recordings)).all()
-            owners = {}
+            owners: dict[Path, set[int]] = {}
             for stream in streams:
                 paths = [stream.recording_path] + [r.path for r in stream.recordings]
-                for path in paths:
-                    if path:
-                        owners.setdefault(Path(path).resolve(), set()).add(stream.id)
+                for claimed_path in paths:
+                    if claimed_path:
+                        owners.setdefault(Path(claimed_path).resolve(), set()).add(
+                            stream.id
+                        )
 
-            def is_recording_file(path):
+            def is_recording_file(path: str | Path) -> bool:
                 import stat
 
                 try:
@@ -897,7 +954,7 @@ def fix_recording_availability(
                 if streamer_id and stream.streamer_id != streamer_id:
                     continue
                 results["checked"] += 1
-                stream_result = {
+                stream_result: dict[str, object] = {
                     "stream_id": stream.id,
                     "streamer_id": stream.streamer_id,
                     "title": stream.title,
@@ -969,7 +1026,7 @@ async def cleanup_orphaned_database_recordings(
     max_age_hours: int = 48,
     dry_run: bool = True,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
-    manager=Depends(get_application_recording_manager),
+    manager: RecordingManager = Depends(get_application_recording_manager),
 ) -> Dict[str, Any]:
     """Clean up database recordings that have been running too long"""
     try:
@@ -998,7 +1055,7 @@ async def cleanup_orphaned_database_recordings(
 async def cleanup_process_orphaned_recordings(
     dry_run: bool = True,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
-    manager=Depends(get_application_recording_manager),
+    manager: RecordingManager = Depends(get_application_recording_manager),
 ) -> Dict[str, Any]:
     """Clean up recordings marked as 'recording' but without active processes"""
     try:
@@ -1050,7 +1107,7 @@ async def get_background_queue_status(
     background_queue_service: BackgroundQueueService = Depends(
         get_application_background_queue_service
     ),
-):
+) -> BackgroundQueueStatusResponse:
     """
     🔍 Display Background Queue Status
     Shows the current status of the Background Queue and detected issues
@@ -1119,7 +1176,7 @@ async def get_background_queue_status(
 )
 async def fix_all_background_queue_issues(
     cleanup_service: BackgroundQueueCleanupService = Depends(get_queue_cleanup_service),
-):
+) -> BackgroundQueueCleanupResponse:
     """
     🧹 Fix All Background Queue Issues
     Automatically fixes all detected issues:
@@ -1171,7 +1228,7 @@ async def fix_all_background_queue_issues(
 )
 async def fix_stuck_recordings(
     cleanup_service: BackgroundQueueCleanupService = Depends(get_queue_cleanup_service),
-):
+) -> BackgroundQueueCleanupResponse:
     """
     🔧 Fix Only Stuck Recording Jobs
     Fixes only recording jobs that are stuck at 100%
@@ -1205,7 +1262,7 @@ async def fix_stuck_recordings(
 )
 async def stop_orphaned_recovery(
     cleanup_service: BackgroundQueueCleanupService = Depends(get_queue_cleanup_service),
-):
+) -> BackgroundQueueCleanupResponse:
     """
     🛑 Stop Continuous Orphaned Recovery
     Stops continuous orphaned recovery checks
@@ -1241,7 +1298,7 @@ async def stop_orphaned_recovery(
 )
 async def fix_unknown_task_names(
     cleanup_service: BackgroundQueueCleanupService = Depends(get_queue_cleanup_service),
-):
+) -> BackgroundQueueCleanupResponse:
     """
     🏷️ Fix Unknown Task Names
     Fixes tasks that are displayed as "Unknown"
@@ -1395,7 +1452,7 @@ def delete_share_token(token_id: int, db: Session = Depends(get_db)) -> Dict[str
         from app.utils.token_store import ShareTokenModel
 
         # Find the token
-        token = db.query(ShareTokenModel).filter(ShareTokenModel.id == token_id).first()
+        token = db.query(ShareTokenModel).filter_by(id=token_id).first()
 
         if not token:
             raise HTTPException(status_code=404, detail="Share token not found")

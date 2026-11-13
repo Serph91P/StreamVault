@@ -43,7 +43,7 @@ class TestResult:
 
 
 class StreamVaultTestService:
-    def __init__(self):
+    def __init__(self) -> None:
         # Only initialize services that don't require dependencies
         self.recording_service = RecordingService()
         self.metadata_service = MetadataService()
