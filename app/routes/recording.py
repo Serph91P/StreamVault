@@ -45,11 +45,11 @@ from app.services.unified_image_service import (
 )
 from sqlalchemy.orm import Session, joinedload
 import logging
-from typing import List, Dict, TYPE_CHECKING
+from typing import List, Dict
 from datetime import datetime, timezone
 
-if TYPE_CHECKING:
-    from app.services.recording.recording_manager import RecordingManager
+from app.services.recording.recording_manager import RecordingManager
+from app.services.system.cleanup_service import CleanupService
 
 # Cache constants
 FALLBACK_SUFFIX = "_fallback"
@@ -67,7 +67,7 @@ def get_recording_service() -> "RecordingManager":
 @router.get("/settings", response_model=RecordingSettingsSchema)
 async def get_recording_settings(
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
-):
+) -> RecordingSettingsSchema:
     def read() -> RecordingSettingsSchema:
         with session_factory() as db:
             settings = db.query(RecordingSettings).first()
@@ -135,7 +135,7 @@ async def update_recording_settings(
     settings_data: RecordingSettingsSchema,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     config_service: StreamlinkConfigService = Depends(get_streamlink_config_service),
-):
+) -> RecordingSettingsSchema:
     def store() -> tuple[RecordingSettingsSchema, bool]:
         with session_factory() as db:
             # Get existing settings
@@ -258,7 +258,7 @@ async def update_recording_settings(
 def get_all_streamer_recording_settings(
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     unified_image_service: UnifiedImageService = Depends(get_image_service),
-):
+) -> list[StreamerRecordingSettingsSchema]:
     try:
         with session_factory() as db:
             # Get all streamers first
@@ -352,7 +352,7 @@ def get_all_streamer_recording_settings(
 #         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-def _is_pending_auth_handoff(upstream_lease) -> bool:
+def _is_pending_auth_handoff(upstream_lease: TwitchUpstreamLease) -> bool:
     """Distinguish queued transitions from durable blocked/failure reasons."""
     if upstream_lease.handoff_reason in {
         "higher_priority_recording",
@@ -364,7 +364,9 @@ def _is_pending_auth_handoff(upstream_lease) -> bool:
     )
 
 
-def _read_active_recordings(session_factory: Callable[[], Session] | None = None):
+def _read_active_recordings(
+    session_factory: Callable[[], Session] | None = None,
+) -> list[dict[str, object]]:
     """Own the entire synchronous DB scope and return only response values."""
     factory = session_factory if session_factory is not None else SessionLocal
     with factory() as db:
@@ -380,16 +382,16 @@ def _read_active_recordings(session_factory: Callable[[], Session] | None = None
             return []
         streamer_ids = {item.stream.streamer_id for item in recordings}
         recording_ids = {item.id for item in recordings}
-        settings = {}
-        for item in (
+        settings: dict[int, StreamerRecordingSettings] = {}
+        for setting_row in (
             db.query(StreamerRecordingSettings)
             .filter(StreamerRecordingSettings.streamer_id.in_(streamer_ids))
             .order_by(StreamerRecordingSettings.id)
             .all()
         ):
-            settings.setdefault(item.streamer_id, item)
-        leases = {}
-        for item in (
+            settings.setdefault(setting_row.streamer_id, setting_row)
+        leases: dict[int | None, TwitchUpstreamLease] = {}
+        for lease_row in (
             db.query(TwitchUpstreamLease)
             .filter(
                 TwitchUpstreamLease.recording_id.in_(recording_ids),
@@ -400,7 +402,7 @@ def _read_active_recordings(session_factory: Callable[[], Session] | None = None
             .order_by(TwitchUpstreamLease.id)
             .all()
         ):
-            leases.setdefault(item.recording_id, item)
+            leases.setdefault(lease_row.recording_id, lease_row)
         result = []
         now = datetime.now(timezone.utc)
         if now.tzinfo is None:
@@ -452,7 +454,7 @@ def _read_active_recordings(session_factory: Callable[[], Session] | None = None
 async def get_active_recordings(
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     status_cache: SimpleCache = Depends(get_recording_status_cache),
-):
+) -> list[dict[str, object]] | None:
     """Get all active recordings"""
     import asyncio
     from app.utils.async_db_utils import run_in_thread_pool
@@ -462,7 +464,7 @@ async def get_active_recordings(
 
     # Check cache first (with short TTL to reduce database load)
     cache_key = "active_recordings"
-    cached_result = app_cache.get(cache_key)
+    cached_result: list[dict[str, object]] | None = app_cache.get(cache_key)
     if cached_result is not None:
         logger.debug(f"Returning {len(cached_result)} active recordings from cache")
         return cached_result
@@ -495,7 +497,9 @@ async def get_active_recordings(
                         f"Database connection pool exhausted after {max_retries} attempts"
                     )
                     # Return cached result if available, even if expired
-                    fallback_result = app_cache.get(f"{cache_key}{FALLBACK_SUFFIX}")
+                    fallback_result: list[dict[str, object]] | None = app_cache.get(
+                        f"{cache_key}{FALLBACK_SUFFIX}"
+                    )
                     if fallback_result is not None:
                         logger.info(
                             f"Returning fallback cached result with {len(fallback_result)} recordings"
@@ -510,6 +514,8 @@ async def get_active_recordings(
             # Return empty list on error
             return []
 
+    return None
+
 
 def _streamer_name_snapshot(
     session_factory: Callable[[], Session], streamer_id: int
@@ -519,14 +525,14 @@ def _streamer_name_snapshot(
         return streamer.username if streamer else f"Streamer {streamer_id}"
 
 
-@router.post("/stop/{streamer_id}")
+@router.post("/stop/{streamer_id}", response_model=None)
 async def stop_recording(
     streamer_id: int,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
-    recording_manager=Depends(get_application_recording_manager),
+    recording_manager: RecordingManager = Depends(get_application_recording_manager),
     websocket_manager: ConnectionManager = Depends(get_websocket_manager),
     logging_service: LoggingService = Depends(get_logging_service),
-):
+) -> dict[str, str]:
     """Manually stop an active recording"""
 
     try:
@@ -610,7 +616,7 @@ def update_streamer_recording_settings(
     db: Session = Depends(get_db),
     logging_service: LoggingService = Depends(get_logging_service),
     unified_image_service: UnifiedImageService = Depends(get_image_service),
-):
+) -> StreamerRecordingSettingsSchema:
     """Update recording settings for a specific streamer"""
     try:
         # Check if the streamer exists
@@ -730,14 +736,14 @@ def update_streamer_recording_settings(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/force-start/{streamer_id}")
+@router.post("/force-start/{streamer_id}", response_model=None)
 async def force_start_recording(
     streamer_id: int,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
-    recording_manager=Depends(get_application_recording_manager),
+    recording_manager: RecordingManager = Depends(get_application_recording_manager),
     websocket_manager: ConnectionManager = Depends(get_websocket_manager),
     logging_service: LoggingService = Depends(get_logging_service),
-):
+) -> dict[str, str]:
     """Manually start a recording for an active stream"""
     try:
         # Get streamer info for notifications
@@ -829,12 +835,12 @@ async def force_start_recording(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/cleanup/{streamer_id}")
+@router.post("/cleanup/{streamer_id}", response_model=None)
 async def cleanup_old_recordings(
     streamer_id: int,
-    retention_service=Depends(get_retention_service),
+    retention_service: CleanupService = Depends(get_retention_service),
     logging_service: LoggingService = Depends(get_logging_service),
-):
+) -> dict[str, str | int | list[str]]:
     """Manually clean up old recordings for a streamer"""
     try:
         # Log cleanup request
@@ -888,8 +894,8 @@ async def cleanup_old_recordings(
 async def run_custom_cleanup(
     streamer_id: int,
     policy: CleanupPolicySchema,
-    retention_service=Depends(get_retention_service),
-):
+    retention_service: CleanupService = Depends(get_retention_service),
+) -> dict[str, str | int | list[str]]:
     """Run a custom cleanup with specified policy"""
     try:
         # Convert pydantic model to dict
@@ -912,8 +918,8 @@ async def run_custom_cleanup(
 
 @router.get("/storage/{streamer_id}", response_model=StorageUsageSchema)
 async def get_storage_usage(
-    streamer_id: int, retention_service=Depends(get_retention_service)
-):
+    streamer_id: int, retention_service: CleanupService = Depends(get_retention_service)
+) -> dict[str, object]:
     """Get storage usage information for a streamer"""
     try:
         usage = await retention_service.get_storage_usage(streamer_id)
@@ -925,8 +931,8 @@ async def get_storage_usage(
 
 @router.post("/streamers/{streamer_id}/cleanup-policy", response_model=Dict)
 def update_streamer_cleanup_policy(
-    streamer_id: int, request_data: Dict, db: Session = Depends(get_db)
-):
+    streamer_id: int, request_data: dict[str, object], db: Session = Depends(get_db)
+) -> dict[str, str]:
     """Update cleanup policy for a specific streamer"""
     try:
         # Check if the streamer exists
@@ -949,7 +955,8 @@ def update_streamer_cleanup_policy(
 
         # Handle the use_global_cleanup_policy flag
         use_global = request_data.get("use_global_cleanup_policy", False)
-        streamer_settings.use_global_cleanup_policy = use_global
+        # Preserve legacy raw-value validation by the SQLAlchemy Boolean binder.
+        setattr(streamer_settings, "use_global_cleanup_policy", use_global)
 
         if use_global:
             # Clear custom policy when using global
@@ -975,8 +982,8 @@ def update_streamer_cleanup_policy(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/filename-presets")
-async def get_filename_presets():
+@router.get("/filename-presets", response_model=None)
+async def get_filename_presets() -> dict[str, str | list[dict[str, str]]]:
     """Get all available filename presets"""
     try:
         # Convert the backend dictionary format to frontend array format
