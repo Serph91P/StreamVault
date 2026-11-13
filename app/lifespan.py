@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Awaitable, AsyncIterator
+from typing import TYPE_CHECKING
 from contextlib import asynccontextmanager
 from functools import partial
 from types import SimpleNamespace
@@ -32,12 +33,17 @@ from app.services.system.supervisor import TaskSupervisor
 from app.tasks.websocket_broadcast_task import websocket_broadcast_task
 from app.utils.async_db_utils import run_in_thread_pool
 
+if TYPE_CHECKING:
+    from app.events.handler_registry import EventHandlerRegistry
+    from app.services.system.logging_service import LoggingService
+    from app.services.proxy.proxy_health_service import ProxyHealthService
+
 logger = setup_logging()
 
 
 def _reconcile_catalog_batch(
     cursor: int, session_factory: Callable[[], Session] = SessionLocal
-):
+) -> tuple[int, int]:
     from app.services.media.video_catalog_service import VideoCatalogService
 
     with session_factory() as db:
@@ -46,7 +52,7 @@ def _reconcile_catalog_batch(
 
 async def _run_catalog_reconciliation(
     session_factory: Callable[[], Session] = SessionLocal,
-):
+) -> None:
     from app.services.media.video_catalog_service import VideoCatalogService
     from app.utils.async_db_utils import run_in_thread_pool
 
@@ -88,7 +94,9 @@ async def _run_session_cleanup(
 
 
 async def _run_recording_cleanup(
-    session_factory=None, settings: Settings | None = None, activity_logger=None
+    session_factory: Callable[[], Session] | None = None,
+    settings: Settings | None = None,
+    activity_logger: "LoggingService | None" = None,
 ) -> None:
     from app.services.system.cleanup_service import CleanupService
 
@@ -111,7 +119,7 @@ async def _run_recording_cleanup(
         await asyncio.sleep(12 * 3600)
 
 
-async def _stop_event_registry(event_registry) -> None:
+async def _stop_event_registry(event_registry: "EventHandlerRegistry") -> None:
     eventsub = getattr(event_registry, "eventsub", None)
     if eventsub is not None and hasattr(eventsub, "stop"):
         await eventsub.stop()
@@ -119,7 +127,7 @@ async def _stop_event_registry(event_registry) -> None:
         await event_registry.cleanup()
 
 
-async def _shutdown_step(name: str, operation) -> None:
+async def _shutdown_step(name: str, operation: Callable[[], Awaitable[object]]) -> None:
     try:
         await operation()
     except asyncio.CancelledError:
@@ -175,7 +183,7 @@ async def _close_application_twitch(app: FastAPI) -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Run ordered startup phases and reverse, idempotent shutdown ownership."""
     if app is None:
         app = SimpleNamespace(state=SimpleNamespace(), dependency_overrides={})
@@ -401,11 +409,13 @@ async def lifespan(app: FastAPI):
 
         proxy_actor = proxy_health_service
         if hasattr(app.state, "proxy_health_service_lock"):
-            provider = app.dependency_overrides.get(
-                get_proxy_health_service,
-                partial(_get_application_proxy_health_service, app),
+            proxy_provider: Callable[[], "ProxyHealthService"] = (
+                app.dependency_overrides.get(
+                    get_proxy_health_service,
+                    partial(_get_application_proxy_health_service, app),
+                )
             )
-            proxy_actor = await run_in_thread_pool(provider)
+            proxy_actor = await run_in_thread_pool(proxy_provider)
         await proxy_actor.start()
         phase("background-services")
         phase("ready")

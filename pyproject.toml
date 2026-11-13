@@ -78,6 +78,7 @@ python_version = "3.14"
 plugins = ["pydantic.mypy"]
 files = [
     "app/dependencies.py",
+    "app/lifespan.py",
     "app/config/settings.py",
     "app/database.py",
     "app/core/exceptions.py",
@@ -170,6 +171,7 @@ no_implicit_optional = true
 module = [
     "app.bootstrap", "app.bootstrap.application", "app.bootstrap.settings", "app.bootstrap.storage",
     "app.dependencies",
+    "app.lifespan",
     "app.events.event_catalog",
     "app.database",
     "app.events.handler_registry", "app.tasks.websocket_broadcast_task",

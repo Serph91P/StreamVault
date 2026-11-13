@@ -362,7 +362,7 @@ class MigrationService:
             command.upgrade(config, "head")
 
     @classmethod
-    def run_safe_migrations(cls):
+    def run_safe_migrations(cls) -> bool:
         """Run all database migrations safely (alias for run_migrations)"""
         return cls.run_migrations()
 

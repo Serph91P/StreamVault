@@ -6,6 +6,10 @@ import re
 from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.config.settings import Settings
 
 request_context: ContextVar[str | None] = ContextVar("request_id", default=None)
 
@@ -81,7 +85,7 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_entry)
 
 
-def setup_logging(app_settings=None):
+def setup_logging(app_settings: "Settings | None" = None) -> logging.Logger:
     """Look up the logger; explicit runtime settings configure its handlers."""
     if app_settings is None:
         return logging.getLogger("streamvault")
