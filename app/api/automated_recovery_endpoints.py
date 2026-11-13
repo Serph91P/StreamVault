@@ -8,7 +8,8 @@ Automatisierung der existierenden Recovery-Services:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from typing import Dict, Any
+from typing import TYPE_CHECKING, TypedDict, NotRequired
+from pydantic.json_schema import SkipJsonSchema
 from functools import partial
 from app.services.core.automated_recovery_state import AutomatedRecoveryState
 from app.services.system.supervisor import TaskSupervisor
@@ -17,6 +18,37 @@ from app.services.recording.unified_recovery_service import UnifiedRecoveryServi
 import logging
 import asyncio
 from datetime import datetime, timezone
+
+if TYPE_CHECKING:
+    from app.services.simple_recovery_service import (
+        SimpleRecoveryDetails,
+        SimpleRecoveryResult,
+    )
+
+    class RecoveryStage(TypedDict, total=False):
+        success: bool
+        error: str
+        orphaned_segments: int
+        failed_post_processing: int
+        recovered_recordings: int
+        triggered_post_processing: int
+        total_size_gb: float
+        recovery_triggered: int
+        orphaned_found: int
+        failed_found: int
+        recoverable_found: int
+
+    class ComprehensiveRecoveryResult(TypedDict):
+        start_time: str
+        simple_recovery: SimpleRecoveryDetails | RecoveryStage | None
+        unified_recovery: RecoveryStage | None
+        orphaned_recovery: RecoveryStage | None
+        failed_recovery: RecoveryStage | None
+        total_recoveries: int
+        success: bool
+        end_time: NotRequired[str]
+        error: NotRequired[str]
+
 
 logger = logging.getLogger("streamvault")
 
@@ -33,11 +65,14 @@ recovery_state = AutomatedRecoveryState()
 
 
 def get_recovery_state(request: Request) -> AutomatedRecoveryState:
-    return request.app.state.automated_recovery_state
+    state: AutomatedRecoveryState = request.app.state.automated_recovery_state
+    return state
 
 
 def get_recovery_supervisor(request: Request) -> TaskSupervisor:
-    supervisor = getattr(request.app.state, "task_supervisor", None)
+    supervisor: TaskSupervisor | None = getattr(
+        request.app.state, "task_supervisor", None
+    )
     if supervisor is None or supervisor.closed:
         raise HTTPException(status_code=503, detail="Application is not running")
     return supervisor
@@ -46,7 +81,7 @@ def get_recovery_supervisor(request: Request) -> TaskSupervisor:
 async def run_comprehensive_recovery(
     state: AutomatedRecoveryState | None = None,
     service: UnifiedRecoveryService | None = None,
-) -> Dict[str, Any]:
+) -> "ComprehensiveRecoveryResult":
     """
     Runs comprehensive recovery with all existing services
 
@@ -61,7 +96,7 @@ async def run_comprehensive_recovery(
     now = datetime.now(timezone.utc)
     await state.set_last_run(now)
 
-    results = {
+    results: ComprehensiveRecoveryResult = {
         "start_time": now.isoformat(),
         "simple_recovery": None,
         "unified_recovery": None,
@@ -78,7 +113,10 @@ async def run_comprehensive_recovery(
             from ..services.simple_recovery_service import run_simple_reliable_recovery
 
             simple_result = await run_simple_reliable_recovery(unified_service=service)
-            results["simple_recovery"] = simple_result.get("simple_recovery", {})
+            empty_stage: RecoveryStage = {}
+            results["simple_recovery"] = simple_result.get(
+                "simple_recovery", empty_stage
+            )
             results["total_recoveries"] += simple_result.get("total_recoveries", 0)
             logger.info(
                 f"✅ Simple recovery: {simple_result.get('total_recoveries', 0)} tasks created"
@@ -198,12 +236,12 @@ async def run_comprehensive_recovery(
 
         results["end_time"] = datetime.now(timezone.utc).isoformat()
         results["success"] = all(
-            isinstance(results[key], dict) and results[key].get("success") is True
-            for key in (
-                "simple_recovery",
-                "unified_recovery",
-                "orphaned_recovery",
-                "failed_recovery",
+            isinstance(stage, dict) and stage.get("success") is True
+            for stage in (
+                results["simple_recovery"],
+                results["unified_recovery"],
+                results["orphaned_recovery"],
+                results["failed_recovery"],
             )
         )
         if results["success"]:
@@ -268,13 +306,13 @@ async def automated_recovery_loop(
     logger.info("🛑 Automated recovery loop stopped")
 
 
-@router.post("/start")
+@router.post("/start", response_model=None)
 async def start_automated_recovery(
     interval_minutes: int = 5,
     state: AutomatedRecoveryState = Depends(get_recovery_state),
     supervisor: TaskSupervisor = Depends(get_recovery_supervisor),
     service: UnifiedRecoveryService = Depends(get_application_recovery_service),
-):
+) -> dict[str, object]:
     """
     Startet automatisierte Recovery mit allen existierenden Services
 
@@ -321,10 +359,10 @@ async def start_automated_recovery(
         raise HTTPException(status_code=500, detail="Failed to start recovery")
 
 
-@router.post("/stop")
+@router.post("/stop", response_model=None)
 async def stop_automated_recovery(
     state: AutomatedRecoveryState = Depends(get_recovery_state),
-):
+) -> dict[str, str | bool]:
     """Stoppt die automatisierte Recovery"""
     try:
         if not await state.is_running():
@@ -340,11 +378,11 @@ async def stop_automated_recovery(
         raise HTTPException(status_code=500, detail="Failed to stop recovery")
 
 
-@router.post("/run-once")
+@router.post("/run-once", response_model=None)
 async def run_manual_recovery(
     state: AutomatedRecoveryState = Depends(get_recovery_state),
     service: UnifiedRecoveryService = Depends(get_application_recovery_service),
-):
+) -> "ComprehensiveRecoveryResult":
     """
     Führt einmalig umfassende Recovery aus (alle Services)
     """
@@ -357,11 +395,11 @@ async def run_manual_recovery(
         raise HTTPException(status_code=500, detail="Recovery failed")
 
 
-@router.post("/run-simple")
+@router.post("/run-simple", response_model=None)
 async def run_simple_recovery(
     state: AutomatedRecoveryState = Depends(get_recovery_state),
     service: UnifiedRecoveryService = Depends(get_application_recovery_service),
-):
+) -> "SimpleRecoveryResult":
     """
     Runs simple reliable recovery once (only metadata_generation without dependencies).
     This bypasses the dependency chain problem and is the most reliable recovery method.
@@ -393,10 +431,10 @@ async def run_simple_recovery(
         raise HTTPException(status_code=500, detail="Simple recovery failed")
 
 
-@router.get("/status")
+@router.get("/status", response_model=None)
 async def get_recovery_status(
     state: AutomatedRecoveryState = Depends(get_recovery_state),
-):
+) -> dict[str, object]:
     """Gibt Status der automatisierten Recovery zurück"""
     last_run = await state.get_last_run()
     stats = await state.get_stats()
@@ -421,11 +459,11 @@ async def get_recovery_status(
     }
 
 
-@router.post("/configure")
+@router.post("/configure", response_model=None)
 async def configure_recovery(
-    interval_minutes: int = None,
+    interval_minutes: int | SkipJsonSchema[None] = None,
     state: AutomatedRecoveryState = Depends(get_recovery_state),
-):
+) -> dict[str, object]:
     """
     Konfiguriert automatisierte Recovery
 
@@ -464,10 +502,10 @@ async def configure_recovery(
         raise HTTPException(status_code=500, detail="Configuration failed")
 
 
-@router.get("/test-services")
+@router.get("/test-services", response_model=None)
 async def test_recovery_services(
     service: UnifiedRecoveryService = Depends(get_application_recovery_service),
-):
+) -> dict[str, object]:
     """
     Testet alle Recovery-Services (dry run)
 
