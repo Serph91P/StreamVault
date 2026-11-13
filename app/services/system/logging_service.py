@@ -8,7 +8,7 @@ from contextlib import ExitStack
 from threading import Lock
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from logging.handlers import TimedRotatingFileHandler
 from app.config.logging_config import JSONFormatter, RedactingFormatter
 
@@ -123,7 +123,7 @@ class LoggingService:
         self._owned_handlers.clear()
         self._handler_stack.close()
 
-    def _ensure_log_directories(self):
+    def _ensure_log_directories(self) -> None:
         """Create log directories if they don't exist, including streamer subdirectories"""
         try:
             # Create base directories
@@ -145,7 +145,7 @@ class LoggingService:
             logger.error(f"❌ Unexpected error creating log directories: {e}")
             raise
 
-    def _ensure_streamer_directories(self):
+    def _ensure_streamer_directories(self) -> None:
         """Create streamer-specific subdirectories for better organization"""
         try:
             # Check if we need to migrate existing logs
@@ -153,7 +153,7 @@ class LoggingService:
         except Exception as e:
             logger.warning(f"Could not complete log migration: {e}")
 
-    def _migrate_existing_logs(self):
+    def _migrate_existing_logs(self) -> None:
         """Migrate existing logs to streamer-specific directories"""
         logger.info("🔄 Checking for logs to migrate to streamer-specific directories")
 
@@ -203,7 +203,7 @@ class LoggingService:
             )
             return False
 
-    def _test_all_permissions(self):
+    def _test_all_permissions(self) -> None:
         """Test write permissions for all log directories (optional performance check)"""
         current_time = time.time()
         for log_dir in [
@@ -260,7 +260,7 @@ class LoggingService:
 
         return result
 
-    def _setup_loggers(self):
+    def _setup_loggers(self) -> None:
         """Setup separate loggers for different components"""
         formatter = (
             JSONFormatter()
@@ -420,8 +420,8 @@ class LoggingService:
         stderr: bytes | str,
         exit_code: int,
         log_path: str | None = None,
-        known_secrets: tuple | list | set = (),
-    ):
+        known_secrets: tuple[str, ...] | list[str] | set[str] = (),
+    ) -> None:
         """Log streamlink process output to streamer-specific file"""
         if not streamer_name:
             streamer_name = "unknown"
@@ -480,8 +480,8 @@ class LoggingService:
         streamer_name: str,
         error_message: str | bytes,
         log_path: str | None = None,
-        known_secrets: tuple | list | set = (),
-    ):
+        known_secrets: tuple[str, ...] | list[str] | set[str] = (),
+    ) -> None:
         """
         Log streamlink errors (e.g., proxy failures) to streamer-specific file
 
@@ -519,7 +519,9 @@ class LoggingService:
         # Also log to main streamlink logger
         self.streamlink_logger.error(f"[{streamer_name}] {safe_error_message}")
 
-    def log_ffmpeg_start(self, operation: str, cmd: List[str], streamer_name: str):
+    def log_ffmpeg_start(
+        self, operation: str, cmd: List[str], streamer_name: str
+    ) -> str:
         """Log FFmpeg command start with mandatory streamer name"""
         logger.debug(f"🎯 Logging FFmpeg start for {streamer_name}: {operation}")
 
@@ -573,8 +575,8 @@ class LoggingService:
         stderr: bytes,
         exit_code: int | None,
         streamer_name: str,
-        known_secrets: tuple | list | set = (),
-    ):
+        known_secrets: tuple[str, ...] | list[str] | set[str] = (),
+    ) -> None:
         """Log FFmpeg process output to per-streamer files only (not app logs)
 
         FFmpeg stdout/stderr is written ONLY to /app/logs/ffmpeg/{streamer_name}/
@@ -768,7 +770,7 @@ class LoggingService:
         )
         return successful
 
-    async def _schedule_cleanup(self, interval_hours: int = 24):
+    async def _schedule_cleanup(self, interval_hours: int = 24) -> None:
         """Schedule periodic log cleanup.
 
         Args:
@@ -791,7 +793,7 @@ class LoggingService:
         streamer_name: str,
         details: str = "",
         level: str = "info",
-    ):
+    ) -> None:
         """Log recording activities with detailed context"""
         message = f"[{activity_type}] {streamer_name}"
         if details:
@@ -808,7 +810,7 @@ class LoggingService:
 
     def log_recording_start(
         self, streamer_id: int, streamer_name: str, quality: str, output_path: str
-    ):
+    ) -> None:
         """Log recording start with all relevant details"""
         self.recording_logger.info(
             f"[RECORDING_START] {streamer_name} (ID: {streamer_id})"
@@ -823,7 +825,7 @@ class LoggingService:
         duration: float,
         output_path: str,
         reason: str = "manual",
-    ):
+    ) -> None:
         """Log recording stop with duration and details"""
         self.recording_logger.info(
             f"[RECORDING_STOP] {streamer_name} (ID: {streamer_id})"
@@ -834,7 +836,7 @@ class LoggingService:
 
     def log_recording_error(
         self, streamer_id: int, streamer_name: str, error_type: str, error_message: str
-    ):
+    ) -> None:
         """Log recording errors with context"""
         self.recording_logger.error(
             f"[RECORDING_ERROR] {streamer_name} (ID: {streamer_id}) - {error_type}: {error_message}"
@@ -845,7 +847,7 @@ class LoggingService:
         streamer_name: str,
         is_live: bool,
         stream_info: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Log stream detection results"""
         status = "LIVE" if is_live else "OFFLINE"
         self.recording_logger.info(f"[STREAM_DETECTION] {streamer_name}: {status}")
@@ -863,7 +865,7 @@ class LoggingService:
         success: bool,
         details: str = "",
         size_mb: Optional[float] = None,
-    ):
+    ) -> None:
         """Log file operations (remux, conversion, cleanup, etc.)"""
         status = "SUCCESS" if success else "FAILED"
         message = f"[FILE_OPERATION] {operation}: {file_path} - {status}"
@@ -883,7 +885,7 @@ class LoggingService:
         old_value: str,
         new_value: str,
         streamer_id: Optional[int] = None,
-    ):
+    ) -> None:
         """Log configuration changes"""
         target = "Global" if streamer_id is None else f"Streamer {streamer_id}"
         self.recording_logger.info(
@@ -896,7 +898,7 @@ class LoggingService:
         streamer_name: str,
         details: str = "",
         level: str = "info",
-    ):
+    ) -> None:
         """Log recording activity to streamer-specific file"""
         if not streamer_name:
             streamer_name = "unknown"
@@ -924,7 +926,7 @@ class LoggingService:
         success: bool = True,
         duration: float = 0,
         details: str = "",
-    ):
+    ) -> None:
         """Log post-processing activities (remux, thumbnail generation, etc.) to streamer-specific files"""
         if not streamer_name:
             streamer_name = "unknown"
@@ -954,7 +956,7 @@ class LoggingService:
 
     def log_stream_event_to_file(
         self, event_type: str, streamer_name: str, details: str = ""
-    ):
+    ) -> None:
         """Log stream events (online/offline) to streamer-specific files"""
         if not streamer_name:
             streamer_name = "unknown"
@@ -992,9 +994,13 @@ _get_logging_service = get_logging_service
 class _LazyLoggingService:
     """Lazy proxy for LoggingService to defer initialization until first use"""
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> object:
         return getattr(get_logging_service(), name)
 
 
 # Global logging service instance (lazy-initialized for local dev compatibility)
-logging_service = _LazyLoggingService()
+if TYPE_CHECKING:
+    # The public proxy forwards the complete native service without constructing it.
+    logging_service: LoggingService
+else:
+    logging_service = _LazyLoggingService()

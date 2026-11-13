@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, TYPE_CHECKING, TextIO
 
 if TYPE_CHECKING:
-    from app.services.system.logging_service import LoggingService, _LazyLoggingService
+    from app.services.system.logging_service import LoggingService
 
 from app.utils.async_db_utils import run_in_thread_pool
 
@@ -140,7 +140,7 @@ async def convert_ts_to_mp4(
     output_path: str,
     metadata_file: Optional[str] = None,
     overwrite: bool = False,
-    logging_service: "LoggingService | _LazyLoggingService | None" = None,
+    logging_service: "LoggingService | None" = None,
     streamer_name: str = "unknown",
 ) -> Dict[str, Any]:
     """
@@ -282,7 +282,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
     metadata: Dict[str, Any],
     chapters: Optional[list[dict[str, str | float]]] = None,
     streamer_name: str = "unknown",
-    logging_service: "LoggingService | _LazyLoggingService | None" = None,
+    logging_service: "LoggingService | None" = None,
     overwrite: bool = False,
 ) -> Dict[str, Any]:
     """

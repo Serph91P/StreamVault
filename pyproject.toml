@@ -178,6 +178,7 @@ module = [
     "app.routes.twitch_auth",
     "app.services.init.startup_init",
     "app.services.system.cleanup_service",
+    "app.services.system.logging_service",
     "app.models.identity", "app.models.notifications", "app.models.proxies", "app.models.recordings",
     "app.models.streams", "app.models.system", "app.models.upstream",
     "app.services.core.automated_recovery_state", "app.services.core.session_maintenance", "app.services.core.state_values",

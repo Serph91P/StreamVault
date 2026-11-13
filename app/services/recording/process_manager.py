@@ -102,7 +102,7 @@ if TYPE_CHECKING:
         ExternalNotificationService,
     )
     from app.services.system.twitch_token_service import TwitchTokenService
-    from app.services.system.logging_service import LoggingService, _LazyLoggingService
+    from app.services.system.logging_service import LoggingService
 
 try:
     import psutil  # noqa: F401
@@ -275,7 +275,7 @@ class ProcessManager:
                 logging_service as legacy_logging_service,
             )
 
-            self.logging_service: LoggingService | _LazyLoggingService | None = (
+            self.logging_service: LoggingService | None = (
                 logging_service
                 if logging_service is not None
                 else legacy_logging_service
@@ -833,7 +833,7 @@ class ProcessManager:
 
     @staticmethod
     def _write_streamlink_start_log(
-        service: "LoggingService | _LazyLoggingService",
+        service: "LoggingService",
         streamer_name: str,
         quality: str,
         segment_path: str,
@@ -864,7 +864,7 @@ class ProcessManager:
 
     @staticmethod
     def _write_streamlink_failure_log(
-        service: "LoggingService | _LazyLoggingService",
+        service: "LoggingService",
         streamer_name: str,
         stdout: bytes,
         stderr: bytes,
