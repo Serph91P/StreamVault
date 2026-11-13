@@ -30,7 +30,7 @@ class ThumbnailService:
 
     def _persist_thumbnail(self, stream_id: int, thumbnail_path: str) -> None:
         with self._sessions() as db:
-            metadata = (
+            metadata: StreamMetadata | None = (
                 db.query(StreamMetadata)
                 .filter(StreamMetadata.stream_id == stream_id)
                 .first()
@@ -50,13 +50,15 @@ class ThumbnailService:
 
     async def get_stream_thumbnail(
         self, username: str, width: int = 1280, height: int = 720
-    ):
+    ) -> str:
         """Generiert Twitch-Vorschaubild-URL für einen laufenden Stream"""
         # Füge einen Timestamp-Parameter hinzu, um Caching zu vermeiden
         timestamp = int(time.time())
         return f"https://static-cdn.jtvnw.net/previews-ttv/live_user_{username}-{width}x{height}.jpg?t={timestamp}"
 
-    async def download_thumbnail(self, stream_id: int, output_dir: str):
+    async def download_thumbnail(
+        self, stream_id: int, output_dir: str
+    ) -> str | Path | None:
         """Lädt das Stream-Thumbnail herunter und erstellt nur das korrekte Format"""
         with SessionLocal() as db:
             stream = (
@@ -182,11 +184,11 @@ class ThumbnailService:
 
             return None
 
-    async def _is_placeholder_image(self, image_data):
+    async def _is_placeholder_image(self, image_data: bytes) -> bool:
         """Prüft, ob das Bild ein Platzhalter (graue Kamera) ist"""
         try:
             # Öffne das Bild mit PIL
-            img = Image.open(io.BytesIO(image_data))
+            img: Image.Image = Image.open(io.BytesIO(image_data))
 
             # Konvertiere zu RGB falls notwendig
             if img.mode != "RGB":
@@ -242,7 +244,7 @@ class ThumbnailService:
             # Bei Fehlern nehmen wir an, dass es kein Placeholder ist
             return False
 
-    def _get_average_color(self, img):
+    def _get_average_color(self, img: Image.Image) -> tuple[float, float, float]:
         """Berechnet die durchschnittliche Farbe eines Bildes"""
         # Verkleinere das Bild für schnellere Berechnung
         img = img.resize((50, 50))
@@ -263,7 +265,9 @@ class ThumbnailService:
         pixel_count = len(pixels)
         return (r_total // pixel_count, g_total // pixel_count, b_total // pixel_count)
 
-    async def ensure_thumbnail(self, stream_id: int, output_dir: str):
+    async def ensure_thumbnail(
+        self, stream_id: int, output_dir: str
+    ) -> str | Path | None:
         """Stellt sicher, dass ein Thumbnail existiert - versucht zuerst Twitch, dann Video-Extraktion"""
         with SessionLocal() as db:
             stream = (
@@ -306,7 +310,7 @@ class ThumbnailService:
                 )
 
                 # Suche nach der MP4-Datei
-                metadata = (
+                metadata: StreamMetadata | None = (
                     db.query(StreamMetadata)
                     .filter(StreamMetadata.stream_id == stream_id)
                     .first()
@@ -552,8 +556,8 @@ class ThumbnailService:
                 raise asyncio.CancelledError
 
     async def ensure_thumbnail_with_fallback(
-        self, stream_id: int, output_dir: str, video_path: str = None
-    ) -> str:
+        self, stream_id: int, output_dir: str, video_path: str | None = None
+    ) -> str | Path | None:
         """Stellt sicher, dass ein hochwertiges Thumbnail existiert - mit Video-Fallback bei Placeholder"""
         with SessionLocal() as db:
             stream = (
@@ -596,7 +600,7 @@ class ThumbnailService:
                 )
 
                 # Suche nach der MP4-Datei
-                metadata = (
+                metadata: StreamMetadata | None = (
                     db.query(StreamMetadata)
                     .filter(StreamMetadata.stream_id == stream_id)
                     .first()
@@ -771,7 +775,7 @@ class ThumbnailService:
 
     async def generate_thumbnail_from_mp4(
         self, stream_id: int, mp4_path: str
-    ) -> Optional[str]:
+    ) -> str | Path | None:
         """Generate thumbnail from MP4 file with all Plex/Emby compatibility features
 
         Args:
@@ -835,7 +839,7 @@ class ThumbnailService:
 
                     # Update database with thumbnail path
                     with SessionLocal() as db:
-                        metadata = (
+                        metadata: StreamMetadata | None = (
                             db.query(StreamMetadata)
                             .filter(StreamMetadata.stream_id == stream_id)
                             .first()
@@ -882,8 +886,8 @@ class ThumbnailService:
             return None
 
     async def _create_plex_compatible_thumbnails(
-        self, mp4_path: str, source_thumbnail_path: str
-    ):
+        self, mp4_path: str, source_thumbnail_path: str | Path
+    ) -> None:
         """Create Plex/Emby-compatible thumbnail files in multiple formats"""
         try:
             if not os.path.exists(source_thumbnail_path):

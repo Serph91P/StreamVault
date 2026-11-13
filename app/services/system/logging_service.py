@@ -571,7 +571,7 @@ class LoggingService:
         operation: str,
         stdout: bytes,
         stderr: bytes,
-        exit_code: int,
+        exit_code: int | None,
         streamer_name: str,
         known_secrets: tuple | list | set = (),
     ):

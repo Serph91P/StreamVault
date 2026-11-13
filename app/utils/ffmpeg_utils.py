@@ -7,7 +7,10 @@ import logging
 import tempfile
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING, TextIO
+
+if TYPE_CHECKING:
+    from app.services.system.logging_service import LoggingService, _LazyLoggingService
 
 from app.utils.async_db_utils import run_in_thread_pool
 
@@ -43,7 +46,7 @@ def _validate_mp4_file(mp4_path: str) -> bool:
         return False
 
 
-async def create_metadata_file(metadata: dict) -> Optional[str]:
+async def create_metadata_file(metadata: dict[str, object]) -> Optional[str]:
     """
     Create a temporary metadata file for FFmpeg in the correct format.
 
@@ -83,7 +86,7 @@ async def embed_metadata_in_mp4(
     input_path: str,
     output_path: str,
     metadata: Dict[str, Any],
-    chapters: Optional[list] = None,
+    chapters: Optional[list[dict[str, str | float]]] = None,
 ) -> bool:
     """
     Embed metadata into MP4 file using FFmpeg.
@@ -137,7 +140,7 @@ async def convert_ts_to_mp4(
     output_path: str,
     metadata_file: Optional[str] = None,
     overwrite: bool = False,
-    logging_service=None,
+    logging_service: "LoggingService | _LazyLoggingService | None" = None,
     streamer_name: str = "unknown",
 ) -> Dict[str, Any]:
     """
@@ -277,9 +280,9 @@ async def embed_metadata_with_ffmpeg_wrapper(
     input_path: str,
     output_path: str,
     metadata: Dict[str, Any],
-    chapters: Optional[list] = None,
+    chapters: Optional[list[dict[str, str | float]]] = None,
     streamer_name: str = "unknown",
-    logging_service=None,
+    logging_service: "LoggingService | _LazyLoggingService | None" = None,
     overwrite: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -336,7 +339,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
             owner = queue_owner_file.get()
             if owner is not None:
 
-                def create_owned_stage():
+                def create_owned_stage() -> None:
                     nonlocal staged_output, output_path
                     staged_output = output_path = prepare_remux_stage(
                         output_path, owner
@@ -386,6 +389,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
         # Create a temporary file for FFmpeg chapters
         def write_metadata() -> str:
             nonlocal metadata_file
+            metadata_handle: TextIO | tempfile._TemporaryFileWrapper[str]
             if staged_output is not None and owner is not None:
                 metadata_file = str(Path(staged_output).with_suffix(".ffmeta"))
                 metadata_handle = open(metadata_file, "x")
@@ -552,9 +556,10 @@ async def embed_metadata_with_ffmpeg_wrapper(
         logger.error(f"Error during FFmpeg metadata embedding: {e}", exc_info=True)
         if logging_service:
             await run_in_thread_pool(
-                lambda error=e: logging_service.ffmpeg_logger.error(
-                    f"[FFMPEG_METADATA_ERROR] {streamer_name} - {str(error)}"
-                )
+                logging_service.ffmpeg_logger.error,
+                "[FFMPEG_METADATA_ERROR] %s - %s",
+                streamer_name,
+                e,
             )
         return {
             "success": False,
@@ -564,7 +569,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
         }
     finally:
 
-        async def cleanup():
+        async def cleanup() -> None:
             try:
                 if process is not None and not communication_completed:
                     if process.returncode is None:
@@ -603,7 +608,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
 
 
 async def create_ffmpeg_chapters_file(
-    chapters: list,
+    chapters: list[dict[str, str | float]],
     output_path: str,
     title: Optional[str] = None,
     artist: Optional[str] = None,
@@ -657,7 +662,9 @@ async def create_ffmpeg_chapters_file(
                     f.write(f"START={start_ms}\n")
                     f.write(f"END={end_ms}\n")
                     # Escape special characters in chapter title
-                    chapter_title = chapter.get("title", "Chapter").replace("=", "\\=")
+                    title_value = chapter.get("title", "Chapter")
+                    assert isinstance(title_value, str)
+                    chapter_title = title_value.replace("=", "\\=")
                     f.write(f"title={chapter_title}\n")
 
         logger.info(

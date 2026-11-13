@@ -113,6 +113,7 @@ files = [
     "app/services/api/twitch_api.py",
     "app/services/media/metadata_service.py",
     "app/services/media/artwork_service.py",
+    "app/services/media/thumbnail_service.py",
     "app/services/processing/status_values.py",
     "app/services/processing/post_processing_task_handlers.py",
     "app/services/notifications/push_notification_service.py",
@@ -124,6 +125,7 @@ files = [
     "app/services/recording/file_operations.py",
     "app/services/recording/recording_values.py",
     "app/services/recording/recording_database_service.py",
+    "app/services/recording/recording_state_manager.py",
     "app/services/recording/recording_lifecycle_manager.py",
     "app/services/recording/process_manager.py",
     "app/services/recording/unified_recovery_service.py",
@@ -143,6 +145,8 @@ files = [
     "app/services/streamers/values.py",
     "app/services/system/temporary_cleanup_service.py",
     "app/utils/process_output.py",
+    "app/utils/ffmpeg_utils.py",
+    "app/utils/remux_staging.py",
 ]
 follow_imports = "silent"
 warn_unused_ignores = true
@@ -163,6 +167,7 @@ module = [
     "app.services.http_client", "app.services.processing.status_values", "app.services.proxy.proxy_catalog",
     "app.services.api.twitch_api",
     "app.services.media.metadata_service", "app.services.media.artwork_service", "app.utils.process_output",
+    "app.services.media.thumbnail_service",
     "app.utils.async_file",
     "app.utils.proxy_encryption", "app.services.notifications.push_notification_service",
     "app.services.notifications.external_notification_service",
@@ -170,6 +175,7 @@ module = [
     "app.services.recording.admin_cleanup", "app.services.recording.configuration_values", "app.services.recording.recording_values", "app.services.recording.recording_database_service",
     "app.services.recording.config_manager",
     "app.services.recording.file_operations", "app.services.core.state_persistence_service",
+    "app.services.recording.recording_state_manager", "app.utils.ffmpeg_utils", "app.utils.remux_staging",
     "app.services.recording.recording_lifecycle_manager",
     "app.services.recording.process_manager",
     "app.services.processing.post_processing_task_handlers",

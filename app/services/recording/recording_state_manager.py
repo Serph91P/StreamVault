@@ -9,7 +9,7 @@ Legacy callers share `recording_state_manager`; factories use `for_application`.
 
 import logging
 import asyncio
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from pathlib import Path
 from datetime import datetime
 from app.services.core.state_persistence_service import (
@@ -18,6 +18,17 @@ from app.services.core.state_persistence_service import (
 )
 from app.services.recording.config_manager import ConfigManager
 from app.utils.async_db_utils import run_in_thread_pool
+
+if TYPE_CHECKING:
+    from typing import TypedDict
+    from app.services.recording.recording_database_service import (
+        RecordingDatabaseService,
+    )
+
+    class PersistenceData(TypedDict):
+        active_recordings: dict[str, dict[str, str | int | float | bool | None]]
+        timestamp: str
+
 
 logger = logging.getLogger("streamvault")
 
@@ -31,14 +42,17 @@ class RecordingStateManager:
 
     _instance: Optional["RecordingStateManager"] = None
     _initialized: bool = False
+    config_manager: ConfigManager | None
 
-    def __new__(cls, config_manager=None):
+    def __new__(
+        cls, config_manager: ConfigManager | None = None
+    ) -> "RecordingStateManager":
         """Singleton pattern - return existing instance if available"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, config_manager=None):
+    def __init__(self, config_manager: ConfigManager | None = None) -> None:
         # Only initialize once (singleton)
         if RecordingStateManager._initialized:
             # Update config_manager if provided (for compatibility)
@@ -66,7 +80,7 @@ class RecordingStateManager:
         self._persistence_service = persistence_service
         # Active recordings tracking
         self.active_recordings: Dict[int, Dict[str, Any]] = {}
-        self.recording_tasks: Dict[int, asyncio.Task] = {}
+        self.recording_tasks: Dict[int, asyncio.Task[None]] = {}
 
         logger.debug("RecordingStateManager initialized")
 
@@ -110,23 +124,23 @@ class RecordingStateManager:
 
     # Task management
 
-    def add_recording_task(self, recording_id: int, task: asyncio.Task) -> None:
+    def add_recording_task(self, recording_id: int, task: asyncio.Task[None]) -> None:
         """Add recording task to tracking"""
         self.recording_tasks[recording_id] = task
         logger.debug(f"Added recording task {recording_id} to tracking")
 
-    def remove_recording_task(self, recording_id: int) -> Optional[asyncio.Task]:
+    def remove_recording_task(self, recording_id: int) -> Optional[asyncio.Task[None]]:
         """Remove recording task from tracking"""
         task = self.recording_tasks.pop(recording_id, None)
         if task:
             logger.debug(f"Removed recording task {recording_id} from tracking")
         return task
 
-    def get_recording_task(self, recording_id: int) -> Optional[asyncio.Task]:
+    def get_recording_task(self, recording_id: int) -> Optional[asyncio.Task[None]]:
         """Get recording task"""
         return self.recording_tasks.get(recording_id)
 
-    def get_active_tasks(self) -> Dict[int, asyncio.Task]:
+    def get_active_tasks(self) -> Dict[int, asyncio.Task[None]]:
         """Get all active recording tasks"""
         return self.recording_tasks.copy()
 
@@ -175,7 +189,7 @@ class RecordingStateManager:
                 logger.warning("State persistence service not available")
                 return
 
-            persistence_data = {
+            persistence_data: PersistenceData = {
                 "active_recordings": {},
                 "timestamp": datetime.utcnow().isoformat(),
             }
@@ -220,10 +234,10 @@ class RecordingStateManager:
             return {}
 
     async def recover_active_recordings_from_persistence(
-        self, database_service
+        self, database_service: "RecordingDatabaseService"
     ) -> List[int]:
         """Recover active recordings from persistence"""
-        recovered_recordings = []
+        recovered_recordings: list[int] = []
 
         try:
             # Load from persistence
@@ -278,7 +292,10 @@ class RecordingStateManager:
         return recovered_recordings
 
     async def _recover_single_recording(
-        self, recording_id: int, recording_data: Dict[str, Any], database_service
+        self,
+        recording_id: int,
+        recording_data: Dict[str, Any],
+        database_service: "RecordingDatabaseService",
     ) -> bool:
         """Recover a single recording"""
         try:
