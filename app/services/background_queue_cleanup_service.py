@@ -8,8 +8,11 @@ Fixes for production issues:
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, TYPE_CHECKING
 from datetime import datetime, timezone
+
+if TYPE_CHECKING:
+    from app.services.background_queue_service import BackgroundQueueService
 
 # Configuration constants
 STUCK_TASK_THRESHOLD_HOURS = (
@@ -22,7 +25,9 @@ logger = logging.getLogger("streamvault")
 class BackgroundQueueCleanupService:
     """Service to clean up stuck background queue tasks and external tasks"""
 
-    def __init__(self, background_queue_service=None):
+    def __init__(
+        self, background_queue_service: "BackgroundQueueService | None" = None
+    ) -> None:
         self.background_queue_service = background_queue_service
 
     async def cleanup_stuck_recording_tasks(self) -> Dict[str, Any]:
@@ -374,7 +379,7 @@ class BackgroundQueueCleanupService:
 _cleanup_service = None
 
 
-def get_cleanup_service():
+def get_cleanup_service() -> BackgroundQueueCleanupService:
     """Get singleton cleanup service"""
     global _cleanup_service
     if _cleanup_service is None:

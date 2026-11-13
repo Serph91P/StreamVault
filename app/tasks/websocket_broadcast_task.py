@@ -53,10 +53,10 @@ class WebSocketBroadcastTask:
         self._session_factory = session_factory
         self._queue_service = queue_service
         self.is_running = False
-        self._task = None
+        self._task: asyncio.Task[None] | None = None
         # Cache for detecting changes
-        self._last_recordings_hash = None
-        self._last_queue_hash = None
+        self._last_recordings_hash: str | None = None
+        self._last_queue_hash: str | None = None
 
     @property
     def connection_manager(self) -> ConnectionManager:
@@ -105,7 +105,7 @@ class WebSocketBroadcastTask:
                 for recording in recordings
             ]
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the background broadcast task"""
         if self.is_running:
             logger.warning("WebSocket broadcast task already running")
@@ -115,7 +115,7 @@ class WebSocketBroadcastTask:
         self._task = asyncio.create_task(self._broadcast_loop())
         logger.info("WebSocket broadcast task started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the background broadcast task"""
         if not self.is_running:
             return
@@ -130,7 +130,7 @@ class WebSocketBroadcastTask:
 
         logger.info("WebSocket broadcast task stopped")
 
-    async def _broadcast_loop(self):
+    async def _broadcast_loop(self) -> None:
         """Main broadcast loop that runs with optimized frequency"""
         try:
             cycle_counter = 0
@@ -166,7 +166,7 @@ class WebSocketBroadcastTask:
         except Exception as e:
             logger.error(f"Fatal error in WebSocket broadcast loop: {e}")
 
-    async def _broadcast_active_recordings(self):
+    async def _broadcast_active_recordings(self) -> None:
         """Publish a plain snapshot only after its worker-owned session closes."""
         try:
             recordings_data = await run_in_thread_pool(self._load_active_recordings)
@@ -196,7 +196,7 @@ class WebSocketBroadcastTask:
         except Exception as e:
             logger.error(f"Error broadcasting active recordings: {e}")
 
-    async def _broadcast_background_queue_status(self):
+    async def _broadcast_background_queue_status(self) -> None:
         """Broadcast current background queue status to all WebSocket clients"""
         try:
             if self._queue_service is None:
@@ -306,7 +306,7 @@ class WebSocketBroadcastTask:
         except Exception as e:
             logger.error(f"Error broadcasting background queue status: {e}")
 
-    async def _auto_cleanup_stuck_tasks(self):
+    async def _auto_cleanup_stuck_tasks(self) -> None:
         """Automatically cleanup stuck recording and orphaned recovery tasks"""
         try:
             from app.services.background_queue_cleanup_service import (

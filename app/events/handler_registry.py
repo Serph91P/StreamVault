@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from app.services.unified_image_service import UnifiedImageService
 
 
-def get_recording_manager():
+def get_recording_manager() -> RecordingManager:
     from app.dependencies import get_recording_manager as resolve_recording_manager
 
     return resolve_recording_manager()
@@ -80,9 +80,9 @@ class EventHandlerRegistry:
         )
         self.twitch_api = twitch_api or default_twitch_api
 
-        self.eventsub = None
+        self.eventsub: dict[str, str | None] | None = None
         # TTLCache for event deduplication (prevents memory leaks with automatic expiration)
-        self._processed_events = TTLCache(
+        self._processed_events: TTLCache[str, datetime] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
             ttl=CACHE_CONFIG.EVENT_DEDUPLICATION_TTL,
         )
@@ -90,7 +90,7 @@ class EventHandlerRegistry:
     async def get_access_token(self) -> str:
         return await self.twitch_api.get_access_token()
 
-    async def initialize_eventsub(self):
+    async def initialize_eventsub(self) -> None:
         if self.eventsub:
             logger.debug("EventSub already initialized, skipping...")
             return
@@ -108,7 +108,7 @@ class EventHandlerRegistry:
 
         logger.info("EventSub initialized successfully")
 
-    async def subscribe_to_events(self, twitch_id: str):
+    async def subscribe_to_events(self, twitch_id: str) -> None:
         if not self.eventsub:
             raise ValueError("EventSub not initialized")
         for event_type in self.handlers:
@@ -203,7 +203,7 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error forgetting event fingerprint: {e}", exc_info=True)
 
-    async def handle_stream_online(self, data: dict):
+    async def handle_stream_online(self, data: dict[str, str]) -> None:
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
             snapshot = await run_in_thread_pool(
@@ -248,7 +248,7 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
 
-    async def handle_stream_offline(self, data: dict):
+    async def handle_stream_offline(self, data: dict[str, str]) -> None:
         try:
             session_factory = self._session_factory or SessionLocal
             snapshot = await run_in_thread_pool(
@@ -319,7 +319,7 @@ class EventHandlerRegistry:
             .first()
         )
 
-    async def handle_stream_update(self, data: dict):
+    async def handle_stream_update(self, data: dict[str, str]) -> None:
         sessions = self._session_factory or SessionLocal
         try:
             if not await run_in_thread_pool(
@@ -435,7 +435,7 @@ class EventHandlerRegistry:
             "error": f"Status code: {status}",
         }
 
-    async def unsubscribe_from_events(self, twitch_id: str):
+    async def unsubscribe_from_events(self, twitch_id: str) -> None:
         """Unsubscribe from all EventSub events for a specific streamer"""
         try:
             # Get all subscriptions
@@ -484,7 +484,7 @@ class EventHandlerRegistry:
             )
             raise
 
-    async def delete_all_subscriptions(self):
+    async def delete_all_subscriptions(self) -> dict[str, object]:
         subs = await self.list_subscriptions()
         results = []
 

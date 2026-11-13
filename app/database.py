@@ -19,10 +19,21 @@ Compatibility seam (temporary):
 
 import logging
 import os
-from typing import TYPE_CHECKING, AsyncGenerator, Dict, Optional
+from typing import TYPE_CHECKING, AsyncGenerator, Dict, Optional, Generator
 
 if TYPE_CHECKING:
     from app.config.settings import Settings
+    from typing import TypedDict
+
+    class EngineOptions(TypedDict, total=False):
+        connect_args: dict[str, bool | int | str]
+        poolclass: type[StaticPool]
+        pool_pre_ping: bool
+        pool_recycle: int
+        pool_size: int
+        max_overflow: int
+        pool_timeout: int
+
 
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.engine import Engine, make_url
@@ -33,7 +44,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 # Compatibility metadata only; URL selection uses validated settings below.
@@ -101,8 +112,8 @@ class DatabaseLifecycle:
         self._resolved_url: Optional[str] = None
         self._sync_engine: Optional[Engine] = None
         self._async_engine: Optional[AsyncEngine] = None
-        self._sync_session_factory = None
-        self._async_session_factory = None
+        self._sync_session_factory: sessionmaker[Session] | None = None
+        self._async_session_factory: async_sessionmaker[AsyncSession] | None = None
 
     @property
     def url(self) -> str:
@@ -125,6 +136,7 @@ class DatabaseLifecycle:
     @property
     def sync_engine(self) -> Engine:
         if self._sync_engine is None:
+            kwargs: EngineOptions
             engine_url = make_url(self.sync_url)
             if engine_url.drivername.startswith("sqlite"):
                 kwargs = {"connect_args": {"check_same_thread": False}}
@@ -148,6 +160,7 @@ class DatabaseLifecycle:
     @property
     def async_engine(self) -> AsyncEngine:
         if self._async_engine is None:
+            kwargs: EngineOptions
             engine_url = make_url(self.async_url)
             if engine_url.drivername.startswith("sqlite"):
                 kwargs = {}
@@ -167,7 +180,7 @@ class DatabaseLifecycle:
         return self._async_engine
 
     @property
-    def sync_session_factory(self):
+    def sync_session_factory(self) -> sessionmaker[Session]:
         if self._sync_session_factory is None:
             self._sync_session_factory = sessionmaker(
                 bind=self.sync_engine,
@@ -178,7 +191,7 @@ class DatabaseLifecycle:
         return self._sync_session_factory
 
     @property
-    def async_session_factory(self):
+    def async_session_factory(self) -> async_sessionmaker[AsyncSession]:
         if self._async_session_factory is None:
             self._async_session_factory = async_sessionmaker(
                 bind=self.async_engine,
@@ -220,7 +233,7 @@ class _EngineProxy:
     def __init__(self, lifecycle: DatabaseLifecycle) -> None:
         self._lifecycle = lifecycle
 
-    def __getattr__(self, item: str):
+    def __getattr__(self, item: str) -> object:
         if item == "dispose":
             return self._lifecycle.dispose_sync
         return getattr(self._lifecycle.sync_engine, item)
@@ -236,10 +249,10 @@ class _SessionLocalProxy:
     def __init__(self, lifecycle: DatabaseLifecycle) -> None:
         self._lifecycle = lifecycle
 
-    def __call__(self, *args, **kwargs):
-        return self._lifecycle.sync_session_factory(*args, **kwargs)
+    def __call__(self, **kwargs: object) -> Session:
+        return self._lifecycle.sync_session_factory(**kwargs)
 
-    def __getattr__(self, item: str):
+    def __getattr__(self, item: str) -> object:
         return getattr(self._lifecycle.sync_session_factory, item)
 
 
@@ -267,7 +280,7 @@ def get_database_url(configuration: "Settings | None" = None) -> str:
     return url
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     """FastAPI dependency yielding a sync session from the lifecycle.
 
     Temporary compatibility seam; new dependencies should prefer the async

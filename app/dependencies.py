@@ -15,7 +15,7 @@ from app.utils.cache import SimpleCache
 from app.bootstrap.settings import resolve_app_settings
 from app.services.communication.websocket_manager import (
     ConnectionManager,
-    websocket_manager,
+    websocket_manager as websocket_manager,
 )
 from app.services.core.auth_service import AuthService, AuthTokenError
 from app.services.core.settings_service import SettingsService

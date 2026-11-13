@@ -144,7 +144,7 @@ class ThumbnailService:
                         # Auch in das Verzeichnis mit dem Video kopieren, falls es schon existiert
                         try:
                             if metadata.json_path:
-                                video_dir = os.path.dirname(metadata.json_path)
+                                metadata_video_dir = os.path.dirname(metadata.json_path)
                                 base_filename = os.path.splitext(
                                     os.path.basename(metadata.json_path)
                                 )[0]
@@ -156,9 +156,11 @@ class ThumbnailService:
                                 import shutil
 
                                 plex_thumbnail_path = os.path.join(
-                                    video_dir, f"{base_filename}-thumb.jpg"
+                                    metadata_video_dir, f"{base_filename}-thumb.jpg"
                                 )
-                                poster_path = os.path.join(video_dir, "poster.jpg")
+                                poster_path = os.path.join(
+                                    metadata_video_dir, "poster.jpg"
+                                )
 
                                 shutil.copy2(thumbnail_path, plex_thumbnail_path)
                                 shutil.copy2(thumbnail_path, poster_path)
