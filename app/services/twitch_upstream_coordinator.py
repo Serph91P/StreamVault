@@ -175,7 +175,7 @@ class TwitchUpstreamCoordinator:
             process_start_fingerprint,
         )
 
-    async def heartbeat(self, *, channel_key: str, generation: int) -> bool:
+    async def heartbeat(self, *, channel_key: str | None, generation: int) -> bool:
         return await asyncio.to_thread(self._heartbeat, channel_key, generation)
 
     async def begin_rotation(
@@ -242,10 +242,10 @@ class TwitchUpstreamCoordinator:
     async def release(
         self,
         *,
-        channel_key: str,
+        channel_key: str | None,
         generation: int,
         reason: str,
-        expected_process_identity: Optional[tuple[int, int, str]] = None,
+        expected_process_identity: Optional[tuple[int, int | None, str | None]] = None,
         expected_live_session_id: Optional[str] = None,
     ) -> bool:
         return await asyncio.to_thread(
@@ -266,11 +266,11 @@ class TwitchUpstreamCoordinator:
     async def assert_stop_authorized(
         self,
         *,
-        channel_key: str,
+        channel_key: str | None,
         generation: int,
         process_pid: int,
-        process_group_id: int,
-        process_start_fingerprint: str,
+        process_group_id: int | None,
+        process_start_fingerprint: str | None,
         expected_purpose: Optional[str] = None,
         requesting_owner_user_id: Optional[int] = None,
     ) -> TwitchUpstreamReservation:
@@ -288,11 +288,11 @@ class TwitchUpstreamCoordinator:
     async def assert_local_process_cleanup_authorized(
         self,
         *,
-        channel_key: str,
+        channel_key: str | None,
         generation: int,
         process_pid: int,
-        process_group_id: int,
-        process_start_fingerprint: str,
+        process_group_id: int | None,
+        process_start_fingerprint: str | None,
         expected_purpose: str,
         requesting_owner_user_id: Optional[int],
         expected_live_session_id: str,
@@ -358,11 +358,11 @@ class TwitchUpstreamCoordinator:
     async def assert_exited_process_cleanup_authorized(
         self,
         *,
-        channel_key: str,
+        channel_key: str | None,
         generation: int,
         process_pid: int,
-        process_group_id: int,
-        process_start_fingerprint: str,
+        process_group_id: int | None,
+        process_start_fingerprint: str | None,
         expected_purpose: str,
         requesting_owner_user_id: Optional[int],
         expected_live_session_id: str,

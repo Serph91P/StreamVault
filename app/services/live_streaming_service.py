@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict, Optional, Set
+from typing import TYPE_CHECKING, Dict, Optional, Set, TypedDict
 from collections.abc import Callable
 from sqlalchemy.orm import Session
 from app.config.settings import Settings
@@ -46,6 +46,8 @@ from app.services.system.supervisor import TaskSupervisor
 from app.services.twitch_upstream_coordinator import (
     AUTHENTICATED_TWITCH_ACCOUNT,
     TwitchUpstreamConflict,
+    TwitchUpstreamCoordinator,
+    ProcessIdentity,
     twitch_upstream_coordinator,
 )
 from app.utils.process_output import BoundedStreamlinkOutput
@@ -57,6 +59,17 @@ from app.utils.streamlink_utils import _add_proxy_settings
 from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
+
+if TYPE_CHECKING:
+
+    class LiveStopAuthorization(TypedDict):
+        channel_key: str | None
+        generation: int
+        process_pid: int
+        process_group_id: int | None
+        process_start_fingerprint: str | None
+        expected_purpose: str
+        requesting_owner_user_id: int | None
 
 
 @dataclass(frozen=True)
@@ -111,7 +124,7 @@ class LiveStreamSession:
         self.is_active = True
         self._stop_lock = asyncio.Lock()
 
-    def touch(self):
+    def touch(self) -> None:
         """Update last accessed timestamp"""
         self.last_accessed = datetime.utcnow()
 
@@ -121,7 +134,11 @@ class LiveStreamSession:
 
     def validate_playback_token(self, token: Optional[str]) -> bool:
         """Validate the bearer token used by native HLS/video requests."""
-        return bool(token) and secrets.compare_digest(token, self.playback_token)
+        return (
+            bool(token)
+            and token is not None
+            and secrets.compare_digest(token, self.playback_token)
+        )
 
     def is_expired(self, timeout_seconds: int = 60) -> bool:
         """Check if session has timed out due to inactivity"""
@@ -147,9 +164,9 @@ class LiveStreamingService:
 
     def __init__(
         self,
-        coordinator=None,
-        output_root=None,
-        supervisor=None,
+        coordinator: TwitchUpstreamCoordinator | None = None,
+        output_root: str | Path | None = None,
+        supervisor: TaskSupervisor | None = None,
         *,
         session_factory: Callable[[], Session] | None = None,
         settings: Settings | None = None,
@@ -159,12 +176,14 @@ class LiveStreamingService:
     ):
         self.sessions: Dict[str, LiveStreamSession] = {}
         self.user_sessions: Dict[str, Set[str]] = {}  # user_id -> set of session_ids
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_task: Optional[asyncio.Task[None]] = None
         self._lock = asyncio.Lock()
         self._coordinator = coordinator or twitch_upstream_coordinator
         self._output_root: Path | None = Path(output_root) if output_root else None
         self._temporary_output: TemporaryDirectory[str] | None = None
-        self._pending_starts: Dict[tuple, asyncio.Future] = {}
+        self._pending_starts: Dict[
+            tuple[str, int | None, str | None], asyncio.Future[LiveStreamStartResult]
+        ] = {}
         self._streamlink_output_secrets: dict[
             asyncio.subprocess.Process, tuple[str, ...]
         ] = {}
@@ -176,7 +195,7 @@ class LiveStreamingService:
         self._proxy_service = proxy_service
         self._config_path = config_path
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the background cleanup task"""
         if self._supervisor.closed:
             self._supervisor = TaskSupervisor("live-streaming")
@@ -187,7 +206,7 @@ class LiveStreamingService:
             )
             logger.info("Live streaming cleanup task started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop all active streams and cleanup task"""
         # Stop all active sessions
         async with self._lock:
@@ -331,7 +350,11 @@ class LiveStreamingService:
             live_session_id=session_id,
         )
         if reservation.live_session_id != session_id:
-            existing = self.sessions.get(reservation.live_session_id)
+            existing = (
+                self.sessions.get(reservation.live_session_id)
+                if reservation.live_session_id is not None
+                else None
+            )
             if existing and existing.is_active:
                 return LiveStreamStartResult(existing.session_id, True)
             raise TwitchUpstreamConflict(
@@ -406,12 +429,13 @@ class LiveStreamingService:
             )
 
             # Start Streamlink with stdout captured
-            streamlink_process = await asyncio.create_subprocess_exec(
+            spawned_streamlink_process = await asyncio.create_subprocess_exec(
                 *streamlink_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 start_new_session=True,
             )
+            streamlink_process = spawned_streamlink_process
             self._streamlink_output_secrets[streamlink_process] = (
                 get_streamlink_command_secret_values(streamlink_cmd)
             )
@@ -419,20 +443,25 @@ class LiveStreamingService:
                 self._coordinator.inspect_process_identity(streamlink_process.pid)
             )
             try:
-                streamlink_identity = await asyncio.shield(identity_task)
+                inspected_streamlink_identity = await asyncio.shield(identity_task)
             except asyncio.CancelledError:
                 streamlink_identity = await identity_task
                 raise
+            streamlink_identity = inspected_streamlink_identity
 
-            async def reap_owned_streamlink(timeout):
-                if streamlink_process.returncode is None:
+            async def reap_owned_streamlink(
+                timeout: float,
+                process: asyncio.subprocess.Process = spawned_streamlink_process,
+                identity: ProcessIdentity = inspected_streamlink_identity,
+            ) -> bool:
+                if process.returncode is None:
                     try:
                         await self._coordinator.assert_local_process_cleanup_authorized(
                             channel_key=channel_key,
                             generation=reservation.generation,
-                            process_pid=streamlink_process.pid,
-                            process_group_id=streamlink_identity.process_group_id,
-                            process_start_fingerprint=streamlink_identity.fingerprint,
+                            process_pid=process.pid,
+                            process_group_id=identity.process_group_id,
+                            process_start_fingerprint=identity.fingerprint,
                             expected_purpose="LIVE",
                             requesting_owner_user_id=int(user_id)
                             if user_id is not None
@@ -442,9 +471,9 @@ class LiveStreamingService:
                     except Exception:
                         return False
                 return await self._reap_process(
-                    streamlink_process,
-                    process_group_id=streamlink_identity.process_group_id,
-                    process_start_fingerprint=streamlink_identity.fingerprint,
+                    process,
+                    process_group_id=identity.process_group_id,
+                    process_start_fingerprint=identity.fingerprint,
                     timeout=timeout,
                 )
 
@@ -551,7 +580,11 @@ class LiveStreamingService:
 
         except BaseException:
             authorized = active_lease is None
-            if active_lease is not None:
+            if (
+                active_lease is not None
+                and streamlink_process is not None
+                and streamlink_identity is not None
+            ):
                 try:
                     await self._coordinator.assert_stop_authorized(
                         channel_key=channel_key,
@@ -581,7 +614,9 @@ class LiveStreamingService:
                         getattr(
                             active_lease,
                             "process_group_id",
-                            streamlink_identity.process_group_id,
+                            streamlink_identity.process_group_id
+                            if streamlink_identity is not None
+                            else None,
                         )
                         if active_lease is not None
                         else getattr(streamlink_identity, "process_group_id", None)
@@ -590,7 +625,9 @@ class LiveStreamingService:
                         getattr(
                             active_lease,
                             "process_start_fingerprint",
-                            streamlink_identity.fingerprint,
+                            streamlink_identity.fingerprint
+                            if streamlink_identity is not None
+                            else None,
                         )
                         if active_lease is not None
                         else getattr(streamlink_identity, "fingerprint", None)
@@ -677,7 +714,7 @@ class LiveStreamingService:
         self,
         process: asyncio.subprocess.Process,
         name: str,
-    ):
+    ) -> None:
         """Read stderr from a subprocess and log it for diagnostics."""
         try:
             safe_output = await BoundedStreamlinkOutput.drain_reader(
@@ -759,11 +796,11 @@ class LiveStreamingService:
 
     async def _finish_session_stop(
         self,
-        session_id,
-        session,
-        requesting_user_id,
-        monitored_session,
-        leader_exited,
+        session_id: str,
+        session: LiveStreamSession,
+        requesting_user_id: str | None,
+        monitored_session: LiveStreamSession | None,
+        leader_exited: bool,
     ) -> bool:
         was_active = session.is_active
         session.is_active = False
@@ -771,16 +808,13 @@ class LiveStreamingService:
 
         try:
             if session.lease_generation is not None:
-                owner_user_id = (
-                    int(
-                        requesting_user_id
-                        if requesting_user_id is not None
-                        else session.user_id
-                    )
-                    if (requesting_user_id is not None or session.user_id is not None)
-                    else None
+                owner = (
+                    requesting_user_id
+                    if requesting_user_id is not None
+                    else session.user_id
                 )
-                authorization = {
+                owner_user_id = int(owner) if owner is not None else None
+                authorization: LiveStopAuthorization = {
                     "channel_key": session.channel_key,
                     "generation": session.lease_generation,
                     "process_pid": session.streamlink_process.pid,
@@ -884,11 +918,11 @@ class LiveStreamingService:
 
     async def _reap_process(
         self,
-        process,
+        process: asyncio.subprocess.Process | None,
         *,
-        process_group_id=None,
-        process_start_fingerprint=None,
-        timeout=5.0,
+        process_group_id: int | None = None,
+        process_start_fingerprint: str | None = None,
+        timeout: float = 5.0,
     ) -> bool:
         if not process:
             return True
@@ -930,9 +964,9 @@ class LiveStreamingService:
 
     async def _process_identity_matches(
         self,
-        process_pid,
-        process_group_id,
-        process_start_fingerprint,
+        process_pid: int,
+        process_group_id: int,
+        process_start_fingerprint: str,
     ) -> bool:
         try:
             identity = await self._coordinator.inspect_process_identity(process_pid)
@@ -952,7 +986,7 @@ class LiveStreamingService:
             return session
         return None
 
-    def get_session_status(self, session_id: str) -> Optional[dict]:
+    def get_session_status(self, session_id: str) -> dict[str, str | bool] | None:
         """Get current status of a streaming session"""
         session = self.sessions.get(session_id)
         if not session:
@@ -988,7 +1022,7 @@ class LiveStreamingService:
         quality: str,
         supported_codecs: str = "h264",
         enhanced_quality: bool = False,
-    ) -> list:
+    ) -> list[str]:
         """Build Streamlink command for live streaming (no file output)"""
         normalized_codecs = self._normalize_supported_codecs(supported_codecs)
         cmd = [
@@ -1050,7 +1084,7 @@ class LiveStreamingService:
 
         return cmd
 
-    def _build_ffmpeg_command(self, output_dir: Path) -> list:
+    def _build_ffmpeg_command(self, output_dir: Path) -> list[str]:
         """Build FFmpeg command for HLS generation from stdin"""
         ffmpeg_bin = os.environ.get("FFMPEG_PATH") or "ffmpeg"
 
@@ -1082,7 +1116,7 @@ class LiveStreamingService:
         self,
         streamlink_process: asyncio.subprocess.Process,
         ffmpeg_process: asyncio.subprocess.Process,
-    ):
+    ) -> None:
         """Pipe data from Streamlink stdout to FFmpeg stdin"""
         try:
             if streamlink_process.stdout and ffmpeg_process.stdin:
@@ -1099,7 +1133,7 @@ class LiveStreamingService:
             if ffmpeg_process.stdin:
                 ffmpeg_process.stdin.close()
 
-    async def _monitor_session(self, session_id: str):
+    async def _monitor_session(self, session_id: str) -> None:
         """Monitor a session and auto-cleanup if processes die"""
         try:
             session = self.sessions.get(session_id)
@@ -1146,7 +1180,7 @@ class LiveStreamingService:
             logger.error(f"[LIVE] Error monitoring session {session_id}: {e}")
             await self.stop_stream(session_id)
 
-    async def _cleanup_loop(self):
+    async def _cleanup_loop(self) -> None:
         """Background task to cleanup expired/inactive sessions"""
         while True:
             try:

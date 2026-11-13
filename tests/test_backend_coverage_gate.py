@@ -4,10 +4,36 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tomllib
 
 import pytest
 
 SCRIPT = Path(__file__).with_name("check_backend_coverage.py")
+
+
+def assert_inventory_is_strict(config):
+    root = SCRIPT.parent.parent
+    inventory = json.loads(
+        (root / "docs/architecture/backend-rewrite-inventory.json").read_text()
+    )["modules"]
+    for path in inventory:
+        assert path in config["files"], f"Not checked by CI mypy: {path}"
+        module = path.removesuffix(".py").replace("/", ".").removesuffix(".__init__")
+        effective = dict(config)
+        for override in config.get("overrides", []):
+            if module in override["module"]:
+                effective.update(override)
+        for flag in (
+            "disallow_untyped_defs",
+            "disallow_untyped_calls",
+            "disallow_any_generics",
+        ):
+            assert effective.get(flag) is True, f"Not strict: {module}/{flag}"
+
+
+def test_complete_rewrite_inventory_is_in_the_strict_ci_gate():
+    config = tomllib.loads((SCRIPT.parent.parent / "pyproject.toml").read_text())
+    assert_inventory_is_strict(config["tool"]["mypy"])
 
 
 def summary(covered, total):

@@ -77,6 +77,11 @@ skip_covered = false
 python_version = "3.14"
 plugins = ["pydantic.mypy"]
 files = [
+    "app/main.py",
+    "app/services/api/twitch_oauth_service.py",
+    "app/services/migration/image_migration_service.py",
+    "app/services/recording/startup_recovery.py",
+    "app/services/streamer_service.py",
     "app/dependencies.py",
     "app/lifespan.py",
     "app/api/automated_recovery_endpoints.py",
@@ -125,6 +130,7 @@ files = [
     "app/services/core/state_values.py",
     "app/services/core/state_persistence_service.py",
     "app/services/http_client.py",
+    "app/services/live_streaming_service.py",
     "app/services/api/twitch_api.py",
     "app/services/media/metadata_service.py",
     "app/services/media/artwork_service.py",
@@ -174,6 +180,9 @@ no_implicit_optional = true
 [[tool.mypy.overrides]]
 module = [
     "app.bootstrap", "app.bootstrap.application", "app.bootstrap.settings", "app.bootstrap.storage",
+    "app.main", "app.routes.health",
+    "app.services.api.twitch_oauth_service", "app.services.migration.image_migration_service",
+    "app.services.recording.startup_recovery", "app.services.streamer_service",
     "app.dependencies",
     "app.lifespan",
     "app.api.automated_recovery_endpoints",
@@ -195,6 +204,7 @@ module = [
     "app.models.streams", "app.models.system", "app.models.upstream",
     "app.services.core.automated_recovery_state", "app.services.core.session_maintenance", "app.services.core.state_values",
     "app.services.http_client", "app.services.processing.status_values", "app.services.proxy.proxy_catalog",
+    "app.services.live_streaming_service",
     "app.services.api.twitch_api",
     "app.services.media.metadata_service", "app.services.media.artwork_service", "app.utils.process_output",
     "app.services.media.thumbnail_service",
