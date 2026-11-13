@@ -8,7 +8,10 @@ when multiple streams are running simultaneously.
 import asyncio
 import logging
 import os
-from typing import Dict, Any, Optional
+from typing import TYPE_CHECKING, Dict, Any, Optional
+
+if TYPE_CHECKING:
+    from app.services.background_queue_service import BackgroundQueueService
 from datetime import datetime, timezone
 from app.config.constants import ASYNC_DELAYS
 
@@ -18,10 +21,12 @@ logger = logging.getLogger("streamvault")
 class AutomaticQueueRecoveryService:
     """Automatic recovery service for background queue tasks"""
 
-    def __init__(self, background_queue_service=None):
+    def __init__(
+        self, background_queue_service: "BackgroundQueueService | None" = None
+    ) -> None:
         self.background_queue_service = background_queue_service
         self.is_running = False
-        self.recovery_task: Optional[asyncio.Task] = None
+        self.recovery_task: Optional[asyncio.Task[None]] = None
 
         # Recovery thresholds - configurable via environment variables
         self.stuck_task_threshold_minutes = int(
@@ -42,7 +47,7 @@ class AutomaticQueueRecoveryService:
             "last_recovery": None,
         }
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the automatic recovery service"""
         if self.is_running:
             logger.debug("Automatic queue recovery already running")
@@ -54,7 +59,7 @@ class AutomaticQueueRecoveryService:
             "🔄 Automatic queue recovery service started - monitoring every 30s"
         )
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the automatic recovery service"""
         if not self.is_running:
             return
@@ -339,7 +344,7 @@ class AutomaticQueueRecoveryService:
 _recovery_service = None
 
 
-def get_recovery_service():
+def get_recovery_service() -> AutomaticQueueRecoveryService:
     """Get singleton recovery service"""
     global _recovery_service
 

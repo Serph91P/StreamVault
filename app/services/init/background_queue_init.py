@@ -5,11 +5,11 @@ Sets up the background queue service with task handlers and dependency managemen
 
 import logging
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import partial
 from sqlalchemy.orm import Session
 from app.config.settings import Settings
-from typing import Any, Optional
+from typing import Optional
 
 from app.services.background_queue_service import (
     BackgroundQueueService,
@@ -35,7 +35,7 @@ class BackgroundQueueManager:
         *,
         queue_service: BackgroundQueueService | None = None,
         task_handlers: PostProcessingTaskHandlers | None = None,
-    ):
+    ) -> None:
         if (queue_service is None) != (task_handlers is None):
             raise ValueError(
                 "Application queue and task handlers must be supplied together"
@@ -214,7 +214,7 @@ background_queue_manager = BackgroundQueueManager()
 # Convenience functions
 
 
-async def initialize_background_queue(enable_streamer_isolation: bool = True):
+async def initialize_background_queue(enable_streamer_isolation: bool = True) -> None:
     """Initialize the background queue service with production fixes"""
     await background_queue_manager.initialize(
         enable_streamer_isolation=enable_streamer_isolation
@@ -235,7 +235,7 @@ def get_background_queue_service() -> BackgroundQueueService:
 
 
 async def enqueue_recording_post_processing(
-    stream_id: Any,
+    stream_id: int | str | Mapping[str, object],
     recording_id: Optional[int] = None,
     ts_file_path: Optional[str] = None,
     output_dir: Optional[str] = None,
@@ -246,7 +246,7 @@ async def enqueue_recording_post_processing(
     queue_service: BackgroundQueueService | None = None,
     settings: Settings | None = None,
     session_factory: Callable[[], Session] | None = None,
-):
+) -> list[str]:
     """Enqueue a complete post-processing chain for a recording.
 
     Backward-compatible wrapper: accepts either a payload dict as first arg
@@ -298,7 +298,7 @@ async def enqueue_metadata_generation(
     output_dir: str,
     streamer_name: str,
     started_at: str,
-):
+) -> list[str]:
     """Enqueue metadata generation for an existing MP4 file"""
     queue_service = get_background_queue_service()
     try:
@@ -337,7 +337,7 @@ async def enqueue_thumbnail_generation(
     output_dir: str,
     streamer_name: str,
     started_at: str,
-):
+) -> str:
     """Enqueue thumbnail generation"""
     queue_service = get_background_queue_service()
     try:
@@ -364,11 +364,15 @@ async def enqueue_thumbnail_generation(
         raise
 
 
-async def get_stream_task_status(stream_id: int):
+async def get_stream_task_status(stream_id: int) -> dict[str, list[dict[str, object]]]:
     """Get the status of all tasks for a stream"""
     queue_service = get_background_queue_service()
     # Aggregate tasks for the stream across active, completed, and external
-    stream_tasks = {"active": [], "completed": [], "external": []}
+    stream_tasks: dict[str, list[dict[str, object]]] = {
+        "active": [],
+        "completed": [],
+        "external": [],
+    }
 
     for task in queue_service.active_tasks.values():
         if task.payload.get("stream_id") == stream_id:
@@ -385,7 +389,7 @@ async def get_stream_task_status(stream_id: int):
     return stream_tasks
 
 
-async def cancel_stream_tasks(stream_id: int):
+async def cancel_stream_tasks(stream_id: int) -> dict[str, int | bool]:
     """Cancel all tasks for a stream"""
     queue_service = get_background_queue_service()
     cancelled_count = 0

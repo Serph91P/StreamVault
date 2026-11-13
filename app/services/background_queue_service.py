@@ -112,7 +112,7 @@ class BackgroundQueueService:
         self.dependency_worker = None
         self.stats = self.queue_manager.progress_tracker.stats
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the background queue service"""
         await self.queue_manager.start()
         self.is_running = self.queue_manager.is_running
@@ -122,7 +122,7 @@ class BackgroundQueueService:
         # if process_monitor:
         #     await process_monitor.start()
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the background queue service"""
         await self.queue_manager.stop()
         self.is_running = self.queue_manager.is_running
@@ -324,9 +324,12 @@ class BackgroundQueueService:
             logger.error(f"Error getting queue status: {e}")
             return None
 
-    async def enqueue_recording_post_processing(self, **kwargs):
+    async def enqueue_recording_post_processing(self, **kwargs: object) -> list[str]:
         """Enqueue a complete post-processing chain for a recording"""
-        return await self.queue_manager.enqueue_recording_post_processing(**kwargs)
+        task_ids: list[
+            str
+        ] = await self.queue_manager.enqueue_recording_post_processing(**kwargs)
+        return task_ids
 
     # Properties for legacy compatibility
 
