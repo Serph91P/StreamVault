@@ -77,6 +77,7 @@ skip_covered = false
 python_version = "3.14"
 plugins = ["pydantic.mypy"]
 files = [
+    "app/dependencies.py",
     "app/config/settings.py",
     "app/database.py",
     "app/core/exceptions.py",
@@ -168,6 +169,7 @@ no_implicit_optional = true
 [[tool.mypy.overrides]]
 module = [
     "app.bootstrap", "app.bootstrap.application", "app.bootstrap.settings", "app.bootstrap.storage",
+    "app.dependencies",
     "app.events.event_catalog",
     "app.database",
     "app.events.handler_registry", "app.tasks.websocket_broadcast_task",

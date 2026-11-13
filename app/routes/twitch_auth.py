@@ -207,13 +207,14 @@ async def get_followed_channels(
         token_service = await run_in_thread_pool(
             get_application_twitch_token_service, connection
         )
-        access_token = await token_service.get_valid_access_token()
+        stored_access_token = await token_service.get_valid_access_token()
 
-        if not access_token:
+        if not stored_access_token:
             raise HTTPException(
                 status_code=401,
                 detail="No Twitch access token available. Please connect your Twitch account first.",
             )
+        access_token = stored_access_token
 
     try:
         followed_channels = await oauth_service.get_user_followed_channels(access_token)

@@ -2,8 +2,8 @@ import logging
 from dataclasses import dataclass
 from functools import partial
 from inspect import isawaitable
-from collections.abc import AsyncIterator, Callable
-from typing import Generator, TYPE_CHECKING
+from collections.abc import AsyncIterator, Callable, Awaitable
+from typing import Generator, TYPE_CHECKING, overload
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from starlette.requests import HTTPConnection
@@ -33,15 +33,46 @@ logger = logging.getLogger("streamvault")
 if TYPE_CHECKING:
     from app.services.recording.recording_manager import RecordingManager
     from app.services.api.twitch_oauth_service import TwitchOAuthService
+    from app.services.api.twitch_api import TwitchAPIService
+    from app.services.system.twitch_token_service import TwitchTokenService
+    from app.services.live_streaming_service import LiveStreamingService
+    from app.services.system.streamlink_config_service import StreamlinkConfigService
+    from app.services.recording.unified_recovery_service import UnifiedRecoveryService
+    from app.events.handler_registry import EventHandlerRegistry
+    from app.services.streamer_service import StreamerService
+    from app.services.unified_image_service import UnifiedImageService
+    from app.services.images.image_sync_service import ImageSyncService
+    from app.services.images.auto_image_sync_service import AutoImageSyncService
+    from app.services.images.image_refresh_service import ImageRefreshService
+    from app.services.migration.image_migration_service import ImageMigrationService
+    from app.services.proxy.proxy_health_service import ProxyHealthService
+    from app.services.system.cleanup_service import CleanupService
+    from app.services.categories.category_service import CategoryService
+    from app.services.media.video_catalog_service import VideoCatalogService
 
 event_registry = None
 recording_manager = None
 
 
-def get_lifespan_service(app: FastAPI, provider: Callable):
+@overload
+def get_lifespan_service[T](
+    app: FastAPI, provider: Callable[[], Awaitable[T]]
+) -> Callable[[], Awaitable[T]]: ...
+
+
+@overload
+def get_lifespan_service[T](
+    app: FastAPI, provider: Callable[[], T]
+) -> Callable[[], T]: ...
+
+
+def get_lifespan_service(
+    app: FastAPI, provider: Callable[[], object]
+) -> Callable[[], object]:
     """Resolve a factory-provided service without invoking it eagerly."""
     if provider in app.dependency_overrides:
-        return app.dependency_overrides[provider]
+        override: Callable[[], object] = app.dependency_overrides[provider]
+        return override
     if provider is get_recording_manager:
         return partial(_get_application_recording_manager, app)
     if provider is get_event_registry and hasattr(app.state, "event_registry_lock"):
@@ -62,7 +93,7 @@ class AuthIdentity:
 class AuthenticatedUser:
     id: int
     username: str
-    is_admin: bool
+    is_admin: bool | None
     is_active: bool
 
 
@@ -111,7 +142,7 @@ def get_current_identity(
     request: Request,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
 ) -> AuthIdentity:
-    cached = getattr(request.state, "auth_identity", None)
+    cached: AuthIdentity | None = getattr(request.state, "auth_identity", None)
     if cached:
         return cached
     with session_factory() as db:
@@ -143,7 +174,7 @@ def get_current_identity(
     raise HTTPException(status_code=401, detail="Authentication required")
 
 
-def require_scopes(*required: str):
+def require_scopes(*required: str) -> Callable[[AuthIdentity], AuthIdentity]:
     def dependency(
         identity: AuthIdentity = Depends(get_current_identity),
     ) -> AuthIdentity:
@@ -180,15 +211,15 @@ def get_current_user(
 
 
 def require_admin_user(
-    user=Depends(get_current_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     identity: AuthIdentity = Depends(get_current_identity),
-):
+) -> AuthenticatedUser:
     if not user.is_admin or "admin" not in identity.scopes:
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
 
-async def get_event_registry():
+async def get_event_registry() -> "EventHandlerRegistry":
     global event_registry
     if not event_registry:
         from app.config.settings import get_settings
@@ -215,7 +246,7 @@ def get_recording_manager() -> "RecordingManager":
     return recording_manager
 
 
-def _get_application_recording_manager(app: FastAPI):
+def _get_application_recording_manager(app: FastAPI) -> "RecordingManager":
     """Build once in the synchronous provider worker, never during create_app."""
     global recording_manager
     with app.state.recording_manager_lock:
@@ -251,10 +282,11 @@ def _get_application_recording_manager(app: FastAPI):
             )
         if getattr(app.state, "legacy_default", False):
             recording_manager = app.state.recording_manager
-        return app.state.recording_manager
+        manager: RecordingManager = app.state.recording_manager
+        return manager
 
 
-def get_application_recording_manager(connection: HTTPConnection):
+def get_application_recording_manager(connection: HTTPConnection) -> "RecordingManager":
     """Synchronous HTTP/WebSocket adapter sharing the lifespan's owned facade."""
     return get_lifespan_service(connection.app, get_recording_manager)()
 
@@ -264,21 +296,22 @@ def get_recording_status_cache(connection: HTTPConnection) -> SimpleCache:
     return cache
 
 
-def _get_application_twitch_api(app: FastAPI):
+def _get_application_twitch_api(app: FastAPI) -> "TwitchAPIService":
     with app.state.twitch_api_lock:
         if app.state.twitch_api is None:
             from app.services.api.twitch_api import TwitchAPIService
 
             app.state.twitch_api = TwitchAPIService(settings=resolve_app_settings(app))
-        return app.state.twitch_api
+        service: TwitchAPIService = app.state.twitch_api
+        return service
 
 
-def get_application_twitch_api(connection: HTTPConnection):
+def get_application_twitch_api(connection: HTTPConnection) -> "TwitchAPIService":
     """Resolve a lazy app-owned HTTP pool in the synchronous adapter worker."""
     return _get_application_twitch_api(connection.app)
 
 
-def _get_application_twitch_token_service(app: FastAPI):
+def _get_application_twitch_token_service(app: FastAPI) -> "TwitchTokenService":
     from app.services.system.twitch_token_service import TwitchTokenService
 
     with app.state.twitch_token_service_lock:
@@ -295,7 +328,9 @@ def _get_application_twitch_token_service(app: FastAPI):
         return service
 
 
-def get_application_twitch_token_service(connection: HTTPConnection):
+def get_application_twitch_token_service(
+    connection: HTTPConnection,
+) -> "TwitchTokenService":
     return _get_application_twitch_token_service(connection.app)
 
 
@@ -315,7 +350,7 @@ def get_application_twitch_oauth_service(
         return service
 
 
-def _get_application_live_streaming_service(app: FastAPI):
+def _get_application_live_streaming_service(app: FastAPI) -> "LiveStreamingService":
     from app.services.live_streaming_service import LiveStreamingService
 
     with app.state.live_streaming_service_lock:
@@ -335,10 +370,13 @@ def _get_application_live_streaming_service(app: FastAPI):
                     _get_application_streamlink_config_service(app).twitch_config_path
                 ),
             )
-        return app.state.live_streaming_service
+        service: LiveStreamingService = app.state.live_streaming_service
+        return service
 
 
-def _get_application_streamlink_config_service(app: FastAPI):
+def _get_application_streamlink_config_service(
+    app: FastAPI,
+) -> "StreamlinkConfigService":
     from pathlib import Path
     from app.services.system.streamlink_config_service import StreamlinkConfigService
 
@@ -350,10 +388,13 @@ def _get_application_streamlink_config_service(app: FastAPI):
                 / "streamlink",
                 session_factory=app.state.database_lifecycle.sync_session_factory,
             )
-        return app.state.streamlink_config_service
+        service: StreamlinkConfigService = app.state.streamlink_config_service
+        return service
 
 
-def get_streamlink_config_service(connection: HTTPConnection):
+def get_streamlink_config_service(
+    connection: HTTPConnection,
+) -> "StreamlinkConfigService":
     if not hasattr(connection.app.state, "streamlink_config_service_lock"):
         from app.services.system.streamlink_config_service import (
             streamlink_config_service,
@@ -363,7 +404,7 @@ def get_streamlink_config_service(connection: HTTPConnection):
     return _get_application_streamlink_config_service(connection.app)
 
 
-def _get_application_recovery_service(app: FastAPI):
+def _get_application_recovery_service(app: FastAPI) -> "UnifiedRecoveryService":
     with app.state.unified_recovery_lock:
         if app.state.unified_recovery_service is None:
             from app.services.recording.unified_recovery_service import (
@@ -378,14 +419,17 @@ def _get_application_recovery_service(app: FastAPI):
                 twitch_api=_get_application_twitch_api(app),
                 activity_logger=_get_application_logging_service(app),
             )
-        return app.state.unified_recovery_service
+        service: UnifiedRecoveryService = app.state.unified_recovery_service
+        return service
 
 
-def get_application_recovery_service(connection: HTTPConnection):
+def get_application_recovery_service(
+    connection: HTTPConnection,
+) -> "UnifiedRecoveryService":
     return _get_application_recovery_service(connection.app)
 
 
-def _get_application_event_registry(app: FastAPI):
+def _get_application_event_registry(app: FastAPI) -> "EventHandlerRegistry":
     with app.state.event_registry_lock:
         if app.state.event_registry is None:
             from app.events.handler_registry import EventHandlerRegistry
@@ -399,10 +443,13 @@ def _get_application_event_registry(app: FastAPI):
                 twitch_api=_get_application_twitch_api(app),
                 image_service=_get_application_image_service(app),
             )
-        return app.state.event_registry
+        registry: EventHandlerRegistry = app.state.event_registry
+        return registry
 
 
-async def _initialize_application_event_registry(app: FastAPI):
+async def _initialize_application_event_registry(
+    app: FastAPI,
+) -> "EventHandlerRegistry":
     from app.utils.async_db_utils import run_in_thread_pool
 
     registry = await run_in_thread_pool(_get_application_event_registry, app)
@@ -410,15 +457,17 @@ async def _initialize_application_event_registry(app: FastAPI):
     return registry
 
 
-async def get_application_event_registry(connection: HTTPConnection):
+async def get_application_event_registry(
+    connection: HTTPConnection,
+) -> "EventHandlerRegistry":
     result = get_lifespan_service(connection.app, get_event_registry)()
     return await result if isawaitable(result) else result
 
 
 def get_streamer_service(
     connection: HTTPConnection,
-    event_registry=Depends(get_application_event_registry),
-):
+    event_registry: "EventHandlerRegistry" = Depends(get_application_event_registry),
+) -> "StreamerService":
     from app.services.streamer_service import StreamerService
 
     return StreamerService(
@@ -475,7 +524,7 @@ def get_websocket_manager(connection: HTTPConnection) -> ConnectionManager:
     return manager
 
 
-def _get_application_image_service(app: FastAPI):
+def _get_application_image_service(app: FastAPI) -> "UnifiedImageService":
     with app.state.image_service_lock:
         if app.state.image_service is None:
             from app.services.unified_image_service import UnifiedImageService
@@ -484,15 +533,16 @@ def _get_application_image_service(app: FastAPI):
                 settings=resolve_app_settings(app),
                 session_factory=app.state.database_lifecycle.sync_session_factory,
             )
-        return app.state.image_service
+        service: UnifiedImageService = app.state.image_service
+        return service
 
 
-def get_image_service(connection: HTTPConnection):
+def get_image_service(connection: HTTPConnection) -> "UnifiedImageService":
     """Overrideable image facade sharing the application's catalogue owner."""
     return _get_application_image_service(connection.app)
 
 
-def _get_application_image_sync_service(app: FastAPI):
+def _get_application_image_sync_service(app: FastAPI) -> "ImageSyncService":
     with app.state.image_sync_service_lock:
         if app.state.image_sync_service is None:
             from app.services.images.image_sync_service import ImageSyncService
@@ -501,14 +551,15 @@ def _get_application_image_sync_service(app: FastAPI):
                 image_service=_get_application_image_service(app),
                 session_factory=app.state.database_lifecycle.sync_session_factory,
             )
-        return app.state.image_sync_service
+        service: ImageSyncService = app.state.image_sync_service
+        return service
 
 
-def get_image_sync_service(connection: HTTPConnection):
+def get_image_sync_service(connection: HTTPConnection) -> "ImageSyncService":
     return _get_application_image_sync_service(connection.app)
 
 
-def _get_application_auto_image_sync_service(app: FastAPI):
+def _get_application_auto_image_sync_service(app: FastAPI) -> "AutoImageSyncService":
     with app.state.auto_image_sync_service_lock:
         if app.state.auto_image_sync_service is None:
             from app.services.images.auto_image_sync_service import AutoImageSyncService
@@ -517,10 +568,11 @@ def _get_application_auto_image_sync_service(app: FastAPI):
                 image_service=_get_application_image_service(app),
                 session_factory=app.state.database_lifecycle.sync_session_factory,
             )
-        return app.state.auto_image_sync_service
+        service: AutoImageSyncService = app.state.auto_image_sync_service
+        return service
 
 
-def _get_application_image_refresh_service(app: FastAPI):
+def _get_application_image_refresh_service(app: FastAPI) -> "ImageRefreshService":
     from app.services.images.image_refresh_service import ImageRefreshService
 
     return ImageRefreshService(
@@ -529,11 +581,11 @@ def _get_application_image_refresh_service(app: FastAPI):
     )
 
 
-def get_image_refresh_service(connection: HTTPConnection):
+def get_image_refresh_service(connection: HTTPConnection) -> "ImageRefreshService":
     return _get_application_image_refresh_service(connection.app)
 
 
-def _get_application_image_migration_service(app: FastAPI):
+def _get_application_image_migration_service(app: FastAPI) -> "ImageMigrationService":
     from app.services.migration.image_migration_service import ImageMigrationService
 
     return ImageMigrationService(
@@ -542,11 +594,11 @@ def _get_application_image_migration_service(app: FastAPI):
     )
 
 
-def get_image_migration_service(connection: HTTPConnection):
+def get_image_migration_service(connection: HTTPConnection) -> "ImageMigrationService":
     return _get_application_image_migration_service(connection.app)
 
 
-def _get_application_proxy_health_service(app: FastAPI):
+def _get_application_proxy_health_service(app: FastAPI) -> "ProxyHealthService":
     with app.state.proxy_health_service_lock:
         if app.state.proxy_health_service is None:
             from app.services.proxy.proxy_health_service import ProxyHealthService
@@ -556,10 +608,11 @@ def _get_application_proxy_health_service(app: FastAPI):
                 session_factory=app.state.database_lifecycle.sync_session_factory,
                 websocket_manager=app.state.websocket_manager,
             )
-        return app.state.proxy_health_service
+        service: ProxyHealthService = app.state.proxy_health_service
+        return service
 
 
-def get_proxy_health_service(connection: HTTPConnection):
+def get_proxy_health_service(connection: HTTPConnection) -> "ProxyHealthService":
     return _get_application_proxy_health_service(connection.app)
 
 
@@ -585,7 +638,7 @@ def get_logging_service(connection: HTTPConnection) -> LoggingService:
     return _get_application_logging_service(connection.app)
 
 
-def get_retention_service(connection: HTTPConnection):
+def get_retention_service(connection: HTTPConnection) -> "CleanupService":
     from app.services.system.cleanup_service import CleanupService
 
     return CleanupService(
@@ -602,7 +655,9 @@ def get_background_queue_service(connection: HTTPConnection) -> BackgroundQueueS
     return queue
 
 
-async def get_category_service(db: AsyncSession = Depends(get_async_db)):
+async def get_category_service(
+    db: AsyncSession = Depends(get_async_db),
+) -> "CategoryService":
     """Provide the async category service on a request-scoped session."""
     from app.services.categories.category_service import CategoryService
     from app.services.categories.category_service import CategoryRepository
@@ -610,7 +665,7 @@ async def get_category_service(db: AsyncSession = Depends(get_async_db)):
     return CategoryService(CategoryRepository(db))
 
 
-def get_video_catalog_service(db: Session = Depends(get_db)):
+def get_video_catalog_service(db: Session = Depends(get_db)) -> "VideoCatalogService":
     """Overrideable provider for the media/video catalog service."""
     from app.services.media.video_catalog_service import VideoCatalogService
 
