@@ -55,7 +55,7 @@ class BackgroundQueueManager:
             else None
         )
 
-    async def initialize(self, enable_streamer_isolation: bool = True):
+    async def initialize(self, enable_streamer_isolation: bool = True) -> None:
         """Initialize the background queue service with task handlers and production fixes"""
         if self.is_initialized:
             logger.debug("Background queue already initialized, skipping...")
@@ -175,7 +175,7 @@ class BackgroundQueueManager:
             "✅ Background queue service initialized successfully with production fixes"
         )
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown the background queue service"""
         if not self.is_initialized:
             return
@@ -221,7 +221,7 @@ async def initialize_background_queue(enable_streamer_isolation: bool = True):
     )
 
 
-async def shutdown_background_queue():
+async def shutdown_background_queue() -> None:
     """Shutdown the background queue service"""
     await background_queue_manager.shutdown()
 

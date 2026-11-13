@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from app.services.images.auto_image_sync_service import AutoImageSyncService
 
 
-def get_recording_manager():
+def get_recording_manager() -> "RecordingManager":
     from app.dependencies import get_recording_manager as resolve_recording_manager
 
     return resolve_recording_manager()
@@ -41,7 +41,7 @@ async def initialize_background_queue_with_fixes(
     *,
     queue_manager: BackgroundQueueManager | None = None,
     capture_checker: Callable[[int], Awaitable[bool | None]] | None = None,
-):
+) -> None:
     """Initialize background queue with production concurrency and auth fixes"""
     try:
         # Check if already initialized to prevent double initialization
@@ -95,7 +95,7 @@ async def start_session_cleanup_service(
     supervisor: TaskSupervisor,
     session_factory: Callable[[], Session] = SessionLocal,
     settings: Settings | None = None,
-):
+) -> None:
     """Start session cleanup service for production authentication reliability"""
     try:
         logger.info("Starting session cleanup service...")
@@ -109,7 +109,7 @@ async def start_session_cleanup_service(
         )
 
         # Schedule periodic cleanup (every 6 hours)
-        async def periodic_session_cleanup():
+        async def periodic_session_cleanup() -> None:
             while True:
                 try:
                     await asyncio.sleep(ASYNC_DELAYS.SESSION_CLEANUP_INTERVAL)
@@ -140,7 +140,7 @@ async def start_zombie_recording_cleanup_service(
     supervisor: TaskSupervisor,
     *,
     recording_manager: "RecordingManager | None" = None,
-):
+) -> None:
     """Run guarded physical-death cleanup initially and every five minutes."""
     try:
         logger.info("Starting zombie recording cleanup service...")
@@ -161,7 +161,7 @@ async def start_zombie_recording_cleanup_service(
         # Schedule periodic cleanup every 5 minutes for fast detection
         ZOMBIE_CLEANUP_INTERVAL = 5 * 60  # 5 minutes in seconds
 
-        async def periodic_zombie_cleanup():
+        async def periodic_zombie_cleanup() -> None:
             while True:
                 try:
                     await asyncio.sleep(ZOMBIE_CLEANUP_INTERVAL)
@@ -251,7 +251,7 @@ async def _cleanup_zombie_recordings_now(
     return total
 
 
-async def initialize_vapid_keys(settings: Settings | None = None):
+async def initialize_vapid_keys(settings: Settings | None = None) -> None:
     """Initialize VAPID keys for push notifications at startup"""
     try:
         logger.info("Initializing VAPID keys for push notifications...")
@@ -284,7 +284,7 @@ async def initialize_background_services(
     recording_manager: "RecordingManager | None" = None,
     twitch_api: "TwitchAPIService | None" = None,
     image_sync_service: "AutoImageSyncService | None" = None,
-):
+) -> None:
     """Initialize all background services at startup with production fixes"""
     global _background_supervisor
     if supervisor is None:
@@ -441,7 +441,9 @@ async def verify_queue_readiness(
         return False
 
 
-async def unified_recovery_scan(*, queue_service: BackgroundQueueService | None = None):
+async def unified_recovery_scan(
+    *, queue_service: BackgroundQueueService | None = None
+) -> None:
     """Unified recovery scan - enqueued to background queue to prevent frontend blocking"""
     try:
         logger.info("🔄 Scheduling unified recovery scan in background queue...")
@@ -458,7 +460,7 @@ async def unified_recovery_scan(*, queue_service: BackgroundQueueService | None 
 
         # Enqueue recovery task instead of running synchronously
         # This prevents blocking the frontend during FFmpeg concatenation
-        from app.services.background_queue_service import TaskPriority
+        from app.services.queues.task_progress_tracker import TaskPriority
 
         task_id = await queue_service.enqueue_task(
             task_type="unified_recovery",
@@ -484,7 +486,7 @@ async def cleanup_zombie_recordings(
     session_factory: Callable[[], Session] | None = None,
     recording_manager: "RecordingManager | None" = None,
     twitch_api: "TwitchAPIService | None" = None,
-):
+) -> None:
     """Recover through closed app-owned catalog snapshots and guarded admission."""
     from app.services.recording.startup_recovery import recover_startup_recordings
     from app.database import SessionLocal as default_sessions
@@ -510,7 +512,7 @@ async def recover_active_recordings(
     session_factory: Callable[[], Session] | None = None,
     recording_manager: "RecordingManager | None" = None,
     twitch_api: "TwitchAPIService | None" = None,
-):
+) -> None:
     """Recover active recordings from persistent state"""
     try:
         logger.info("Recovering active recordings from persistent state...")
@@ -537,7 +539,7 @@ async def recover_active_recordings(
 
 async def initialize_image_sync_service(
     *, sync_service: "AutoImageSyncService | None" = None
-):
+) -> None:
     """Initialize automatic image sync service"""
     try:
         logger.info("Initializing automatic image sync service...")
@@ -575,7 +577,7 @@ async def shutdown_background_services(
     *,
     queue_manager: BackgroundQueueManager | None = None,
     image_sync_service: "AutoImageSyncService | None" = None,
-):
+) -> None:
     """Shutdown all background services"""
     try:
         logger.info("Shutting down background services...")
