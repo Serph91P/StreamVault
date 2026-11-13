@@ -4,8 +4,8 @@ import logging
 import shutil
 from datetime import datetime, timedelta, time
 from typing import List, Dict, Optional, Tuple, Any, Set
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc
+from sqlalchemy.orm import Session, Query
+from app.models.recordings import JSONValue
 
 from app.models import (
     Stream,
@@ -74,7 +74,7 @@ class CleanupService:
 
     async def simulate_cleanup(
         self, streamer_id: int, custom_policy: Optional[Dict[str, Any]] = None
-    ):
+    ) -> tuple[int, dict[str, object] | list[dict[str, object]]]:
         return await run_in_thread_pool(
             self._simulate_cleanup, streamer_id, custom_policy=custom_policy
         )
@@ -84,15 +84,14 @@ class CleanupService:
     ) -> Tuple[int, List[str]]:
         return await run_in_thread_pool(self._cleanup_orphaned_files, recordings_root)
 
-    def _parse_cleanup_policy(
-        self, policy_str: Optional[str]
-    ) -> Optional[Dict[str, Any]]:
+    def _parse_cleanup_policy(self, policy_str: Optional[str]) -> JSONValue:
         """Parse the cleanup policy from JSON string"""
         if not policy_str:
             return None
 
         try:
-            return json.loads(policy_str)
+            policy: JSONValue = json.loads(policy_str)
+            return policy
         except Exception as e:
             self._logger.error(f"Error parsing cleanup policy: {e}")
             return None
@@ -116,6 +115,7 @@ class CleanupService:
         ):
             policy = self._parse_cleanup_policy(streamer_settings.cleanup_policy)
             if policy:
+                assert isinstance(policy, dict)
                 self._logger.debug(
                     f"Using streamer-specific cleanup policy for streamer {streamer_id}"
                 )
@@ -126,6 +126,7 @@ class CleanupService:
         if global_settings and global_settings.cleanup_policy:
             policy = self._parse_cleanup_policy(global_settings.cleanup_policy)
             if policy:
+                assert isinstance(policy, dict)
                 self._logger.debug(
                     f"Using global cleanup policy for streamer {streamer_id}"
                 )
@@ -159,7 +160,7 @@ class CleanupService:
             "preserve_categories": [],
         }
 
-    def _get_favorite_categories(self, db: Session) -> Set[int]:
+    def _get_favorite_categories(self, db: Session) -> Set[int | None]:
         """Get IDs of all favorite categories across all users"""
         favorite_categories = db.query(FavoriteCategory.category_id).all()
         return {fc[0] for fc in favorite_categories}
@@ -304,13 +305,13 @@ class CleanupService:
         preserve_favorites: bool,
         preserve_categories: List[str],
         preserve_timeframe: Dict[str, Any],
-        favorite_category_ids: Set[int],
-        streams_query,
+        favorite_category_ids: Set[int | None],
+        streams_query: Query[Stream],
         db: Session,
     ) -> Tuple[int, List[str]]:
         """Apply count-based cleanup policy"""
         # First get all recordings ordered by start time (newest first)
-        streams = streams_query.order_by(desc(Stream.started_at)).all()
+        streams = streams_query.order_by(Stream.started_at.desc()).all()
 
         # If we have fewer streams than the threshold, no cleanup needed
         if len(streams) <= threshold:
@@ -366,13 +367,13 @@ class CleanupService:
         preserve_favorites: bool,
         preserve_categories: List[str],
         preserve_timeframe: Dict[str, Any],
-        favorite_category_ids: Set[int],
-        streams_query,
+        favorite_category_ids: Set[int | None],
+        streams_query: Query[Stream],
         db: Session,
     ) -> Tuple[int, List[str]]:
         """Apply size-based cleanup policy"""
         # First get all recordings sorted by age (oldest first)
-        streams = streams_query.order_by(asc(Stream.started_at)).all()
+        streams = streams_query.order_by(Stream.started_at.asc()).all()
 
         # Calculate threshold in bytes
         threshold_bytes = threshold * 1024 * 1024 * 1024  # Convert GB to bytes
@@ -456,8 +457,8 @@ class CleanupService:
         preserve_favorites: bool,
         preserve_categories: List[str],
         preserve_timeframe: Dict[str, Any],
-        favorite_category_ids: Set[int],
-        streams_query,
+        favorite_category_ids: Set[int | None],
+        streams_query: Query[Stream],
         db: Session,
     ) -> Tuple[int, List[str]]:
         """Apply age-based cleanup policy"""
@@ -594,7 +595,7 @@ class CleanupService:
                     .filter(StreamMetadata.stream_id == stream.id)
                     .first()
                 )
-                files_to_delete = []
+                files_to_delete: list[str] = []
                 directories_to_check = set()
                 required_directories = set()
                 deletion_failed = False
@@ -972,7 +973,7 @@ class CleanupService:
                     "newestRecording": "",
                 }
 
-    def _run_scheduled_cleanup(self):
+    def _run_scheduled_cleanup(self) -> None:
         """Run cleanup for all streamers with configured policies"""
         self._logger.info("Starting scheduled cleanup for all streamers")
 
@@ -1052,7 +1053,7 @@ class CleanupService:
         streamer_id: int,
         db: Optional[Session] = None,
         custom_policy: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[int, List[Dict[str, Any]]]:
+    ) -> tuple[int, dict[str, object] | list[dict[str, object]]]:
         """
         Simulate cleanup based on the streamer's cleanup policy without actually deleting files
 
@@ -1103,7 +1104,7 @@ class CleanupService:
 
             if policy_type == CleanupPolicyType.COUNT.value:
                 # Get streams sorted by time (newest first)
-                all_streams = streams_query.order_by(desc(Stream.started_at)).all()
+                all_streams = streams_query.order_by(Stream.started_at.desc()).all()
 
                 # Identify preserved streams
                 preserved_streams = set()
@@ -1148,7 +1149,7 @@ class CleanupService:
 
             elif policy_type == CleanupPolicyType.SIZE.value:
                 # Logic for size policy
-                all_streams = streams_query.order_by(asc(Stream.started_at)).all()
+                all_streams = streams_query.order_by(Stream.started_at.asc()).all()
 
                 # Calculate threshold in bytes
                 threshold_bytes = threshold * 1024 * 1024 * 1024  # Convert GB to bytes
@@ -1302,7 +1303,7 @@ class CleanupService:
             if close_db:
                 db.close()
 
-    def _format_size(self, size_bytes):
+    def _format_size(self, size_bytes: int) -> str:
         """Format a size in bytes to a human-readable string"""
         if size_bytes == 0:
             return "0 B"

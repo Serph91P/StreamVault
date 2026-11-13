@@ -180,6 +180,39 @@ async def test_scheduled_retention_uses_same_policy_and_remains_idempotent(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["global", "channel"])
+@pytest.mark.parametrize("value", [True, [1], "not-a-policy-object"])
+async def test_truthy_nonobject_json_policy_never_falls_through_to_deletion(
+    retention_catalog, source, value
+):
+    service, database, paths = retention_catalog
+    serialized = json.dumps(value)
+    assert service._parse_cleanup_policy(serialized) == value
+    with database.sync_session_factory() as db:
+        settings = db.get(RecordingSettings, 1)
+        settings.max_streams_per_streamer = 1
+        if source == "global":
+            settings.cleanup_policy = serialized
+        else:
+            db.add(
+                StreamerRecordingSettings(
+                    streamer_id=1,
+                    use_global_cleanup_policy=False,
+                    cleanup_policy=serialized,
+                )
+            )
+        db.commit()
+    assert await service.cleanup_old_recordings(1) == (0, [])
+    count, _ = await service.simulate_cleanup(1)
+    assert count == 0
+    await service.run_scheduled_cleanup()
+    assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)
+    with database.sync_session_factory() as db:
+        assert db.query(Stream).count() == 3
+    assert database.sync_engine.pool.checkedout() == 0
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("policy_type", ["count", "size", "age"])
 @pytest.mark.parametrize(
     "timeframe,kept",
