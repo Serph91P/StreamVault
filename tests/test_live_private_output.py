@@ -13,6 +13,71 @@ from app.services import live_streaming_service as module
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("contents", [b"#EXTM3U\n", b"", None])
+async def test_playlist_poll_keeps_real_filesystem_reads_off_loop(
+    tmp_path, monkeypatch, contents
+):
+    playlist = tmp_path / "playlist.m3u8"
+    if contents is not None:
+        playlist.write_bytes(contents)
+    accesses = []
+    loop_thread = get_ident()
+    original = Path.stat
+    original_exists = Path.exists
+
+    def stat_path(path, *args, **kwargs):
+        if path == playlist:
+            accesses.append(get_ident())
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat_path)
+
+    def exists(path, *args, **kwargs):
+        if path == playlist:
+            accesses.append(get_ident())
+        return original_exists(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "exists", exists)
+    service = module.LiveStreamingService(output_root=tmp_path)
+    assert await service._wait_for_playlist(playlist, timeout=0.01) is bool(contents)
+    assert accesses and loop_thread not in accesses
+
+
+@pytest.mark.asyncio
+async def test_cancelled_playlist_poll_drains_its_real_file_read(tmp_path, monkeypatch):
+    playlist = tmp_path / "playlist.m3u8"
+    playlist.write_bytes(b"#EXTM3U\n")
+    entered, release, finished = Event(), Event(), Event()
+    original = Path.stat
+
+    def slow_stat(path, *args, **kwargs):
+        if path == playlist:
+            entered.set()
+            assert release.wait(5)
+            try:
+                return original(path, *args, **kwargs)
+            finally:
+                finished.set()
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", slow_stat)
+    service = module.LiveStreamingService(output_root=tmp_path)
+    poll = asyncio.create_task(service._wait_for_playlist(playlist))
+    try:
+        assert await asyncio.to_thread(entered.wait, 2)
+        for _ in range(2):
+            poll.cancel()
+            await asyncio.sleep(0)
+        assert not poll.done() and not finished.is_set()
+    finally:
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await poll
+    assert finished.is_set()
+    assert playlist.read_bytes() == b"#EXTM3U\n"
+
+
+@pytest.mark.asyncio
 async def test_default_root_is_lazy_private_unique_and_only_owner_stop_removes_it(
     tmp_path, monkeypatch
 ):
