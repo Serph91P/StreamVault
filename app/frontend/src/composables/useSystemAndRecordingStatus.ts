@@ -90,6 +90,8 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
   let consumers = 0
   let stopOwner: (() => void) | undefined
   let generation = 0
+  let liveRevision = 0
+  const snapshotsStale = ref(false)
   const inFlight = shallowReactive(new Map<object, Promise<void>>())
   const resourceErrors = shallowReactive(new Map<object, string>())
 
@@ -119,10 +121,17 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
       const existing = inFlight.get(request)
       if (existing) return existing
       const startedGeneration = generation
+      const startedLiveRevision = liveRevision
+      const startedSnapshotRevision = realtime.snapshotRevision
       const promise = (async () => {
         try {
           const data = await request(useCache ? {} : { t: Date.now() })
           if (startedGeneration !== generation) return
+          if (startedSnapshotRevision !== realtime.snapshotRevision || startedLiveRevision !== liveRevision) {
+            snapshotsStale.value = true
+            resourceErrors.set(request, 'Status changed during refresh. Retry to load current server data.')
+            return
+          }
           apply(data)
           resourceErrors.delete(request)
           lastUpdate.value = new Date()
@@ -190,11 +199,16 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
   const forceRefresh = async (): Promise<void> => {
     const startedGeneration = generation
     if (inFlight.size) await Promise.all(inFlight.values())
-    if (startedGeneration === generation) return fetchAllStatus(false)
+    if (startedGeneration === generation) {
+      await fetchAllStatus(false)
+      if (startedGeneration === generation && !resourceErrors.size) snapshotsStale.value = false
+    }
   }
 
   // WebSocket event subscriptions via the existing central store.
   const subscribeEvents = () => {
+    const onEvent = (type: string, handler: (event: RealtimeEvent<string>) => void) =>
+      realtime.onEvent(type, event => { liveRevision++; handler(event) })
     const onRecordingEnd = (event: RealtimeEvent<string>) => {
       const d = event.data
       if (d && (d.recording_id || d.streamer_id)) {
@@ -215,28 +229,28 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
     }
 
     realtimeUnsubs.push(
-      realtime.onEvent('active_recordings_update', (event) => {
+      onEvent('active_recordings_update', (event) => {
         if (Array.isArray(event.data)) {
           activeRecordings.value = event.data
           lastUpdate.value = new Date()
         }
       }),
 
-      realtime.onEvent('streamers_update', (event) => {
+      onEvent('streamers_update', (event) => {
         if (Array.isArray(event.data)) {
           streamersStatus.value = event.data
           lastUpdate.value = new Date()
         }
       }),
 
-      realtime.onEvent('streams_update', (event) => {
+      onEvent('streams_update', (event) => {
         if (Array.isArray(event.data)) {
           streamsStatus.value = event.data
           lastUpdate.value = new Date()
         }
       }),
 
-      realtime.onEvent('channel.update', (event) => {
+      onEvent('channel.update', (event) => {
         const d = event.data
         if (d && d.streamer_name) {
           const s = findStreamer(d.streamer_name)
@@ -250,7 +264,7 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
         }
       }),
 
-      realtime.onEvent('stream.online', (event) => {
+      onEvent('stream.online', (event) => {
         const d = event.data
         if (d && d.streamer_name) {
           const s = findStreamer(d.streamer_name)
@@ -262,7 +276,7 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
         }
       }),
 
-      realtime.onEvent('stream.offline', (event) => {
+      onEvent('stream.offline', (event) => {
         const d = event.data
         if (d && d.streamer_name) {
           const s = findStreamer(d.streamer_name)
@@ -276,7 +290,7 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
         }
       }),
 
-      realtime.onEvent('streamer_online', (event) => {
+      onEvent('streamer_online', (event) => {
         const d = event.data
         if (d && d.streamer_id) {
           const idx = streamersStatus.value.findIndex(s => s.id === d.streamer_id)
@@ -289,7 +303,7 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
         }
       }),
 
-      realtime.onEvent('streamer_offline', (event) => {
+      onEvent('streamer_offline', (event) => {
         const d = event.data
         if (d && d.streamer_id) {
           const idx = streamersStatus.value.findIndex(s => s.id === d.streamer_id)
@@ -302,7 +316,7 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
         }
       }),
 
-      realtime.onEvent('recording.started', (event) => {
+      onEvent('recording.started', (event) => {
         const d = event.data
         if (d && d.recording_id) {
           const exists = activeRecordings.value.some(rec => rec.id === d.recording_id)
@@ -327,10 +341,10 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
         }
       }),
 
-      realtime.onEvent('recording.stopped', onRecordingEnd),
-      realtime.onEvent('recording.completed', onRecordingEnd),
+      onEvent('recording.stopped', onRecordingEnd),
+      onEvent('recording.completed', onRecordingEnd),
 
-      realtime.onEvent('notification_event', (event) => {
+      onEvent('notification_event', (event) => {
         const d = event.data
         if (d && notificationsStatus.value) {
           notificationsStatus.value.recent_events.unshift({
@@ -376,6 +390,11 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
         onCleanup(() => clearTimeout(timeout))
       }
     }))
+    const unwatchSnapshots = ownerScope.run(() => watch(() => realtime.snapshotRevision, () => {
+      snapshotsStale.value = true
+      // A reconnect already schedules the shared five-resource refresh below.
+      if (realtime.connectionStatus === 'connected') void forceRefresh()
+    }, { flush: 'sync' }))
 
     // Keep the existing 60s check and >120s emergency threshold, not regular polling.
     const interval = setInterval(() => {
@@ -385,6 +404,7 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
     }, 60000)
     stopOwner = () => {
       unwatch?.()
+      unwatchSnapshots?.()
       clearInterval(interval)
     }
     subscribeEvents()
@@ -417,6 +437,7 @@ const useSystemStatusStore = defineStore('systemStatus', () => {
     isLoading,
     error,
     lastUpdate: readonly(lastUpdate),
+    snapshotsStale: readonly(snapshotsStale),
     
     // Computed
     isOnline,

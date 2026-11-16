@@ -1,5 +1,6 @@
 <template>
   <div class="page-view streamers-view">
+    <RealtimeSnapshotNotice />
     <PageHeader
       title="Meine Kanäle"
       icon="users"
@@ -217,6 +218,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { prepareVideoReturn, restoreVideoReturnScroll } from '@/composables/useNavigation'
 import { streamersApi } from '@/services/api'
 import { useRealtimeStore } from '@/stores/realtime'
+import RealtimeSnapshotNotice from '@/components/RealtimeSnapshotNotice.vue'
 import { useNotificationStore } from '@/stores/notifications'
 import { hasRealtimeEventType } from '@/types/events'
 import { useForceRecording } from '@/composables/useForceRecording'  // NEW: Import composable

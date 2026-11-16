@@ -54,6 +54,7 @@ describe('BackgroundQueueMonitor', () => {
     queueState.recentTasks.value = []
     queueState.isLoading.value = false
     queueState.connectionStatus.value = 'connected'
+    queueState.dataAvailable.value = true
     vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockReturnValue(document.body)
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
     document.body.style.cssText = ''
@@ -131,6 +132,7 @@ describe('BackgroundQueueMonitor', () => {
 
     queueState.isLoading.value = false
     queueState.connectionStatus.value = 'error'
+    queueState.dataAvailable.value = false
     const disconnected = mount(BackgroundQueueMonitor, { attachTo: document.body })
     await disconnected.get('button').trigger('click')
     const alert = document.querySelector<HTMLElement>('[role="alert"]')
@@ -146,6 +148,7 @@ describe('BackgroundQueueMonitor', () => {
       id: 'task-1', task_type: 'thumbnail', status: 'running', progress: 73,
       started_at: '2026-10-09T12:00:00Z', payload: { streamer_name: 'Alpha' },
     }]
+    queueState.dataAvailable.value = true
     const active = mount(BackgroundQueueMonitor, { attachTo: document.body })
     await active.get('button').trigger('click')
     expect(document.querySelector('.progress-text')?.textContent).toBe('73%')

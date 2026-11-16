@@ -5,7 +5,7 @@
       v-if="!inline"
       type="button"
       class="queue-status-indicator"
-      :aria-label="`Open background queue, Queue ${combinedActiveTasks.length} active ${combinedActiveTasks.length === 1 ? 'job' : 'jobs'}`"
+      :aria-label="dataAvailable ? `Open background queue, Queue ${combinedActiveTasks.length} active ${combinedActiveTasks.length === 1 ? 'job' : 'jobs'}` : 'Open background queue, status unavailable'"
       aria-haspopup="dialog"
       :aria-expanded="showPanel"
       :aria-controls="panelId"
@@ -17,11 +17,11 @@
 
       <div class="queue-info">
         <span class="queue-label">{{ 'Queue ' }}</span>
-        <span class="queue-count">{{ combinedActiveTasks.length }}</span>
+        <span class="queue-count">{{ dataAvailable ? combinedActiveTasks.length : '?' }}</span>
       </div>
 
       <!-- Progress Bar -->
-      <div v-if="hasActiveTasks" class="progress-bar">
+      <div v-if="dataAvailable && hasActiveTasks" class="progress-bar">
         <div class="progress-fill" :style="{ width: `${totalProgress}%` }"></div>
       </div>
     </button>
@@ -55,11 +55,12 @@
       </div>
 
       <div class="panel-content" :class="{ 'glass-popup-content': !inline }">
+        <p v-if="snapshotsStale" role="status">Recording status may be outdated while current server data is unavailable.</p>
         <div v-if="isLoading" class="queue-state" role="status" aria-live="polite">
           <span class="queue-state-spinner" aria-hidden="true"></span>
           <span>Loading background jobs…</span>
         </div>
-        <div v-else-if="connectionStatus !== 'connected' && !dataAvailable" class="queue-state queue-state-error" role="alert">
+        <div v-else-if="!dataAvailable" class="queue-state queue-state-error" role="alert">
           <span>Background queue updates are unavailable.</span>
           <span v-if="error">{{ error }}</span>
           <button type="button" class="glass-btn-text" @click="forceRefreshFromAPI">Retry</button>
@@ -189,7 +190,7 @@ const {
 } = useBackgroundQueue()
 
 // Also track active recordings (they may not appear as queue tasks)
-const { activeRecordings } = useSystemAndRecordingStatus()
+const { activeRecordings, snapshotsStale } = useSystemAndRecordingStatus()
 
 // UI State
 const panelRef = ref<HTMLElement | null>(null)
@@ -494,6 +495,11 @@ defineExpose({ togglePanel, taskCount: combinedActiveTasks })
 
 .queue-state-error {
   color: var(--danger-color);
+
+  button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 }
 
 .queue-state-spinner {

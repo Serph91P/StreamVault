@@ -15,6 +15,7 @@ vi.mock('@/composables/useWebSocket', async () => {
   const { ref } = await vi.importActual<typeof import('vue')>('vue')
   const manager = {
     connectionStatus: ref('disconnected'),
+    snapshotRevision: ref(0),
     messages: ref([]),
     isBrowserOnline: ref(true),
     reconnectAttempt: ref(0),
@@ -64,6 +65,16 @@ afterEach(() => {
 })
 
 describe('production BackgroundQueueMonitor + composable + both Pinia stores', () => {
+  it('offers retry instead of authoritative queue rows when a connected snapshot is unavailable', async () => {
+    manager.connectionStatus.value = 'connected'
+    api.getStats.mockRejectedValue(new Error('Synthetic refresh failure'))
+    await openPanel(createPinia())
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('Background queue updates are unavailable.')
+    expect(document.body.querySelector('[role="alert"] button')?.textContent).toBe('Retry')
+    expect(document.body.querySelector('.stats-section')).toBeNull()
+    expect(wrappers.at(-1)!.get('.queue-status-indicator').attributes('aria-label')).toContain('status unavailable')
+  })
+
   it('CONTROL: connected-at-mount renders statistics with the real Pinia-unwrapped string', async () => {
     const pinia = createPinia()
     manager.connectionStatus.value = 'connected'
