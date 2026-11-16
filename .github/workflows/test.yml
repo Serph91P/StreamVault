@@ -15,15 +15,71 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Measure the complete base suite outside the head suite's job budget.
+  backend-base-coverage:
+    name: Backend Base Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: Install locked test runner
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install uv==0.11.6
+
+      - name: Install media test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Measure actual base repository coverage
+        env:
+          COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          base_dir=$(mktemp -d "$RUNNER_TEMP/streamvault-coverage-base.XXXXXX")
+          git archive "$COVERAGE_BASE_SHA" | tar -x -C "$base_dir"
+          uv sync --project "$base_dir" --locked --all-groups
+          (
+            cd "$base_dir"
+            uv run pytest tests/ -q --cov=app \
+              --cov-report=json:"$GITHUB_WORKSPACE/base-coverage.json" \
+              --cov-report= --tb=short
+          )
+
+      - name: Save base coverage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: backend-base-coverage
+          path: base-coverage.json
+          if-no-files-found: error
+          retention-days: 1
+
   # ──────────────────────────────────────────────
   # Backend Tests (Python)
   # ──────────────────────────────────────────────
   backend-tests:
     name: Backend Tests
+    needs: [backend-base-coverage]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
     steps:
+      - name: Require successful base measurement
+        if: needs.backend-base-coverage.result != 'success'
+        run: |
+          echo "The complete base coverage measurement must succeed."
+          exit 1
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -56,19 +112,10 @@ jobs:
             --cov-report=term-missing \
             --tb=short
 
-      - name: Measure actual base repository coverage
-        env:
-          COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          base_dir=$(mktemp -d "$RUNNER_TEMP/streamvault-coverage-base.XXXXXX")
-          git archive "$COVERAGE_BASE_SHA" | tar -x -C "$base_dir"
-          uv sync --project "$base_dir" --locked --all-groups
-          (
-            cd "$base_dir"
-            uv run pytest tests/ -q --cov=app \
-              --cov-report=json:"$GITHUB_WORKSPACE/base-coverage.json" \
-              --cov-report= --tb=short
-          )
+      - name: Read measured base coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: backend-base-coverage
 
       - name: Enforce whole new and rewritten module coverage and no repository regression
         run: >
