@@ -27,7 +27,8 @@ vi.mock('@/composables/useWebSocket', async () => {
   return { WebSocketManager: { getInstance: () => manager } }
 })
 vi.mock('@/services/api', () => ({ backgroundQueueApi: api }))
-vi.mock('@/composables/useSystemAndRecordingStatus', () => ({ useSystemAndRecordingStatus: () => ({ activeRecordings: ref([]) }) }))
+const status = { activeRecordings: ref<any[]>([]), snapshotsStale: ref(false) }
+vi.mock('@/composables/useSystemAndRecordingStatus', () => ({ useSystemAndRecordingStatus: () => status }))
 vi.mock('@/composables/useModal', () => ({ useModal: () => {
   const isOpen = ref(false)
   return { isOpen, open: () => { isOpen.value = true }, close: () => { isOpen.value = false } }
@@ -53,6 +54,8 @@ async function openPanel(pinia: ReturnType<typeof createPinia>) {
 beforeEach(() => {
   vi.clearAllMocks()
   manager.connectionStatus.value = 'disconnected'
+  status.activeRecordings.value = []
+  status.snapshotsStale.value = false
   api.getStats.mockResolvedValue(stats)
   api.getActiveTasks.mockResolvedValue([task])
   api.getRecentTasks.mockResolvedValue([])
@@ -65,6 +68,24 @@ afterEach(() => {
 })
 
 describe('production BackgroundQueueMonitor + composable + both Pinia stores', () => {
+  it('keeps the combined header unavailable until recording status is also current', async () => {
+    manager.connectionStatus.value = 'connected'
+    status.activeRecordings.value = [{ id: 2, status: 'recording', streamer_name: 'Last-known recording' }]
+    status.snapshotsStale.value = true
+    const wrapper = await openPanel(createPinia())
+    // Queue repair alone cannot certify the recording rows in the combined count.
+    expect(useBackgroundQueueStore(wrapper.vm.$pinia).dataAvailable).toBe(true)
+    expect(wrapper.get('.queue-status-indicator').attributes('aria-label')).toContain('status unavailable')
+    expect(wrapper.get('.queue-count').text()).toBe('?')
+    expect(wrapper.find('.queue-status-indicator .progress-bar').exists()).toBe(false)
+    expect(document.body.textContent).toContain('Recording status may be outdated')
+    status.snapshotsStale.value = false
+    await nextTick()
+    expect(wrapper.get('.queue-status-indicator').attributes('aria-label')).toContain('2 active jobs')
+    expect(wrapper.get('.queue-count').text()).toBe('2')
+    expect(wrapper.find('.queue-status-indicator .progress-bar').exists()).toBe(true)
+  })
+
   it('offers retry instead of authoritative queue rows when a connected snapshot is unavailable', async () => {
     manager.connectionStatus.value = 'connected'
     api.getStats.mockRejectedValue(new Error('Synthetic refresh failure'))
