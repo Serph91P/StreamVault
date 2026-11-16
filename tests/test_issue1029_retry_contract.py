@@ -699,6 +699,12 @@ async def test_update_retry_keeps_original_stream_after_new_stream_starts(ctx):
         "state-cancel",
         "replacement-live",
         "new-stream",
+        "online-session",
+        "online-commit",
+        "offline-session",
+        "offline-commit",
+        "update-session",
+        "update-commit",
     ],
 )
 async def test_real_manager_offline_retry_stops_child_after_termination_failure(
@@ -719,6 +725,15 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
     entered = asyncio.Event()
     native_terminate = manager.process_manager.terminate_process
     release_termination = asyncio.Event()
+    catalog_fault = False
+    actual_factory = ctx.database.sync_session_factory
+
+    def open_catalog_session():
+        if catalog_fault and fault.endswith("-session"):
+            raise SQLAlchemyError("synthetic catalog session construction failure")
+        return actual_factory()
+
+    ctx.registry._session_factory = open_catalog_session
     from app.routes import eventsub
 
     original_timeouts = eventsub.TIMEOUTS
@@ -791,6 +806,8 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
         return await native_terminate(process_id, recording_id=recording_id)
 
     def fail_stop_commit(session):
+        if catalog_fault and fault.endswith("-commit"):
+            raise SQLAlchemyError("synthetic catalog first commit failure")
         if (
             armed
             and fault in {"db-commit", "db-replacement"}
@@ -833,10 +850,19 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
             assert len(children) == 1 and children[0].returncode is None
             with ctx.database.sync_session_factory() as session:
                 assert session.query(Recording).count() == 1
+                assert session.query(Stream).count() == 1
+                assert session.query(StreamEvent).count() == 1
             return
+        catalog_fault = fault.startswith("online-")
         online = await ctx.client.post("/eventsub", **online_request)
-        assert online.status_code == (500 if fault == "start" else 204)
-        if fault == "start":
+        assert online.status_code == (500 if fault == "start" or catalog_fault else 204)
+        if fault == "start" or catalog_fault:
+            if catalog_fault:
+                assert children == []
+                with actual_factory() as session:
+                    assert session.query(Stream).count() == 0
+                    assert session.query(Recording).count() == 0
+            catalog_fault = False
             armed = False
             assert (
                 await ctx.client.post("/eventsub", **online_request)
@@ -846,10 +872,40 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
             ).status_code == 204
             with ctx.database.sync_session_factory() as session:
                 assert session.query(Recording).count() == 1
+                assert session.query(Stream).count() == 1
+                assert session.query(StreamEvent).count() == 1
             assert len(children) == 1 and children[0].returncode is None
             return
         assert len(children) == 1 and children[0].returncode is None
         saved_state = None
+        if fault.startswith("update-"):
+            update_request = signed(ctx, payload("channel.update"))
+            catalog_fault = True
+            assert (
+                await ctx.client.post("/eventsub", **update_request)
+            ).status_code == 500
+            catalog_fault = False
+            assert (
+                await ctx.client.post("/eventsub", **update_request)
+            ).status_code == 204
+            assert (
+                await ctx.client.post("/eventsub", **update_request)
+            ).status_code == 204
+            assert len(children) == 1 and children[0].returncode is None
+            with actual_factory() as session:
+                assert (
+                    session.query(Stream).count()
+                    == session.query(Recording).count()
+                    == 1
+                )
+                chapter = (
+                    session.query(StreamEvent)
+                    .filter_by(event_type="channel.update")
+                    .one()
+                )
+                assert chapter.stream_id == 1 and chapter.title == "After"
+                assert session.query(Category).count() == 1
+            return
         if fault in {"lost-state", "durable-owner"}:
             saved_state = lifecycle.state_manager.remove_active_recording(1)
         if fault == "durable-owner":
@@ -876,6 +932,7 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
                 await ctx.client.post("/eventsub", **online_request)
             ).status_code == 500
         # A distinct event type gives offline its own fingerprint, re-used on retry.
+        catalog_fault = fault.startswith("offline-")
         request = signed(ctx, payload("stream.offline"))
         if fault == "dead":
             children[0].terminate()
@@ -915,6 +972,7 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
                 assert lifecycle.state_manager.get_active_recordings()
             assert not lifecycle._postprocessing_scheduled
         armed = False
+        catalog_fault = False
         if saved_state is not None:
             lifecycle.state_manager.add_active_recording(1, saved_state)
         if fault == "durable-owner":
@@ -990,6 +1048,7 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
             assert session.query(Recording).one().status == "stopped"
     finally:
         armed = False
+        catalog_fault = False
         release_termination.set()
         release_commit.set()
         for child in children:
