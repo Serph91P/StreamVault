@@ -899,14 +899,13 @@ class LiveStreamingService:
         for name, task in tasks.items():
             if task is not None:
                 await supervisor.cancel_task(name, expected_task=task)
-        # Fenced children belong to another owner; discard only our captured records.
+        # Only the fenced upstream may be detached without a successful reap.
         for name, tracked in processes.items():
-            reaped = (
-                streamlink_reaped if name.endswith(":streamlink") else ffmpeg_reaped
-            )
-            if tracked is not None and (reaped or not was_active):
+            is_upstream = name.endswith(":streamlink")
+            reaped = streamlink_reaped if is_upstream else ffmpeg_reaped
+            if tracked is not None and (reaped or (is_upstream and not was_active)):
                 supervisor.detach_process(name, expected=tracked)
-        if was_active and (not streamlink_reaped or not ffmpeg_reaped):
+        if not ffmpeg_reaped or (was_active and not streamlink_reaped):
             session.is_active = was_active
             raise TwitchUpstreamStopForbidden("process_identity_changed")
 

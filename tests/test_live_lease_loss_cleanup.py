@@ -4,6 +4,8 @@ Python children stand in for upstream/ffmpeg; no provider/media conversion claim
 """
 
 import asyncio
+import os
+import signal
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -112,14 +114,42 @@ async def live(tmp_path):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("reason", ["revoked", "expired", "replacement"])
-async def test_heartbeat_loss_reaps_owned_children_and_pipe(live, reason):
+@pytest.mark.parametrize("recovery", [None, "stop", "shutdown"])
+async def test_heartbeat_loss_reaps_owned_children_and_pipe(
+    live, reason, recovery, monkeypatch
+):
     service, session, coordinator, factory, spawn, pipe = live
+    session.user_id = "956"
+    service.user_sessions["956"] = {session.session_id}
+    inspect = coordinator.inspect_process_identity
+    sink_record = service._supervisor.get_process(f"{session.session_id}:ffmpeg")
+    if recovery:
+        import psutil
+
+        # EOF must not hide failed cleanup of our still-live sink.
+        os.kill(session.ffmpeg_process.pid, signal.SIGSTOP)
+        async with asyncio.timeout(3):
+            while (
+                psutil.Process(session.ffmpeg_process.pid).status()
+                != psutil.STATUS_STOPPED
+            ):
+                await asyncio.sleep(0.01)
+
+        async def unavailable_identity(pid):
+            if pid == session.ffmpeg_process.pid:
+                raise OSError("controlled temporary sink identity lookup failure")
+            return await inspect(pid)
+
+        monkeypatch.setattr(
+            coordinator, "inspect_process_identity", unavailable_identity
+        )
     replacement = None
     if reason == "replacement":
         replacement = await spawn("import time;time.sleep(60)")
         identity = await coordinator.inspect_process_identity(replacement.pid)
     with factory() as db:
         lease = db.scalar(select(TwitchUpstreamLease))
+        lease.owner_user_id = 956
         if replacement:
             lease.generation = 2
             lease.live_session_id = "foreign956"
@@ -135,13 +165,36 @@ async def test_heartbeat_loss_reaps_owned_children_and_pipe(live, reason):
         db.commit()
         before = list(db.execute(select(TwitchUpstreamLease.__table__)).tuples())
     await asyncio.wait_for(service._monitor_session(session.session_id), 3)
+    if recovery:
+        for _ in range(2):
+            assert not session.is_active
+            assert session.ffmpeg_process.returncode is None
+            assert service.sessions[session.session_id] is session
+            assert session.session_id in service.user_sessions["956"]
+            assert session.output_dir.exists()
+            assert (
+                service._supervisor.get_process(f"{session.session_id}:ffmpeg")
+                is sink_record
+            )
+            assert pipe.done()
+            with factory() as db:
+                assert list(db.execute(select(TwitchUpstreamLease.__table__))) == before
+            await service._monitor_session(session.session_id)
+        monkeypatch.setattr(coordinator, "inspect_process_identity", inspect)
+        if recovery == "stop":
+            assert await asyncio.wait_for(service.stop_stream(session.session_id), 8)
+        else:
+            await asyncio.wait_for(service.stop(), 8)
     assert session.streamlink_process.returncode is not None
     assert session.ffmpeg_process.returncode is not None
     assert pipe.done()
     assert service._supervisor.process_names == ()
     assert session.session_id not in service.sessions
+    assert session.session_id not in service.user_sessions["956"]
     assert not session.output_dir.exists()
     assert await service.stop_stream(session.session_id) is False
+    await service.stop()
+    await service.stop()
     if replacement:
         assert replacement.returncode is None
     with factory() as db:
