@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from app.dependencies import get_db
+from app.dependencies import get_db, require_scopes
 from app.models import (
     Stream,
     StreamMetadata,
@@ -19,7 +19,9 @@ logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/api/streams", tags=["streams"])
 
 
-@router.delete("/{stream_id}")
+@router.delete(
+    "/{stream_id}", dependencies=[Depends(require_scopes("recording:write"))]
+)
 async def delete_stream(
     request: Request, stream_id: int, db: Session = Depends(get_db)
 ):

@@ -10,7 +10,7 @@ from sqlalchemy import desc
 import logging
 
 from app.database import SessionLocal
-from app.dependencies import get_db
+from app.dependencies import get_db, require_scopes
 from app.models import Recording, Streamer, Stream
 from app.dependencies import get_recording_manager
 from app.services.system.logging_service import logging_service
@@ -114,7 +114,7 @@ def get_recent_recordings(
         raise HTTPException(status_code=500, detail="Failed to get recent recordings")
 
 
-@router.post("/force-stop")
+@router.post("/force-stop", dependencies=[Depends(require_scopes("recording:write"))])
 async def force_stop_recording(request_data: dict):
     """Force stop a recording for a specific streamer"""
     try:
