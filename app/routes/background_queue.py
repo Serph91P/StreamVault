@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 import logging
 
 from app.services.background_queue_service import BackgroundQueueService, TaskPriority
-from app.dependencies import get_background_queue_service
+from app.dependencies import get_background_queue_service, require_admin_user
 from app.utils.async_db_utils import run_in_thread_pool
 
 router = APIRouter(prefix="/background-queue", tags=["background-queue"])
@@ -91,7 +91,7 @@ async def get_task_status(
         raise HTTPException(status_code=500, detail="Failed to get task status")
 
 
-@router.post("/tasks/enqueue")
+@router.post("/tasks/enqueue", dependencies=[Depends(require_admin_user)])
 async def enqueue_task(
     task_type: str,
     payload: Dict[str, Any],
@@ -127,7 +127,7 @@ async def enqueue_task(
         raise HTTPException(status_code=500, detail="Failed to enqueue task")
 
 
-@router.post("/tasks/metadata-generation")
+@router.post("/tasks/metadata-generation", dependencies=[Depends(require_admin_user)])
 async def enqueue_metadata_generation(
     stream_id: int,
     base_path: str,
@@ -167,7 +167,7 @@ async def enqueue_metadata_generation(
         )
 
 
-@router.post("/tasks/thumbnail-generation")
+@router.post("/tasks/thumbnail-generation", dependencies=[Depends(require_admin_user)])
 async def enqueue_thumbnail_generation(
     stream_id: int,
     output_dir: str,
@@ -208,7 +208,7 @@ async def enqueue_thumbnail_generation(
         )
 
 
-@router.post("/tasks/file-cleanup")
+@router.post("/tasks/file-cleanup", dependencies=[Depends(require_admin_user)])
 async def enqueue_file_cleanup(
     files_to_delete: List[str] = [],
     directories_to_delete: List[str] = [],

@@ -12,6 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base
 from app.models import Streamer, StreamerRecordingSettings
 from app.routes import recording
+from tests.auth_helpers import admin_headers
 
 
 @pytest.mark.asyncio
@@ -115,7 +116,7 @@ def test_cleanup_policy_raw_flag_keeps_sql_boolean_validation(
                 )
             )
             db.commit()
-        with TestClient(app) as client:
+        with TestClient(app, headers=admin_headers(app, sessions)) as client:
             response = client.post(
                 "/api/recording/streamers/947/cleanup-policy",
                 json={"use_global_cleanup_policy": raw_flag},
