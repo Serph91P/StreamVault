@@ -43,7 +43,15 @@ export async function applyPWAUpdate(target = window.location.href): Promise<boo
   // Native waiting precedes Workbox's delayed prompt event. A successful login
   // may win that race; consume the real waiting worker, not stale callback state.
   pending.value = true
-  destination = target
+  // Browser document navigation normalizes backslashes unlike router paths.
+  // Keep the existing returnTo helper unchanged, but enforce same origin at
+  // this newly introduced location.assign boundary too.
+  try {
+    const current = new URL(window.location.href)
+    destination = new URL(target, current).origin === current.origin ? target : '/'
+  } catch {
+    destination = '/'
+  }
   const controllerChanged = () => {
     activated = true
     finishUpdate()

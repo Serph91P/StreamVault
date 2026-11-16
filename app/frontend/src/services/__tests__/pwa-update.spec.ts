@@ -79,6 +79,16 @@ describe('page-owned PWA update lifecycle', () => {
     expect(location.assign).toHaveBeenCalledExactlyOnceWith('/settings?section=pwa#install')
   })
 
+  it.each(['https://outside.test', '//outside.test', '/\\\\outside.test', 'javascript:alert(1)'])(
+    'never turns a successful login into an external document navigation: %s', async target => {
+      const state = await import('../pwa-update')
+      state.initializePWAUpdates(register)
+      boundary.options.onNeedReload?.()
+      expect(await state.applyPWAUpdate(target)).toBe(true)
+      expect(location.assign).toHaveBeenCalledExactlyOnceWith('/')
+    },
+  )
+
   it('retains pending state and allows deliberate retry when activation fails', async () => {
     const state = await import('../pwa-update')
     state.initializePWAUpdates(register)
