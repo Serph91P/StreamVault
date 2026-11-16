@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.models import ProxySettings, RecordingSettings
 from app.dependencies import (
+    require_admin_user,
     get_current_user,
     get_application_session_factory,
     get_proxy_health_service,
@@ -140,7 +141,7 @@ def list_proxies(
         }
 
 
-@router.post("/add")
+@router.post("/add", dependencies=[Depends(require_admin_user)])
 def add_proxy(
     request: ProxyAddRequest,
     background_tasks: BackgroundTasks,
@@ -206,7 +207,7 @@ def add_proxy(
         }
 
 
-@router.delete("/{proxy_id}")
+@router.delete("/{proxy_id}", dependencies=[Depends(require_admin_user)])
 def delete_proxy(
     proxy_id: int,
     user=Depends(get_current_user),
@@ -238,7 +239,7 @@ def delete_proxy(
         return {"success": True, "message": f"Proxy {proxy_id} deleted successfully"}
 
 
-@router.post("/{proxy_id}/toggle")
+@router.post("/{proxy_id}/toggle", dependencies=[Depends(require_admin_user)])
 def toggle_proxy(
     proxy_id: int,
     background_tasks: BackgroundTasks,
@@ -287,7 +288,7 @@ def toggle_proxy(
         }
 
 
-@router.post("/{proxy_id}/test")
+@router.post("/{proxy_id}/test", dependencies=[Depends(require_admin_user)])
 async def test_proxy(
     proxy_id: int,
     user=Depends(get_current_user),
@@ -310,7 +311,7 @@ async def test_proxy(
     return {"success": True, "result": result}
 
 
-@router.post("/{proxy_id}/update-priority")
+@router.post("/{proxy_id}/update-priority", dependencies=[Depends(require_admin_user)])
 def update_proxy_priority(
     proxy_id: int,
     request: ProxyUpdatePriorityRequest,
@@ -434,7 +435,7 @@ def get_proxy_config(
         }
 
 
-@router.post("/config/update")
+@router.post("/config/update", dependencies=[Depends(require_admin_user)])
 def update_proxy_config(
     enable_proxy: Optional[bool] = None,
     proxy_health_check_enabled: Optional[bool] = None,
