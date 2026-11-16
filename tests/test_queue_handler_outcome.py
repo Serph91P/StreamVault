@@ -103,6 +103,51 @@ async def test_real_segment_handler_missing_input_is_terminal_failure_without_fs
 
 
 @pytest.mark.asyncio
+async def test_worker_processes_next_task_after_idle_queue_timeout():
+    class TimeoutOnceQueue(asyncio.PriorityQueue):
+        timed_out = False
+
+        async def get(self):
+            if not self.timed_out:
+                self.timed_out = True
+                raise asyncio.TimeoutError
+            return await super().get()
+
+    queue = TimeoutOnceQueue()
+    completed = []
+    effects = []
+
+    async def on_completed(task_id, success):
+        completed.append((task_id, success))
+        manager.is_running = False
+
+    async def handler(payload):
+        effects.append(payload)
+
+    manager = WorkerManager(completion_callback=on_completed)
+    manager.register_task_handler("after-timeout", handler)
+    task = QueueTask(
+        id="after-timeout",
+        task_type="after-timeout",
+        priority=TaskPriority.NORMAL,
+        payload={"marker": "processed"},
+        status=TaskStatus.PENDING,
+        created_at=datetime.now(timezone.utc),
+    )
+    await queue.put((-task.priority.value, task))
+    manager.task_queue = queue
+    manager.is_running = True
+    try:
+        await manager._worker("timeout-contract")
+        assert effects == [{"marker": "processed"}]
+        assert completed == [(task.id, True)]
+        assert queue.empty()
+        await queue.join()
+    finally:
+        manager.is_running = False
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("synchronous", [True, False])
 async def test_negative_return_without_tracker_uses_same_failure_contract(synchronous):
     def sync_handler(payload):
