@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BackgroundQueueMonitor from '../BackgroundQueueMonitor.vue'
 
@@ -28,7 +28,7 @@ vi.mock('@/composables/useBackgroundQueue', () => ({
 }))
 
 vi.mock('@/composables/useSystemAndRecordingStatus', () => ({
-  useSystemAndRecordingStatus: () => ({ activeRecordings: { value: [] }, snapshotsStale: ref(false) }),
+  useSystemAndRecordingStatus: () => ({ activeRecordings: { value: [] } }),
 }))
 
 async function flushFocus() {
