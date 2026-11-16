@@ -60,6 +60,7 @@ for (const reset of [true, false]) {
       await expect(trigger).toHaveAttribute('aria-expanded', 'false')
       await expect(trigger).toHaveAttribute('aria-label', /unavailable|outdated|last-known|stale/i)
       await expect(trigger).toContainText(/outdated|last-known|stale/i)
+      await expect(trigger.getByText('Outdated', { exact: true })).toBeVisible()
       await expect(page.locator('.queue-count')).toHaveText('?')
       await expect(trigger.locator('.progress-bar')).toHaveCount(0)
       await page.screenshot({ path: info.outputPath('closed-header-stale.png'), fullPage: true })

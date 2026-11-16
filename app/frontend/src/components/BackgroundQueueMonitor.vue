@@ -16,9 +16,10 @@
       </svg>
 
       <div class="queue-info">
-        <span class="queue-label">{{ snapshotsStale ? 'Queue outdated ' : 'Queue ' }}</span>
+        <span class="queue-label">{{ 'Queue ' }}</span>
         <span class="queue-count">{{ combinedDataAvailable ? combinedActiveTasks.length : '?' }}</span>
       </div>
+      <span v-if="snapshotsStale">Outdated</span>
 
       <!-- Progress Bar -->
       <div v-if="combinedDataAvailable && hasActiveTasks" class="progress-bar">
