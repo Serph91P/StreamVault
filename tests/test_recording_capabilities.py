@@ -307,11 +307,19 @@ def test_authorized_saves_really_persist(stack, mode):
         "writer" if mode.startswith("writer-") else "admin",
     )
     for method, path, body in RECORDING_WRITES[:3]:
+        with database.sync_session_factory() as db:
+            db.query(RecordingSettings).one().enabled = True
+            db.query(StreamerRecordingSettings).one().enabled = True
+            db.commit()
         response = client.request(method, path, headers=credential, json=body)
         assert response.status_code == 200, (path, response.text)
-    with database.sync_session_factory() as db:
-        assert db.query(RecordingSettings).one().enabled is False
-        assert db.query(StreamerRecordingSettings).one().enabled is False
+        with database.sync_session_factory() as db:
+            model = (
+                RecordingSettings
+                if path == "/api/recording/settings"
+                else StreamerRecordingSettings
+            )
+            assert db.query(model).one().enabled is False, path
 
 
 @pytest.mark.parametrize("mode", MODES)
