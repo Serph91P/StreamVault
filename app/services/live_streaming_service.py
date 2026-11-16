@@ -42,7 +42,7 @@ from app.services.proxy.proxy_health_service import (
     proxy_health_service,
 )
 from app.services.system.twitch_token_service import TwitchTokenService
-from app.services.system.supervisor import TaskSupervisor
+from app.services.system.supervisor import TaskSupervisor, _TrackedProcess
 from app.services.twitch_upstream_coordinator import (
     AUTHENTICATED_TWITCH_ACCOUNT,
     TwitchUpstreamConflict,
@@ -210,14 +210,20 @@ class LiveStreamingService:
         """Stop all active streams and cleanup task"""
         # Stop all active sessions
         async with self._lock:
-            session_ids = list(self.sessions.keys())
+            sessions = tuple(self.sessions.items())
 
-        for session_id in session_ids:
+        for session_id, session in sessions:
             try:
-                await self.stop_stream(session_id)
-            except PermissionError:
+                await self._stop_monitored_session(
+                    session_id, session, leader_exited=False
+                )
+            except TwitchUpstreamStopForbidden:
                 logger.warning(
                     "[LIVE] Session %s was fenced during shutdown", session_id
+                )
+                session.is_active = False
+                await self._stop_monitored_session(
+                    session_id, session, leader_exited=False
                 )
 
         await self._supervisor.shutdown()
@@ -786,6 +792,23 @@ class LiveStreamingService:
                     requesting_user_id,
                     monitored_session,
                     leader_exited,
+                    self._supervisor,
+                    {
+                        f"{session_id}:{suffix}": self._supervisor.get_task(
+                            f"{session_id}:{suffix}"
+                        )
+                        for suffix in (
+                            "media-pipe",
+                            "streamlink-stderr",
+                            "ffmpeg-stderr",
+                        )
+                    },
+                    {
+                        f"{session_id}:{suffix}": self._supervisor.get_process(
+                            f"{session_id}:{suffix}"
+                        )
+                        for suffix in ("streamlink", "ffmpeg")
+                    },
                 )
             )
             try:
@@ -801,6 +824,9 @@ class LiveStreamingService:
         requesting_user_id: str | None,
         monitored_session: LiveStreamSession | None,
         leader_exited: bool,
+        supervisor: TaskSupervisor,
+        tasks: dict[str, asyncio.Task[None] | None],
+        processes: dict[str, _TrackedProcess | None],
     ) -> bool:
         was_active = session.is_active
         session.is_active = False
@@ -862,23 +888,34 @@ class LiveStreamingService:
             session.streamlink_process,
             process_group_id=session.process_group_id,
             process_start_fingerprint=session.process_start_fingerprint,
+            session=session,
         )
         ffmpeg_reaped = await self._reap_process(
             session.ffmpeg_process,
             process_group_id=session.ffmpeg_process_group_id,
             process_start_fingerprint=session.ffmpeg_process_start_fingerprint,
+            session=session,
         )
-        for suffix in ("media-pipe", "streamlink-stderr", "ffmpeg-stderr"):
-            await self._supervisor.cancel_task(f"{session_id}:{suffix}")
-        if streamlink_reaped:
-            await self._supervisor.release_process(f"{session_id}:streamlink")
-        if ffmpeg_reaped:
-            await self._supervisor.release_process(f"{session_id}:ffmpeg")
-        if not streamlink_reaped or not ffmpeg_reaped:
+        for name, task in tasks.items():
+            if task is not None:
+                await supervisor.cancel_task(name, expected_task=task)
+        # Fenced children belong to another owner; discard only our captured records.
+        for name, tracked in processes.items():
+            reaped = (
+                streamlink_reaped if name.endswith(":streamlink") else ffmpeg_reaped
+            )
+            if tracked is not None and (reaped or not was_active):
+                supervisor.detach_process(name, expected=tracked)
+        if was_active and (not streamlink_reaped or not ffmpeg_reaped):
             session.is_active = was_active
             raise TwitchUpstreamStopForbidden("process_identity_changed")
 
-        if session.lease_generation is not None and streamlink_authorized:
+        if (
+            session.lease_generation is not None
+            and streamlink_authorized
+            and streamlink_reaped
+            and ffmpeg_reaped
+        ):
             if was_active:
                 await self._coordinator.release(
                     channel_key=session.channel_key,
@@ -898,20 +935,28 @@ class LiveStreamingService:
                     expected_live_session_id=session_id,
                 )
 
-        # Cleanup files
-        try:
-            if session.output_dir.exists():
-                shutil.rmtree(session.output_dir, ignore_errors=True)
-                logger.debug(f"[LIVE] Cleaned up output directory for {session_id}")
-        except Exception as e:
-            logger.error(f"[LIVE] Error cleaning up session {session_id}: {e}")
-
-        # Remove from tracking
+        # Cleanup files and maps atomically with respect to replacement publication.
         async with self._lock:
-            if self.sessions.get(session_id) is session:
+            try:
+                output_shared = any(
+                    other is not session and other.output_dir == session.output_dir
+                    for other in self.sessions.values()
+                )
+                if not output_shared and session.output_dir.exists():
+                    shutil.rmtree(session.output_dir, ignore_errors=True)
+                    logger.debug(f"[LIVE] Cleaned up output directory for {session_id}")
+            except Exception as e:
+                logger.error(f"[LIVE] Error cleaning up session {session_id}: {e}")
+
+            current = self.sessions.get(session_id)
+            if current is session:
                 del self.sessions[session_id]
-                if session.user_id and session.user_id in self.user_sessions:
-                    self.user_sessions[session.user_id].discard(session_id)
+            if session.user_id and (
+                current is None
+                or current is session
+                or current.user_id != session.user_id
+            ):
+                self.user_sessions.get(session.user_id, set()).discard(session_id)
 
         logger.info(f"[LIVE] Session {session_id} stopped and cleaned up")
         return True
@@ -923,11 +968,20 @@ class LiveStreamingService:
         process_group_id: int | None = None,
         process_start_fingerprint: str | None = None,
         timeout: float = 5.0,
+        session: LiveStreamSession | None = None,
     ) -> bool:
         if not process:
             return True
         if process.returncode is not None:
             return True
+
+        def protected_by_peer() -> bool:
+            return session is not None and any(
+                other is not session
+                and process.pid
+                in (other.streamlink_process.pid, other.ffmpeg_process.pid)
+                for other in self.sessions.values()
+            )
 
         if process_group_id is None or not process_start_fingerprint:
             return False
@@ -939,6 +993,8 @@ class LiveStreamingService:
             return False
 
         try:
+            if protected_by_peer():
+                return False
             os.killpg(process_group_id, signal.SIGTERM)
             try:
                 await asyncio.wait_for(process.wait(), timeout=timeout)
@@ -948,6 +1004,8 @@ class LiveStreamingService:
                     process_group_id,
                     process_start_fingerprint,
                 ):
+                    return False
+                if protected_by_peer():
                     return False
                 os.killpg(process_group_id, signal.SIGKILL)
                 await process.wait()

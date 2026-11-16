@@ -18,6 +18,9 @@ from app.database import Base
 from app.models import TwitchUpstreamLease
 from app.services.live_streaming_service import LiveStreamSession, LiveStreamingService
 from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
+from tests import test_image_http_ownership
+
+image_applications = test_image_http_ownership.image_applications
 
 
 @pytest_asyncio.fixture
@@ -179,8 +182,11 @@ async def test_lease_loss_never_signals_foreign_identity_but_cleans_local_sink(
     live, protection
 ):
     service, session, _, factory, _, pipe = live
+    session.user_id = "956"
+    service.user_sessions["956"] = {session.session_id}
     with factory() as db:
         lease = db.scalar(select(TwitchUpstreamLease))
+        lease.owner_user_id = 956
         if protection == "replacement_adopts_same_process":
             lease.generation = 2
             lease.live_session_id = "replacement956"
@@ -194,6 +200,16 @@ async def test_lease_loss_never_signals_foreign_identity_but_cleans_local_sink(
     assert session.ffmpeg_process.returncode is not None
     assert pipe.done()
     assert not session.is_active
+    assert session.session_id not in service.sessions
+    assert session.session_id not in service.user_sessions["956"]
+    assert not session.output_dir.exists()
+    assert service._supervisor.process_names == ()
+    assert service._supervisor.task_names == ()
+    await service._monitor_session(session.session_id)
+    assert await service.stop_stream(session.session_id) is False
+    await service.stop()
+    await service.stop()
+    assert session.streamlink_process.returncode is None
     with factory() as db:
         assert (
             list(db.execute(select(TwitchUpstreamLease.__table__)).tuples()) == before
@@ -229,16 +245,49 @@ async def test_inactive_old_child_cleanup_does_not_release_same_generation_repla
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("media", ["python", "ffmpeg"])
+@pytest.mark.parametrize("cleanup", ["heartbeat", "shutdown"])
 async def test_native_started_service_shutdown_preserves_replacement_owner(
-    live, monkeypatch, tmp_path
+    image_applications, monkeypatch, media, cleanup
 ):
-    _, _, coordinator, factory, _, _ = live
-    service = LiveStreamingService(
-        coordinator=coordinator, output_root=tmp_path / "native-start"
-    )
-    monkeypatch.setenv("FFMPEG_PATH", sys.executable)
+    from app import dependencies
+    from app.lifespan import _close_application_proxy, _close_application_twitch
+
+    applications, databases, _, _ = image_applications
+    app = applications[0]
+    service = dependencies._get_application_live_streaming_service(app)
+    assert app.state.live_streaming_service is service
+    assert service._coordinator is app.state.recording_manager._upstream_coordinator
+    factory = databases[0].sync_session_factory
+    if media == "python":
+        monkeypatch.setenv("FFMPEG_PATH", sys.executable)
 
     async def upstream_command(*args, **kwargs):
+        if media == "ffmpeg":
+            return [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-re",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=64x64:rate=10",
+                "-c:v",
+                "libx264",
+                "-threads",
+                "1",
+                "-preset",
+                "ultrafast",
+                "-pix_fmt",
+                "yuv420p",
+                "-g",
+                "10",
+                "-f",
+                "mpegts",
+                "pipe:1",
+            ]
         return [
             sys.executable,
             "-c",
@@ -254,9 +303,11 @@ async def test_native_started_service_shutdown_preserves_replacement_owner(
         ]
 
     monkeypatch.setattr(service, "_build_streamlink_command", upstream_command)
-    monkeypatch.setattr(service, "_build_ffmpeg_command", sink_command)
+    if media == "python":
+        monkeypatch.setattr(service, "_build_ffmpeg_command", sink_command)
     result = await service._start_stream_once("native956")
     session = service.sessions[result.session_id]
+    assert session.playlist_path.read_bytes().startswith(b"#EXTM3U")
     try:
         with factory() as db:
             lease = db.scalar(
@@ -268,10 +319,19 @@ async def test_native_started_service_shutdown_preserves_replacement_owner(
             lease.live_session_id = "replacement-owner"
             db.commit()
             before = list(db.execute(select(TwitchUpstreamLease.__table__)).tuples())
+        if cleanup == "heartbeat":
+            await service._monitor_session(session.session_id)
+            assert session.session_id not in service.sessions
+            assert service._supervisor.process_names == ()
+            assert not session.output_dir.exists()
         await service.stop()
         assert session.streamlink_process.returncode is None
         assert session.ffmpeg_process.returncode is not None
         assert service._supervisor.task_names == ()
+        assert service._supervisor.process_names == ()
+        assert session.session_id not in service.sessions
+        assert not session.output_dir.exists()
+        assert await service.stop_stream(session.session_id) is False
         with factory() as db:
             assert (
                 list(db.execute(select(TwitchUpstreamLease.__table__)).tuples())
@@ -283,6 +343,11 @@ async def test_native_started_service_shutdown_preserves_replacement_owner(
                 child.kill()
             await child.wait()
         await service._supervisor.shutdown()
+        await service.stop()
+        await _close_application_proxy(app)
+        await _close_application_twitch(app)
+        await app.state.recording_manager.process_manager.cleanup_all()
+        await app.state.background_queue_service.queue_manager.progress_tracker.cleanup_background_tasks()
 
 
 @pytest.mark.asyncio
@@ -333,3 +398,178 @@ async def test_monitor_cancellation_drains_started_lease_loss_cleanup(
         if not monitor.done():
             monitor.cancel()
         await asyncio.gather(monitor, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_local_peer_adoption_protects_pid_without_releasing_lease(live):
+    service, stale, _, factory, spawn, pipe = live
+    peer_sink = await spawn("import time;time.sleep(60)")
+    peer_output = stale.output_dir.parent / "peer-live"
+    peer_output.mkdir()
+    (peer_output / "fragment.ts").write_bytes(b"peer fragment")
+    peer = LiveStreamSession(
+        "peer956",
+        "peer",
+        "best",
+        stale.streamlink_process,
+        peer_sink,
+        peer_output,
+        user_id="957",
+        lease_generation=2,
+    )
+    service.sessions[peer.session_id] = peer
+    service.user_sessions[peer.user_id] = {peer.session_id}
+    service._supervisor.track_process("peer956:streamlink", peer.streamlink_process)
+    service._supervisor.track_process("peer956:ffmpeg", peer_sink)
+    protected = {
+        name: record
+        for name, record in service._supervisor._processes.items()
+        if name.startswith("peer956:")
+    }
+    with factory() as db:
+        lease = db.scalar(select(TwitchUpstreamLease))
+        lease.state = "RELEASED"
+        db.commit()
+        before = list(db.execute(select(TwitchUpstreamLease.__table__)))
+    await service._monitor_session(stale.session_id)
+    assert service.sessions == {peer.session_id: peer}
+    assert service.user_sessions[peer.user_id] == {peer.session_id}
+    assert stale.streamlink_process.returncode is None
+    assert peer_sink.returncode is None
+    assert stale.ffmpeg_process.returncode is not None and pipe.done()
+    assert not stale.output_dir.exists()
+    assert (peer_output / "fragment.ts").read_bytes() == b"peer fragment"
+    assert set(service._supervisor.process_names) == set(protected)
+    assert all(
+        service._supervisor.get_process(name) is record
+        for name, record in protected.items()
+    )
+    with factory() as db:
+        assert list(db.execute(select(TwitchUpstreamLease.__table__))) == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("generation", [1, 2])
+@pytest.mark.parametrize("adopts_upstream", [False, True])
+@pytest.mark.parametrize("replacement_user", ["956", "957"])
+@pytest.mark.parametrize("pause_at", ["authorization", "dispatch"])
+async def test_overlapping_fenced_cleanup_preserves_replacement_resources(
+    live, monkeypatch, generation, adopts_upstream, replacement_user, pause_at
+):
+    service, stale, coordinator, factory, spawn, pipe = live
+    stale.user_id = "956"
+    service.user_sessions["956"] = {stale.session_id}
+    replacement_upstream = (
+        stale.streamlink_process
+        if adopts_upstream
+        else await spawn("import time;time.sleep(60)")
+    )
+    replacement_sink = await spawn("import time;time.sleep(60)")
+    replacement = LiveStreamSession(
+        stale.session_id,
+        "replacement",
+        "best",
+        replacement_upstream,
+        replacement_sink,
+        stale.output_dir,
+        user_id=replacement_user,
+        channel_key=stale.channel_key,
+        lease_generation=generation,
+    )
+    identity = await coordinator.inspect_process_identity(replacement_upstream.pid)
+    with factory() as db:
+        lease = db.scalar(select(TwitchUpstreamLease))
+        lease.generation = generation
+        lease.live_session_id = stale.session_id
+        lease.owner_user_id = int(replacement_user)
+        lease.process_pid = identity.pid
+        lease.process_group_id = identity.process_group_id
+        lease.process_started_at = identity.started_at
+        lease.process_start_fingerprint = identity.fingerprint
+        db.commit()
+        before = list(db.execute(select(TwitchUpstreamLease.__table__)))
+    entered, proceed = asyncio.Event(), asyncio.Event()
+    original = coordinator.assert_local_process_cleanup_authorized
+
+    async def authorize(**kwargs):
+        entered.set()
+        await proceed.wait()
+        return await original(**kwargs)
+
+    if pause_at == "authorization":
+        monkeypatch.setattr(
+            coordinator, "assert_local_process_cleanup_authorized", authorize
+        )
+    else:
+        finish = service._finish_session_stop
+
+        async def dispatch(*args, **kwargs):
+            entered.set()
+            await proceed.wait()
+            return await finish(*args, **kwargs)
+
+        monkeypatch.setattr(service, "_finish_session_stop", dispatch)
+    stale.is_active = False
+    stopping = asyncio.create_task(service.stop_stream(stale.session_id))
+    try:
+        await asyncio.wait_for(entered.wait(), 3)
+        async with service._lock:
+            service.sessions[stale.session_id] = replacement
+            service.user_sessions[replacement_user] = {stale.session_id}
+            # Simulate the new owner's published records under the same names.
+            for label, process in (
+                ("streamlink", replacement_upstream),
+                ("ffmpeg", replacement_sink),
+            ):
+                service._supervisor.track_process(f"replacement:{label}", process)
+                service._supervisor._processes[f"{stale.session_id}:{label}"] = (
+                    service._supervisor._processes.pop(f"replacement:{label}")
+                )
+            new_task = service._supervisor.create_task(
+                "replacement:media-pipe", asyncio.Event().wait()
+            )
+            service._supervisor._tasks[f"{stale.session_id}:media-pipe"] = (
+                service._supervisor._tasks.pop("replacement:media-pipe")
+            )
+        protected_records = dict(service._supervisor._processes)
+        protected_state = vars(replacement).copy()
+        files_before = {
+            p.name: p.read_bytes() for p in replacement.output_dir.iterdir()
+        }
+        proceed.set()
+        await asyncio.wait({stopping}, timeout=3)
+        assert stopping.done(), "stale cleanup waited on the replacement's child"
+        assert await stopping is True
+        assert service.sessions[stale.session_id] is replacement
+        assert vars(replacement) == protected_state
+        assert service.user_sessions[replacement_user] == {stale.session_id}
+        if replacement_user != stale.user_id:
+            assert service.user_sessions[stale.user_id] == set()
+        assert replacement_upstream.returncode is None
+        assert replacement_sink.returncode is None
+        assert (stale.streamlink_process.returncode is None) is adopts_upstream
+        assert stale.ffmpeg_process.returncode is not None
+        assert pipe.done()
+        assert not new_task.done()
+        assert service._supervisor._processes == protected_records
+        assert {
+            p.name: p.read_bytes() for p in replacement.output_dir.iterdir()
+        } == files_before
+        with factory() as db:
+            assert list(db.execute(select(TwitchUpstreamLease.__table__))) == before
+    finally:
+        proceed.set()
+        if not stopping.done():
+            for child in (
+                stale.streamlink_process,
+                stale.ffmpeg_process,
+                replacement_upstream,
+                replacement_sink,
+            ):
+                if child.returncode is None:
+                    child.kill()
+                await child.wait()
+        await asyncio.gather(stopping, return_exceptions=True)
+        monkeypatch.setattr(
+            coordinator, "assert_local_process_cleanup_authorized", original
+        )
