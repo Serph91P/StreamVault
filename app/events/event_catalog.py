@@ -1,6 +1,7 @@
 """Worker-owned catalog transactions for EventSub handlers."""
 
 from collections.abc import Callable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 
@@ -16,6 +17,10 @@ from app.models import (
     StreamEvent,
     User,
 )
+
+
+# Request-local identity also propagates into the owned catalog worker thread.
+delivery_key: ContextVar[str | None] = ContextVar("eventsub_delivery_key", default=None)
 
 
 @dataclass(frozen=True)
@@ -52,6 +57,14 @@ def prepare_update(
         )
         if streamer is None:
             return None
+        key = delivery_key.get()
+        if key and session.query(StreamEvent.id).filter_by(delivery_key=key).first():
+            return UpdateEvent(
+                streamer.id,
+                streamer.username,
+                streamer.profile_image_url,
+                streamer.is_live,
+            )
         streamer.title = data.get("title")
         streamer.category_name = category_name
         streamer.language = data.get("language")
@@ -73,6 +86,7 @@ def prepare_update(
                     category_name=category_name,
                     language=data.get("language"),
                     timestamp=datetime.now(timezone.utc),
+                    delivery_key=key,
                 )
             )
             session.commit()

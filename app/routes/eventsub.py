@@ -9,6 +9,7 @@ from app.dependencies import get_application_event_registry
 from app.bootstrap.settings import resolve_app_settings
 from app.config.settings import settings
 from app.config.constants import TIMEOUTS
+from app.events.event_catalog import delivery_key
 
 logger = logging.getLogger("streamvault")
 
@@ -77,7 +78,7 @@ async def eventsub_callback(request: Request):
                     f"EventSub message too old (timestamp: {timestamp}), rejecting replay"
                 )
                 return Response(status_code=403)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.error(f"Invalid EventSub timestamp format: {timestamp}")
             return Response(status_code=403)
 
@@ -122,6 +123,17 @@ async def eventsub_callback(request: Request):
 
                 handler = event_registry.handlers.get(event_type)
                 if handler:
+                    token = delivery_key.set(
+                        hashlib.sha256(
+                            json.dumps(
+                                [
+                                    message_id,
+                                    event_type,
+                                    (event_data or {}).get("broadcaster_user_id"),
+                                ]
+                            ).encode()
+                        ).hexdigest()
+                    )
                     try:
                         await asyncio.wait_for(
                             handler(event_data), timeout=TIMEOUTS.EVENT_HANDLER_TIMEOUT
@@ -147,6 +159,15 @@ async def eventsub_callback(request: Request):
                             (event_data or {}).get("broadcaster_user_id"),
                         )
                         return Response(status_code=500)
+                    except asyncio.CancelledError:
+                        event_registry.forget_message(
+                            message_id,
+                            event_type,
+                            (event_data or {}).get("broadcaster_user_id"),
+                        )
+                        raise
+                    finally:
+                        delivery_key.reset(token)
                 else:
                     logger.warning(f"No handler found for event type: {event_type}.")
                     return Response(status_code=400)
