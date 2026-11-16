@@ -28,6 +28,20 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:18.6-alpine3.23
+        env:
+          POSTGRES_DB: streamvault_ci
+          POSTGRES_USER: streamvault_ci
+          POSTGRES_PASSWORD: ci-placeholder
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U streamvault_ci -d streamvault_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       
@@ -55,6 +69,18 @@ jobs:
       - name: Check migrations
         run: uv run python -m app.migrations_init
         env:
+          DATABASE_URL: postgresql://streamvault_ci:ci-placeholder@localhost:5432/streamvault_ci
+          TWITCH_APP_ID: ci-placeholder
+          TWITCH_APP_SECRET: ci-placeholder
+          BASE_URL: http://localhost:7000
+
+      - name: Run fresh PostgreSQL migration sequence
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U streamvault_ci streamvault_ci_scoped
+          uv run python tests/assert_scoped_migration_postgres.py --all
+        env:
+          DATABASE_URL: postgresql://streamvault_ci:ci-placeholder@localhost:5432/streamvault_ci
+          SCOPED_MIGRATION_TEST_URL: postgresql://streamvault_ci:ci-placeholder@localhost:5432/streamvault_ci_scoped
           TWITCH_APP_ID: ci-placeholder
           TWITCH_APP_SECRET: ci-placeholder
           BASE_URL: http://localhost:7000
