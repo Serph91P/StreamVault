@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from app.services.api.twitch_oauth_service import TwitchOAuthService
 from app.services.streamer_service import StreamerService
 from app.dependencies import get_streamer_service, get_application_twitch_token_service
-from app.dependencies import get_application_twitch_oauth_service
+from app.dependencies import get_application_twitch_oauth_service, require_admin_user
 from app.services.system.twitch_token_service import (
     TwitchTokenService,
     TwitchTokenState,
@@ -108,7 +108,9 @@ def get_twitch_oauth_service(
     return get_application_twitch_oauth_service(connection)
 
 
-@router.get("/auth-url", response_model=None)
+@router.get(
+    "/auth-url", response_model=None, dependencies=[Depends(require_admin_user)]
+)
 async def get_twitch_auth_url(
     state: str = Query(
         None,
@@ -235,7 +237,9 @@ async def get_followed_channels(
     return {"channels": followed_channels}
 
 
-@router.post("/import-streamers", response_model=None)
+@router.post(
+    "/import-streamers", response_model=None, dependencies=[Depends(require_admin_user)]
+)
 async def import_streamers(
     streamers: List[Dict[str, Any]],
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
@@ -286,7 +290,9 @@ async def get_connection_status(
         }
 
 
-@router.post("/manual-token", response_model=None)
+@router.post(
+    "/manual-token", response_model=None, dependencies=[Depends(require_admin_user)]
+)
 async def save_manual_token(
     payload: ManualTokenRequest,
     token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
@@ -312,7 +318,9 @@ async def save_manual_token(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/disconnect", response_model=None)
+@router.post(
+    "/disconnect", response_model=None, dependencies=[Depends(require_admin_user)]
+)
 async def disconnect_twitch(
     token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
 ) -> dict[str, str | bool]:

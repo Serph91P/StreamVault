@@ -32,6 +32,7 @@ from app.services.recording.recording_lifecycle_manager import RecordingLifecycl
 from app.services.recording.recording_state_manager import RecordingStateManager
 from app.services.system.logging_service import LoggingService
 from app.services.unified_image_service import UnifiedImageService
+from tests.auth_helpers import admin_headers
 
 
 @pytest.fixture
@@ -128,7 +129,9 @@ async def recording_policy(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(lifecycle, "monitor_and_process_recording", AsyncMock())
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+        headers=admin_headers(app, sessions),
     ) as client:
         yield SimpleNamespace(
             client=client,

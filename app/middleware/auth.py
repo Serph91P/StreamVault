@@ -35,7 +35,6 @@ _PUBLIC_PATH_PREFIXES = (
     "/api/metrics",
     "/eventsub",
     "/api/twitch/callback",
-    "/api/twitch/auth-url",
     "/api/videos/public/",
     "/api/live/stream/",
     "/assets/",

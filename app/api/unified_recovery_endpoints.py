@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from typing import Dict, Any
 from pydantic import BaseModel
 
-from app.dependencies import get_application_recovery_service
+from app.dependencies import get_application_recovery_service, require_scopes
 from app.services.recording.unified_recovery_service import UnifiedRecoveryService
 
 logger = logging.getLogger("streamvault")
@@ -50,7 +50,7 @@ async def get_recovery_statistics(
         raise HTTPException(status_code=500, detail="Failed to get recovery statistics")
 
 
-@router.post("/scan")
+@router.post("/scan", dependencies=[Depends(require_scopes("recording:write"))])
 async def comprehensive_recovery_scan(
     request: RecoveryScanRequest,
     background_tasks: BackgroundTasks,
