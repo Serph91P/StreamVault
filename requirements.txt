@@ -12,7 +12,7 @@ aiosqlite==0.22.1
     # via streamvault
 alembic==1.20.1
     # via streamvault
-annotated-doc==0.0.5
+annotated-doc==0.0.6
     # via fastapi
 annotated-types==0.8.0
     # via pydantic
@@ -25,7 +25,7 @@ apprise==1.13.1
     # via streamvault
 argon2-cffi==25.1.0
     # via streamvault
-argon2-cffi-bindings==26.1.0
+argon2-cffi-bindings==26.2.0
     # via argon2-cffi
 attrs==26.1.0
     # via
@@ -59,7 +59,7 @@ cryptography==50.0.2
     #   http-ece
     #   py-vapid
     #   streamvault
-fastapi==0.162.0
+fastapi==0.162.5
     # via streamvault
 frozenlist==1.8.0
     # via
@@ -119,11 +119,11 @@ propcache==0.5.4
     #   yarl
 psutil==7.2.2
     # via streamvault
-psycopg==3.3.8
+psycopg==3.3.9
     # via
     #   sqlalchemy
     #   streamvault
-psycopg-binary==3.3.8 ; implementation_name != 'pypy'
+psycopg-binary==3.3.9 ; implementation_name != 'pypy'
     # via psycopg
 psycopg-pool==3.3.3
     # via streamvault
@@ -141,7 +141,7 @@ pydantic==2.14.3
     #   pydantic-settings
 pydantic-core==2.50.4
     # via pydantic
-pydantic-settings==2.16.2
+pydantic-settings==2.16.3
     # via streamvault
 pyjwt==2.15.1
     # via streamvault
