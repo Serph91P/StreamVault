@@ -215,6 +215,7 @@ describe('foundation gates fail closed', () => {
     const websocketConfig = await readFile(resolve(frontendRoot, 'tests/e2e/websocket-setup-transition.playwright.config.ts'), 'utf8')
 
     const topology = workflow
+    const frontendAggregate = jobFrom(topology.split('\n'), 'frontend-build').join('\n')
     expect(() => assertCaptureIntegrationIsBlocking(topology, integrationFlow, playwrightConfig, websocketConfig)).not.toThrow()
 
     const statusCommands = commandsFrom(stepFrom(jobFrom(topology.split('\n'), 'frontend-build'), 'Require both frontend workers to succeed')).join('\n')
@@ -230,7 +231,7 @@ describe('foundation gates fail closed', () => {
 
     const mutants = [
       topology.replace('needs: [frontend-core, frontend-browser]', 'needs: [frontend-core]'),
-      topology.replace('    if: always()\n', '    if: success()\n'),
+      topology.replace(frontendAggregate, frontendAggregate.replace('    if: always()\n', '    if: success()\n')),
       topology.replace('    timeout-minutes: 1\n', '    timeout-minutes: 12\n'),
       topology.replace('    timeout-minutes: 12\n', '    timeout-minutes: 13\n'),
       topology.replace('test "${{ needs.frontend-core.result }}" = success', 'true'),
