@@ -378,6 +378,10 @@ try {
       await expect.poll(() => fixedWorker.evaluate(() => self.registration.active?.state)).toBe('activated')
       const resumed = await context.newPage()
       const resumedErrors = [], resumedResponses = [], networkDocuments = [], resumedDocuments = [], resumedRequests = []
+      const outstanding = new Set()
+      resumed.on('request', request => outstanding.add(request.url()))
+      resumed.on('requestfinished', request => outstanding.delete(request.url()))
+      resumed.on('requestfailed', request => outstanding.delete(request.url()))
       resumed.on('domcontentloaded', () => resumedDocuments.push(resumed.url()))
       resumed.on('request', request => {
         if (request.isNavigationRequest() && request.frame() === resumed.mainFrame()) resumedRequests.push(request.url())
@@ -389,7 +393,11 @@ try {
       resumed.on('response', response => resumedResponses.push({ url: response.url(), status: response.status(), fromWorker: response.fromServiceWorker() }))
       const response = await resumed.goto(origin + '/auth/login')
       const resumedIndexMatches = (await response.body()).equals(await readFile(path.join(process.env.PWA_TEST_NEW, 'index.html')))
-      await resumed.waitForLoadState('networkidle')
+      // A complete document + the real form below are the causal boundary.
+      // Original non-JSON API calls redirect to HTML and leave fetch Responses
+      // unconsumed, so global networkidle can remain pending after a ready form.
+      // Keep the native load timeout and every byte/error/navigation assertion.
+      await resumed.waitForLoadState('load')
       const directResponse = await context.request.get(origin + '/auth/login')
       const directIndexMatches = (await directResponse.body()).equals(await readFile(path.join(process.env.PWA_TEST_NEW, 'index.html')))
       await writeFile(path.join(output, 'legacy-resumed-diagnostic.json'), JSON.stringify({ resumedIndexMatches, directIndexMatches, networkDocuments, resumedErrors, resumedResponses, html: await resumed.locator('body').innerText() }, null, 2))
@@ -408,6 +416,7 @@ try {
       await expect.poll(() => resumed.evaluate(async () => !(await navigator.serviceWorker.getRegistration()).waiting)).toBe(true)
       expect((await response.body()).equals(await readFile(path.join(process.env.PWA_TEST_NEW, 'index.html')))).toBe(true)
       row.safeLateActivation = { waiting: false, newDocumentBytes: true, legacyCache,
+        outstandingRequests: [...outstanding],
         networkDocuments, resumedErrors, resumedResponses, resumedDocuments, resumedRequests,
         oldIndexHash: hash(await readFile(path.join(process.env.PWA_TEST_OLD, 'index.html'))),
         newIndexHash: hash(await response.body()), fromWorker: response.fromServiceWorker(),
