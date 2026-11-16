@@ -718,6 +718,7 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
     armed = True
     entered = asyncio.Event()
     native_terminate = manager.process_manager.terminate_process
+    release_termination = asyncio.Event()
     from app.routes import eventsub
 
     original_timeouts = eventsub.TIMEOUTS
@@ -778,7 +779,11 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
         assert recording_id in ({1, 2} if fault == "new-stream" else {1})
         if armed and fault in {"cancel", "timeout"}:
             entered.set()
-            await asyncio.Event().wait()
+            if fault == "timeout":
+                # Expire at the controlled I/O boundary, not during catalog setup.
+                await asyncio.wait_for(release_termination.wait(), 0.1)
+            else:
+                await release_termination.wait()
         if armed and fault in {"raise", "replacement-live", "new-stream"}:
             raise OSError("synthetic termination boundary unavailable")
         if armed and fault == "false":
@@ -889,15 +894,6 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
             assert lifecycle._postprocessing_scheduled == {1}
             armed = False
         elif fault in {"cancel", "timeout"}:
-            from dataclasses import replace
-            from app.routes import eventsub
-
-            if fault == "timeout":
-                monkeypatch.setattr(
-                    eventsub,
-                    "TIMEOUTS",
-                    replace(eventsub.TIMEOUTS, EVENT_HANDLER_TIMEOUT=0.1),
-                )
             task = asyncio.create_task(ctx.client.post("/eventsub", **request))
             await asyncio.wait_for(entered.wait(), 5)
             if fault == "cancel":
@@ -993,8 +989,10 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
             assert session.query(Recording).count() == 1
             assert session.query(Recording).one().status == "stopped"
     finally:
+        armed = False
+        release_termination.set()
+        release_commit.set()
         for child in children:
-            release_commit.set()
             if child.returncode is None:
                 child.kill()
             await child.wait()
