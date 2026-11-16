@@ -11,6 +11,8 @@ from app.services.communication.websocket_manager import (
 )
 from app.events.handler_registry import EventHandlerRegistry
 from app.dependencies import (
+    require_scopes,
+    require_admin_user,
     get_streamer_service,
     get_application_event_registry as get_event_registry,
     get_image_service,
@@ -304,7 +306,9 @@ async def get_streamers(
     return {"streamers": streamers_data}
 
 
-@router.delete("/subscriptions", status_code=200)
+@router.delete(
+    "/subscriptions", status_code=200, dependencies=[Depends(require_admin_user)]
+)
 async def delete_all_subscriptions(
     event_registry: EventHandlerRegistry = Depends(get_event_registry),
 ):
@@ -357,7 +361,7 @@ async def delete_all_subscriptions(
         )
 
 
-@router.post("/resubscribe-all")
+@router.post("/resubscribe-all", dependencies=[Depends(require_admin_user)])
 async def resubscribe_all(
     event_registry: EventHandlerRegistry = Depends(get_event_registry),
     streamer_service: StreamerService = Depends(get_streamer_service),
@@ -514,7 +518,7 @@ async def check_streamer_live_status(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/{username}")
+@router.post("/{username}", dependencies=[Depends(require_scopes("recording:write"))])
 async def add_streamer(
     username: str,
     data: Dict[str, Any] = Body(...),
@@ -617,7 +621,9 @@ async def add_streamer(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/{streamer_id}")
+@router.delete(
+    "/{streamer_id}", dependencies=[Depends(require_scopes("recording:write"))]
+)
 async def delete_streamer(
     streamer_id: int,
     delete_recordings: bool = False,
@@ -967,7 +973,10 @@ def get_streamer(
     }
 
 
-@router.put("/streamer/{streamer_id}/settings")
+@router.put(
+    "/streamer/{streamer_id}/settings",
+    dependencies=[Depends(require_scopes("recording:write"))],
+)
 def update_streamer_settings(
     streamer_id: int,
     settings: Dict[str, Any] = Body(...),
@@ -1159,7 +1168,9 @@ async def list_subscriptions(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/subscriptions/{subscription_id}")
+@router.delete(
+    "/subscriptions/{subscription_id}", dependencies=[Depends(require_admin_user)]
+)
 async def delete_subscription(
     subscription_id: str,
     event_registry: EventHandlerRegistry = Depends(get_event_registry),
@@ -1268,7 +1279,10 @@ def get_streams_by_streamer_id(
         )
 
 
-@router.delete("/{streamer_id}/streams/{stream_id}")
+@router.delete(
+    "/{streamer_id}/streams/{stream_id}",
+    dependencies=[Depends(require_scopes("recording:write"))],
+)
 async def delete_stream(
     streamer_id: int, stream_id: int, db: Session = Depends(get_db)
 ):
@@ -1600,7 +1614,9 @@ def parse_webvtt_chapters(vtt_content: str) -> List[Dict[str, Any]]:
     return chapters
 
 
-@router.delete("/{streamer_id}/streams")
+@router.delete(
+    "/{streamer_id}/streams", dependencies=[Depends(require_scopes("recording:write"))]
+)
 async def delete_all_streams(
     streamer_id: int, exclude_active: bool = True, db: Session = Depends(get_db)
 ):

@@ -27,6 +27,7 @@ from app.models import (
 from app.routes import recording
 from app.services.system.streamlink_config_service import streamlink_config_service
 from app.services.system.twitch_token_service import TwitchTokenService
+from tests.auth_helpers import admin_headers
 
 
 @pytest.fixture
@@ -57,7 +58,7 @@ def codec_api(monkeypatch, tmp_path):
         recording.unified_image_service
     )
     app.include_router(recording.router)
-    with TestClient(app) as client:
+    with TestClient(app, headers=admin_headers(app, sessions)) as client:
         yield SimpleNamespace(
             client=client,
             sessions=sessions,
@@ -364,6 +365,7 @@ def test_real_http_save_and_reload(codec_api):
             assert server.started, "Loopback server did not start"
             with httpx.Client(
                 base_url=f"http://127.0.0.1:{listener.getsockname()[1]}",
+                headers={"Authorization": codec_api.client.headers["Authorization"]},
                 trust_env=False,
             ) as client:
                 saved = client.post(
@@ -373,6 +375,7 @@ def test_real_http_save_and_reload(codec_api):
                 # Independent connection/session models a client reload.
             with httpx.Client(
                 base_url=f"http://127.0.0.1:{listener.getsockname()[1]}",
+                headers={"Authorization": codec_api.client.headers["Authorization"]},
                 trust_env=False,
             ) as client:
                 reloaded = client.get("/api/recording/settings")
