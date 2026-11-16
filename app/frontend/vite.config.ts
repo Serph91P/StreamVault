@@ -76,7 +76,7 @@ export default defineConfig({
     compactProductionChunks(),
     retryableSettingsPanelHost(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       // Workbox globs already enumerate these public static assets. Keep the
       // manifest metadata, but do not register a second copy in precache.
       includeAssets: [],

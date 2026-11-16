@@ -101,6 +101,7 @@ import { useRoute, useRouter } from 'vue-router'
 import BasePanel from '@/components/base/BasePanel.vue'
 import { useAuth } from '@/composables/useAuth'
 import { getSafeReturnPath } from '@/services/session'
+import { applyPWAUpdate } from '@/services/pwa-update'
 
 const router = useRouter()
 const route = useRoute()
@@ -120,7 +121,8 @@ const handleLogin = async () => {
 
     if (result.success) {
       // Auth state is reactive; restore only an internal deep link from the guard.
-      router.push(getSafeReturnPath(route.query.returnTo))
+      const target = getSafeReturnPath(route.query.returnTo)
+      if (!await applyPWAUpdate(target)) router.push(target)
     } else {
       error.value = result.error || 'Invalid username or password'
     }
