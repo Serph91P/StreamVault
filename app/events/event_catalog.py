@@ -83,8 +83,9 @@ def prepare_update(
             streamer.language = data.get("language")
             streamer.last_updated = datetime.now(timezone.utc)
         session.commit()
-        if newer_stream:
-            # A failed delivery belongs to its original stream, not its replacement.
+        stream = None if newer_stream else resolve_target(session, streamer.id)
+        if stream is None and cutoff is not None:
+            # Replay can arrive after offline, with or without a replacement stream.
             stream = (
                 session.query(Stream)
                 .filter(
@@ -95,8 +96,6 @@ def prepare_update(
                 .order_by(Stream.started_at.desc())
                 .first()
             )
-        else:
-            stream = resolve_target(session, streamer.id)
         if stream is not None:
             if data.get("title"):
                 stream.title = data["title"]
@@ -254,8 +253,7 @@ def offline_recording_id(
         recordings = session.query(Recording).filter(
             Recording.stream_id == stream_id, Recording.status == "recording"
         )
-        if cutoff is not None:
-            recordings = recordings.filter(Recording.start_time <= cutoff)
+        # Local admission can follow offline emission; the stream owns the target.
         recording = recordings.first()
         return recording.id if recording else None
 

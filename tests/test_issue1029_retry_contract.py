@@ -640,7 +640,8 @@ async def test_callback_drains_committing_worker_before_retry(
 
 
 @pytest.mark.asyncio
-async def test_update_retry_keeps_original_stream_after_new_stream_starts(ctx):
+@pytest.mark.parametrize("replacement", [False, True])
+async def test_update_retry_keeps_original_stream_after_offline(ctx, replacement):
     seed(ctx, "channel.update")
     request = signed(ctx, payload("channel.update"))
     commits = 0
@@ -656,29 +657,104 @@ async def test_update_retry_keeps_original_stream_after_new_stream_starts(ctx):
         assert (await ctx.client.post("/eventsub", **request)).status_code == 500
     finally:
         event.remove(ctx.database.sync_session_factory, "before_commit", fail_chapter)
-    replacement_time = datetime.fromisoformat(
-        request["headers"]["Twitch-Eventsub-Message-Timestamp"]
-    ) + timedelta(seconds=1)
-    with ctx.database.sync_session_factory() as session:
-        session.get(Stream, 1).ended_at = replacement_time
-        session.add(
-            Stream(
-                id=2,
-                streamer_id=1,
-                twitch_stream_id="replacement",
-                started_at=replacement_time,
-                title="Replacement",
+    assert (
+        await ctx.client.post("/eventsub", **signed(ctx, payload("stream.offline")))
+    ).status_code == 204
+    if replacement:
+        replacement_time = datetime.fromisoformat(
+            request["headers"]["Twitch-Eventsub-Message-Timestamp"]
+        ) + timedelta(seconds=1)
+        with ctx.database.sync_session_factory() as session:
+            session.add(
+                Stream(
+                    id=2,
+                    streamer_id=1,
+                    twitch_stream_id="replacement",
+                    started_at=replacement_time,
+                    title="Replacement",
+                )
             )
-        )
-        session.get(Streamer, 1).title = "Replacement"
-        session.commit()
+            session.get(Streamer, 1).title = "Replacement"
+            session.commit()
     assert (await ctx.client.post("/eventsub", **request)).status_code == 204
     assert (await ctx.client.post("/eventsub", **request)).status_code == 204
     with ctx.database.sync_session_factory() as session:
         chapter = session.query(StreamEvent).one()
         assert chapter.stream_id == 1 and chapter.title == "After"
-        assert session.get(Stream, 2).title == "Replacement"
-        assert session.get(Streamer, 1).title == "Replacement"
+        assert chapter.delivery_key is not None
+        assert session.get(Stream, 1).ended_at is not None
+        assert session.query(Stream).count() == (2 if replacement else 1)
+        if replacement:
+            assert session.get(Stream, 2).title == "Replacement"
+            assert session.get(Streamer, 1).title == "Replacement"
+
+
+@pytest.mark.asyncio
+async def test_offline_emitted_before_local_recording_start_stops_owned_child(
+    ctx, monkeypatch
+):
+    import asyncio
+    from app.utils.async_db_utils import run_in_thread_pool
+    from tests.test_processing_callback_ownership import close_owned
+
+    ctx.app.state.recording_manager = None
+    manager = await run_in_thread_pool(
+        dependencies.get_application_recording_manager, ctx.connection
+    )
+    ctx.registry.recording_service = manager
+    lifecycle = manager.orchestrator.lifecycle_manager
+    children = []
+
+    async def spawn(**kwargs):
+        child = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-c",
+            "import sys; print('ready', flush=True); sys.stdin.buffer.read()",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            start_new_session=True,
+        )
+        children.append(child)
+        assert await child.stdout.readline() == b"ready\n"
+        manager.process_manager.active_processes[f"stream_{kwargs['stream'].id}"] = child
+        return child
+
+    async def monitor(recording_id):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(manager.process_manager, "start_recording_process", spawn)
+    monkeypatch.setattr(lifecycle, "monitor_and_process_recording", monitor)
+    online_body = payload("stream.online")
+    online_body["event"]["started_at"] = (
+        datetime.now(timezone.utc) - timedelta(hours=1)
+    ).isoformat()
+    online_request = signed(ctx, online_body)
+    # Both emissions precede delayed local admission; only stream identity is stable.
+    offline_request = signed(ctx, payload("stream.offline"))
+    try:
+        assert (await ctx.client.post("/eventsub", **online_request)).status_code == 204
+        assert len(children) == 1 and children[0].returncode is None
+        with ctx.database.sync_session_factory() as session:
+            start = session.query(Recording).one().start_time.replace(tzinfo=timezone.utc)
+            emitted = datetime.fromisoformat(
+                offline_request["headers"]["Twitch-Eventsub-Message-Timestamp"]
+            )
+            assert start > emitted
+        assert (await ctx.client.post("/eventsub", **offline_request)).status_code == 204
+        assert (await ctx.client.post("/eventsub", **offline_request)).status_code == 204
+        assert children[0].returncode is not None
+        assert len(children) == 1
+        with ctx.database.sync_session_factory() as session:
+            assert session.query(Recording).one().status == "stopped"
+            assert session.query(Stream).one().ended_at is not None
+            assert session.query(StreamEvent).count() == 1
+        assert lifecycle._postprocessing_scheduled == {1}
+    finally:
+        for child in children:
+            if child.returncode is None:
+                child.kill()
+            await child.wait()
+        await close_owned([ctx.app])
 
 
 @pytest.mark.parametrize(
