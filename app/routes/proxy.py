@@ -8,10 +8,12 @@ automatic health checks and failover to the best available proxy.
 """
 
 import logging
+from collections.abc import Callable
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, field_validator
+from sqlalchemy.orm import Session
 
 
 from app.models import ProxySettings, RecordingSettings
@@ -375,7 +377,9 @@ async def get_best_proxy(
     return {"proxy": None, "message": "Proxy not found in database"}
 
 
-def _find_proxy_details(session_factory, proxy_url: str):
+def _find_proxy_details(
+    session_factory: Callable[[], Session], proxy_url: str
+) -> dict[str, str | int | float | bool | None] | None:
     with session_factory() as db:
         rows = db.query(ProxySettings).all()
         if rows:

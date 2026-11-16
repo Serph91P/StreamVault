@@ -44,6 +44,10 @@ def test_complete_rewrite_inventory_is_in_the_strict_ci_gate():
         ("app/routes/auth.py", "_login_in_worker"),
         ("app/utils/path_utils.py", "_update_recording_path"),
         ("app/utils/path_utils.py", "_update_episode_number"),
+        ("app/routes/live.py", "get_live_streaming_service"),
+        ("app/routes/proxy.py", "_find_proxy_details"),
+        ("app/services/queues/task_queue_manager.py", "build_tasks"),
+        ("app/services/system/cleanup_service.py", "__init__"),
         (
             "app/services/twitch_upstream_coordinator.py",
             "_assert_local_process_cleanup_authorized",

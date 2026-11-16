@@ -1056,7 +1056,7 @@ class TaskQueueManager:
                 "ts_file_path, output_dir, streamer_name, and started_at must not be empty or None"
             )
 
-        def build_tasks():
+        def build_tasks() -> list[Task]:
             task_factory = RecordingTaskFactory()
             tasks = task_factory.create_post_processing_chain(
                 stream_id=stream_id,

@@ -37,7 +37,7 @@ class CleanupService:
         session_factory: Callable[[], Session] | None = None,
         settings: Settings | None = None,
         activity_logger: LoggingService | None = None,
-    ):
+    ) -> None:
         self._session_factory = session_factory or SessionLocal
         self._settings = settings
         self._activity_logger = activity_logger

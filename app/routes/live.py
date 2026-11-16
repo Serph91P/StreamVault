@@ -47,7 +47,7 @@ logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/api/live", tags=["live"])
 
 
-def get_live_streaming_service(connection: HTTPConnection):
+def get_live_streaming_service(connection: HTTPConnection) -> LiveStreamingService:
     if not hasattr(connection.app.state, "live_streaming_service_lock"):
         return live_streaming_service
     return _get_application_live_streaming_service(connection.app)
