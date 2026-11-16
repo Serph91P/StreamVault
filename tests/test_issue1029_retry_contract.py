@@ -639,6 +639,48 @@ async def test_callback_drains_committing_worker_before_retry(
         event.remove(ctx.database.sync_session_factory, "after_commit", after_commit)
 
 
+@pytest.mark.asyncio
+async def test_update_retry_keeps_original_stream_after_new_stream_starts(ctx):
+    seed(ctx, "channel.update")
+    request = signed(ctx, payload("channel.update"))
+    commits = 0
+
+    def fail_chapter(session):
+        nonlocal commits
+        commits += 1
+        if commits == 2:
+            raise SQLAlchemyError("chapter commit unavailable")
+
+    event.listen(ctx.database.sync_session_factory, "before_commit", fail_chapter)
+    try:
+        assert (await ctx.client.post("/eventsub", **request)).status_code == 500
+    finally:
+        event.remove(ctx.database.sync_session_factory, "before_commit", fail_chapter)
+    replacement_time = datetime.fromisoformat(
+        request["headers"]["Twitch-Eventsub-Message-Timestamp"]
+    ) + timedelta(seconds=1)
+    with ctx.database.sync_session_factory() as session:
+        session.get(Stream, 1).ended_at = replacement_time
+        session.add(
+            Stream(
+                id=2,
+                streamer_id=1,
+                twitch_stream_id="replacement",
+                started_at=replacement_time,
+                title="Replacement",
+            )
+        )
+        session.get(Streamer, 1).title = "Replacement"
+        session.commit()
+    assert (await ctx.client.post("/eventsub", **request)).status_code == 204
+    assert (await ctx.client.post("/eventsub", **request)).status_code == 204
+    with ctx.database.sync_session_factory() as session:
+        chapter = session.query(StreamEvent).one()
+        assert chapter.stream_id == 1 and chapter.title == "After"
+        assert session.get(Stream, 2).title == "Replacement"
+        assert session.get(Streamer, 1).title == "Replacement"
+
+
 @pytest.mark.parametrize(
     "fault",
     [
@@ -656,6 +698,7 @@ async def test_callback_drains_committing_worker_before_retry(
         "stop-commit-cancel",
         "state-cancel",
         "replacement-live",
+        "new-stream",
     ],
 )
 async def test_real_manager_offline_retry_stops_child_after_termination_failure(
@@ -729,12 +772,14 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
         return child
 
     async def terminate(process_id, *, recording_id):
-        assert process_id == "stream_1"
-        assert recording_id == 1
+        assert process_id == (
+            f"stream_{recording_id}" if fault == "new-stream" else "stream_1"
+        )
+        assert recording_id in ({1, 2} if fault == "new-stream" else {1})
         if armed and fault in {"cancel", "timeout"}:
             entered.set()
             await asyncio.Event().wait()
-        if armed and fault in {"raise", "replacement-live"}:
+        if armed and fault in {"raise", "replacement-live", "new-stream"}:
             raise OSError("synthetic termination boundary unavailable")
         if armed and fault == "false":
             return False
@@ -892,10 +937,51 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
             assert children[0].returncode is None and children[1].returncode is None
             manager.process_manager.long_stream_processes.pop("stream_1")
             manager.process_manager.active_processes["stream_1"] = children[0]
+        if fault == "new-stream":
+            replacement_time = datetime.fromisoformat(
+                request["headers"]["Twitch-Eventsub-Message-Timestamp"]
+            ) + timedelta(seconds=1)
+            with ctx.database.sync_session_factory() as session:
+                session.add(
+                    Stream(
+                        id=2,
+                        streamer_id=1,
+                        twitch_stream_id="replacement-stream",
+                        started_at=replacement_time,
+                    )
+                )
+                session.flush()
+                session.add(
+                    Recording(
+                        id=2,
+                        stream_id=2,
+                        status="recording",
+                        start_time=replacement_time,
+                        path=str(
+                            Path(ctx.app.state.settings.RECORDING_DIRECTORY)
+                            / "replacement.ts"
+                        ),
+                    )
+                )
+                session.get(Streamer, 1).is_live = True
+                session.commit()
+            await spawn(stream=SimpleNamespace(id=2))
+            lifecycle.state_manager.add_active_recording(
+                2, {"stream_id": 2, "streamer_id": 1, "file_path": "replacement.ts"}
+            )
         monkeypatch.setattr(eventsub, "TIMEOUTS", original_timeouts)
         assert (await ctx.client.post("/eventsub", **request)).status_code == 204
         assert (await ctx.client.post("/eventsub", **request)).status_code == 204
         assert children[0].returncode is not None
+        if fault == "new-stream":
+            assert len(children) == 2 and children[1].returncode is None
+            with ctx.database.sync_session_factory() as session:
+                assert session.get(Stream, 2).ended_at is None
+                assert session.get(Streamer, 1).is_live is True
+                assert session.get(Recording, 1).status == "stopped"
+                assert session.get(Recording, 2).status == "recording"
+            assert lifecycle._postprocessing_scheduled == {1}
+            return
         assert len(children) == (
             2 if fault in {"db-replacement", "replacement-live"} else 1
         )

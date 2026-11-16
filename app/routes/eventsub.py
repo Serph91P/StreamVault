@@ -9,7 +9,7 @@ from app.dependencies import get_application_event_registry
 from app.bootstrap.settings import resolve_app_settings
 from app.config.settings import settings
 from app.config.constants import TIMEOUTS
-from app.events.event_catalog import delivery_key
+from app.events.event_catalog import delivery_key, delivery_timestamp
 
 logger = logging.getLogger("streamvault")
 
@@ -134,6 +134,7 @@ async def eventsub_callback(request: Request):
                             ).encode()
                         ).hexdigest()
                     )
+                    time_token = delivery_timestamp.set(msg_time)
                     try:
                         await asyncio.wait_for(
                             handler(event_data), timeout=TIMEOUTS.EVENT_HANDLER_TIMEOUT
@@ -168,6 +169,7 @@ async def eventsub_callback(request: Request):
                         raise
                     finally:
                         delivery_key.reset(token)
+                        delivery_timestamp.reset(time_token)
                 else:
                     logger.warning(f"No handler found for event type: {event_type}.")
                     return Response(status_code=400)

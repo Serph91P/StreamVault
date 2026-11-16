@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from app.models import (
     Category,
@@ -21,6 +22,9 @@ from app.models import (
 
 # Request-local identity also propagates into the owned catalog worker thread.
 delivery_key: ContextVar[str | None] = ContextVar("eventsub_delivery_key", default=None)
+delivery_timestamp: ContextVar[datetime | None] = ContextVar(
+    "eventsub_delivery_timestamp", default=None
+)
 
 
 @dataclass(frozen=True)
@@ -65,12 +69,34 @@ def prepare_update(
                 streamer.profile_image_url,
                 streamer.is_live,
             )
-        streamer.title = data.get("title")
-        streamer.category_name = category_name
-        streamer.language = data.get("language")
-        streamer.last_updated = datetime.now(timezone.utc)
+        cutoff = delivery_timestamp.get()
+        newer_stream = (
+            cutoff is not None
+            and session.query(Stream.id)
+            .filter(Stream.streamer_id == streamer.id, Stream.started_at > cutoff)
+            .first()
+            is not None
+        )
+        if not newer_stream:
+            streamer.title = data.get("title")
+            streamer.category_name = category_name
+            streamer.language = data.get("language")
+            streamer.last_updated = datetime.now(timezone.utc)
         session.commit()
-        stream = resolve_target(session, streamer.id)
+        if newer_stream:
+            # A failed delivery belongs to its original stream, not its replacement.
+            stream = (
+                session.query(Stream)
+                .filter(
+                    Stream.streamer_id == streamer.id,
+                    or_(Stream.started_at.is_(None), Stream.started_at <= cutoff),
+                    or_(Stream.ended_at.is_(None), Stream.ended_at >= cutoff),
+                )
+                .order_by(Stream.started_at.desc())
+                .first()
+            )
+        else:
+            stream = resolve_target(session, streamer.id)
         if stream is not None:
             if data.get("title"):
                 stream.title = data["title"]
@@ -170,20 +196,31 @@ def prepare_offline(
         )
         if streamer is None:
             return None
-        streamer.is_live = False
-        streamer.last_updated = datetime.now(timezone.utc)
-        streams = (
-            session.query(Stream)
-            .filter(Stream.streamer_id == streamer.id, Stream.ended_at.is_(None))
-            .order_by(Stream.started_at.desc())
-            .all()
+        cutoff = delivery_timestamp.get()
+        newer_stream = (
+            cutoff is not None
+            and session.query(Stream.id)
+            .filter(Stream.streamer_id == streamer.id, Stream.started_at > cutoff)
+            .first()
+            is not None
         )
+        if not newer_stream:
+            streamer.is_live = False
+            streamer.last_updated = datetime.now(timezone.utc)
+        query = session.query(Stream).filter(
+            Stream.streamer_id == streamer.id, Stream.ended_at.is_(None)
+        )
+        if cutoff is not None:
+            query = query.filter(
+                or_(Stream.started_at.is_(None), Stream.started_at <= cutoff)
+            )
+        streams = query.order_by(Stream.started_at.desc()).all()
         current = streams[0] if streams else None
         ended_at = datetime.now(timezone.utc)
         # Older captures remain recovery-owned, but cannot attract new chapter events.
         for stream in streams:
             stream.ended_at = ended_at
-        if current:
+        if current and not newer_stream:
             streamer.last_stream_title = current.title
             streamer.last_stream_category_name = current.category_name
             streamer.last_stream_ended_at = current.ended_at
@@ -201,21 +238,25 @@ def offline_recording_id(
 ) -> int | None:
     with session_factory() as session:
         stream_id = event.stream_id
+        cutoff = delivery_timestamp.get()
         if stream_id is None:
-            recent = (
-                session.query(Stream)
-                .filter(Stream.streamer_id == event.streamer_id)
-                .order_by(Stream.created_at.desc())
-                .first()
+            query = session.query(Stream).filter(
+                Stream.streamer_id == event.streamer_id
             )
+            if cutoff is not None:
+                query = query.filter(
+                    or_(Stream.started_at.is_(None), Stream.started_at <= cutoff)
+                )
+            recent = query.order_by(Stream.created_at.desc()).first()
             if recent is None:
                 return None
             stream_id = recent.id
-        recording = (
-            session.query(Recording)
-            .filter(Recording.stream_id == stream_id, Recording.status == "recording")
-            .first()
+        recordings = session.query(Recording).filter(
+            Recording.stream_id == stream_id, Recording.status == "recording"
         )
+        if cutoff is not None:
+            recordings = recordings.filter(Recording.start_time <= cutoff)
+        recording = recordings.first()
         return recording.id if recording else None
 
 
