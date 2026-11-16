@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from app.services.core.auth_service import AuthService
 from app.services.core.api_key_service import ApiKeyService
 from app.database import DatabaseLifecycle, SessionLocal
-from app.config.settings import Settings
+from app.config.settings import Settings, settings
 from sqlalchemy.orm import Session
 import logging
 from urllib.parse import urlsplit
@@ -240,6 +240,18 @@ class AuthMiddleware:
             from starlette.websockets import WebSocket as StarletteWebSocket
 
             ws = StarletteWebSocket(scope, receive, send)
+            origins = ws.headers.getlist("origin")
+            # Missing Origin preserves credential-authenticated non-browser clients.
+            # Present origins must be singular and exact, never inferred from proxy headers.
+            if origins:
+                config = (
+                    self._settings_provider()
+                    if self._settings_provider is not None
+                    else settings
+                )
+                if len(origins) != 1 or origins[0] not in config.allowed_origins:
+                    await ws.close(code=1008, reason="Origin not allowed")
+                    return
             bearer_token = _extract_bearer_token(scope.get("headers", []))
             access_token = ws.cookies.get("access_token") or bearer_token
             # A Bearer credential may be either a current JWT or a legacy opaque
