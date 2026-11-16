@@ -97,7 +97,7 @@ markdown==3.11.3
     # via apprise
 markupsafe==3.0.4
     # via mako
-multidict==6.9.1
+multidict==7.2.1
     # via
     #   aiohttp
     #   yarl
