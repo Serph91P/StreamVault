@@ -12,6 +12,14 @@ async function selectBuild(dist) {
   const target = path.join(process.env.PWA_TEST_FRONTEND, 'dist')
   await symlink(dist, target + '.next')
   await rename(target + '.next', target)
+  if (process.env.PWA_BACKEND_SWITCH) {
+    const request = `${Date.now()}-${dist === process.env.PWA_TEST_OLD ? 'old' : 'new'}`
+    await writeFile(process.env.PWA_BACKEND_SWITCH, request)
+    await expect.poll(async () => {
+      try { return await readFile(process.env.PWA_BACKEND_SWITCH + '.ready', 'utf8') }
+      catch { return '' }
+    }).toBe(request)
+  }
 }
 async function verifyFactory(context, dist) {
   const compiled = await readFile(path.join(dist, 'sw.js'), 'utf8')
@@ -31,12 +39,25 @@ async function verifyFactory(context, dist) {
   for (const icon of ['maskable-icon-512x512.png', 'maskable-icon-192x192.png', 'icon-512x512.png']) expect(entries).toContain(icon)
   const api = await context.request.get(origin + '/api/system/info', { headers: { Accept: 'application/json' }, maxRedirects: 0 })
   expect(api.status()).toBe(401)
+  const privacy = []
+  for (const [method, endpoint, status] of [
+    ['GET', '/auth/login', 200], ['HEAD', '/auth/login', 200],
+    ['GET', '/auth/private', 401], ['POST', '/api/system/info', 401],
+  ]) {
+    const response = await context.request.fetch(origin + endpoint, { method, headers: { Accept: 'application/json' }, maxRedirects: 0 })
+    expect(response.status()).toBe(status)
+    expect(response.headers()['content-type']).toContain('application/json')
+    expect(response.headers()['cache-control']).toBeUndefined()
+    privacy.push({ method, endpoint, status })
+  }
+  const htmlHead = await context.request.head(origin + '/auth/login', { headers: { Accept: 'text/html' } })
+  expect(htmlHead.headers()['cache-control']).toBe('no-store')
   const servedWorker = await (await context.request.get(origin + '/sw.js')).text()
   expect(servedWorker).toContain(compiled)
   expect(servedWorker).toContain("importScripts('/pwa/push-sw.js')")
   const push = await (await context.request.get(origin + '/pwa/push-sw.js')).body()
   expect(push.equals(await readFile(new URL('../../app/frontend/public/push-sw.js', import.meta.url)))).toBe(true)
-  return { inventory, protectedApi: api.status(), canonicalPushHash: hash(push), servedWorkerHash: hash(servedWorker) }
+  return { inventory, privacy, protectedApi: api.status(), canonicalPushHash: hash(push), servedWorkerHash: hash(servedWorker) }
 }
 
 async function completeUpgrade(context, page, row, input, documents, requests, traffic, responses) {
@@ -127,10 +148,49 @@ async function completeUpgrade(context, page, row, input, documents, requests, t
   row.explicitUpdateAfterRemount = { before: beforeExplicit, after: documents.length }
   await peer.close()
 
+  // Discover a real new worker while a real login POST is already in flight.
+  expect((await context.request.post(origin + '/auth/logout')).status()).toBe(200)
+  await page.goto(origin + '/auth/login?returnTo=%2Fsettings%3Fsection%3Dpwa%23install')
+  await expect(username).toBeVisible()
+  await username.fill('synthetic-pwa-admin')
+  await password.fill(process.env.PWA_TEST_PASSWORD)
+  const inFlightInput = await username.elementHandle()
+  const beforeInFlight = documents.length
+  let releaseInFlight
+  const inFlightGate = new Promise(resolve => { releaseInFlight = resolve })
+  let inFlight = false
+  await page.route('**/auth/login', async route => {
+    if (route.request().method() === 'POST') { inFlight = true; await inFlightGate }
+    await route.continue()
+  })
+  await signIn.click()
+  await expect.poll(() => inFlight).toBe(true)
+  await selectBuild(process.env.PWA_TEST_NEW)
+  await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update() })
+  await expect.poll(() => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()).waiting)).toBe(true)
+  expect(documents.length).toBe(beforeInFlight)
+  expect(await inFlightInput.evaluate(node => node.isConnected)).toBe(true)
+  releaseInFlight()
+  await expect(page).toHaveURL(origin + '/settings?section=pwa#install')
+  await expect(page.getByRole('heading', { name: 'Progressive Web App', exact: true })).toBeVisible()
+  await expect.poll(() => documents.length).toBe(beforeInFlight + 1)
+  await page.unroute('**/auth/login')
+  row.discoveryDuringLogin = { before: beforeInFlight, after: documents.length, target: page.url() }
+
   const persistent = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }))
   expect(JSON.stringify(persistent)).not.toContain('synthetic-unsaved-pwa-name')
   expect(JSON.stringify(persistent)).not.toContain(process.env.PWA_TEST_PASSWORD)
   row.noDraftInWebStorage = true
+  const csrf = await context.request.post(origin + '/auth/logout', { headers: { Origin: 'https://untrusted.invalid', 'Sec-Fetch-Site': 'cross-site' } })
+  expect(csrf.status()).toBe(403)
+  row.csrfDenied = csrf.status()
+  const cachedPaths = await page.evaluate(async () => {
+    const paths = []
+    for (const name of await caches.keys()) for (const request of await (await caches.open(name)).keys()) paths.push(new URL(request.url).pathname)
+    return paths
+  })
+  expect(cachedPaths.filter(path => /^\/(auth|api)\//.test(path))).toEqual([])
+  row.noPrivateCacheEntries = true
   await context.setOffline(true)
   await page.goto(origin + '/streamers?offline=pwa')
   await expect(page.locator('#app')).not.toBeEmpty()
@@ -141,6 +201,10 @@ async function completeUpgrade(context, page, row, input, documents, requests, t
   expect(offlineResponse.status).toBe(200)
   expect(offlineResponse.bytes).toBe(await readFile(new URL('../../app/frontend/public/push-sw.js', import.meta.url), 'utf8'))
   row.offline = { shell: true, canonicalPush: true, navigation: page.url() }
+  const offlineAuth = await context.newPage()
+  await expect(offlineAuth.goto(origin + '/auth/login')).rejects.toThrow()
+  await offlineAuth.close()
+  row.offline.authDocumentNotCached = true
   await context.setOffline(false)
 }
 
@@ -198,6 +262,25 @@ try {
       cold.delayedNativeRedirects = heldRequests
       cold.refreshes = responses.filter(r => r.path === '/auth/refresh').length
     }
+    let legacyCache
+    if (process.env.PWA_BACKEND_SWITCH) {
+      const cacheProbe = await context.newPage()
+      const cacheCDP = await context.newCDPSession(cacheProbe)
+      await cacheCDP.send('Network.enable')
+      const cacheDocuments = []
+      cacheCDP.on('Network.responseReceived', ({ type, response }) => {
+        if (type === 'Document') cacheDocuments.push({ url: response.url, fromDiskCache: response.fromDiskCache, headers: response.headers })
+      })
+      // Populate then ordinarily revisit the exact migration URL on the original
+      // legacy factory. No route interception or cache disable/clear is involved.
+      await cacheProbe.goto(origin + '/auth/login')
+      await cacheProbe.goto('about:blank')
+      const cached = await cacheProbe.goto(origin + '/auth/login')
+      expect((await cached.body()).equals(await readFile(path.join(process.env.PWA_TEST_OLD, 'index.html')))).toBe(true)
+      expect(cacheDocuments.at(-1).fromDiskCache).toBe(true)
+      legacyCache = cacheDocuments
+      await cacheProbe.close()
+    }
     // A warm navigation acquires the first installed controller, even without clientsClaim.
     await page.reload()
     await expect(username).toBeVisible()
@@ -205,6 +288,37 @@ try {
     const input = await username.elementHandle()
     await username.fill('synthetic-unsaved-pwa-name')
     const baseline = { documents: documents.length, requests: requests.length }
+    let native401
+    if (process.env.PWA_NATIVE_RACES === '1') {
+      const responseStart = responses.length
+      const urlBefore = page.url()
+      let releaseRefresh
+      const refreshGate = new Promise(resolve => { releaseRefresh = resolve })
+      let heldRefreshes = 0
+      await page.route('**/auth/refresh', async route => {
+        heldRefreshes++
+        await refreshGate
+        await route.continue()
+      })
+      await page.evaluate(() => {
+        window.__pwaNativeRace = Promise.allSettled([
+          '/api/system/info', '/api/streamers', '/api/notifications/settings',
+        ].map(endpoint => window.__pwaTestClient.request(endpoint, { headers: { Accept: 'application/json' } })))
+      })
+      await expect.poll(() => responses.slice(responseStart).filter(r => r.path.startsWith('/api/') && r.status === 401).length).toBe(3)
+      await expect.poll(() => heldRefreshes).toBe(1)
+      releaseRefresh()
+      await page.evaluate(() => window.__pwaNativeRace.then(results => {
+        if (results.some(result => result.status !== 'rejected' || result.reason.code !== 'auth_lost')) throw new Error('Expected genuine auth-loss errors')
+      }))
+      await page.unroute('**/auth/refresh')
+      await expect(username).toHaveValue('synthetic-unsaved-pwa-name')
+      expect(await input.evaluate(n => n.isConnected)).toBe(true)
+      expect(documents.length).toBe(baseline.documents)
+      expect(page.url()).toBe(urlBefore)
+      native401 = responses.slice(responseStart)
+      expect(native401.filter(r => r.path === '/auth/refresh')).toEqual([{ path: '/auth/refresh', status: 401 }])
+    }
     const oldBytes = await (await context.request.get(origin + '/sw.js')).body()
     await selectBuild(process.env.PWA_TEST_NEW)
     const newBytes = await (await context.request.get(origin + '/sw.js')).body()
@@ -221,7 +335,7 @@ try {
       inputStillConnected = false
       inputContextDestroyed = true
     }
-    const row = { mobile, cold, oldWorkerHash: hash(oldBytes), newWorkerHash: hash(newBytes), baseline,
+    const row = { mobile, cold, legacyCache, native401, oldWorkerHash: hash(oldBytes), newWorkerHash: hash(newBytes), baseline,
       documents, requests, submissions, workers,
       inputStillConnected, inputContextDestroyed, value: await username.inputValue(),
       waiting: await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()).waiting),
@@ -250,7 +364,11 @@ try {
       const fixedWorker = context.serviceWorkers().at(-1)
       await expect.poll(() => fixedWorker.evaluate(() => self.registration.active?.state)).toBe('activated')
       const resumed = await context.newPage()
-      const resumedErrors = [], resumedResponses = [], networkDocuments = []
+      const resumedErrors = [], resumedResponses = [], networkDocuments = [], resumedDocuments = [], resumedRequests = []
+      resumed.on('domcontentloaded', () => resumedDocuments.push(resumed.url()))
+      resumed.on('request', request => {
+        if (request.isNavigationRequest() && request.frame() === resumed.mainFrame()) resumedRequests.push(request.url())
+      })
       const resumedCDP = await context.newCDPSession(resumed)
       await resumedCDP.send('Network.enable')
       resumedCDP.on('Network.responseReceived', event => { if (event.type === 'Document') networkDocuments.push({ url: event.response.url, status: event.response.status, fromDiskCache: event.response.fromDiskCache, headers: Object.fromEntries(Object.entries(event.response.headers).filter(([key]) => /cache-control|last-modified|etag/i.test(key))) }) })
@@ -262,10 +380,33 @@ try {
       const directResponse = await context.request.get(origin + '/auth/login')
       const directIndexMatches = (await directResponse.body()).equals(await readFile(path.join(process.env.PWA_TEST_NEW, 'index.html')))
       await writeFile(path.join(output, 'legacy-resumed-diagnostic.json'), JSON.stringify({ resumedIndexMatches, directIndexMatches, networkDocuments, resumedErrors, resumedResponses, html: await resumed.locator('body').innerText() }, null, 2))
+      if (process.env.PWA_EXPECT_CACHE_LOSS === '1') {
+        expect(resumedIndexMatches).toBe(false)
+        expect(directIndexMatches).toBe(true)
+        expect(networkDocuments.at(-1).fromDiskCache).toBe(true)
+        expect(resumedResponses.filter(response => response.status === 404)).toHaveLength(2)
+        await expect(resumed.getByLabel('Username', { exact: true })).toHaveCount(0)
+        row.expectedLegacyCacheLoss = { networkDocuments, resumedErrors, resumedResponses }
+        await writeFile(path.join(output, 'worker-observations.json'), JSON.stringify(results, null, 2))
+        await context.close()
+        continue
+      }
       await expect(resumed.getByLabel('Username', { exact: true })).toBeVisible()
       await expect.poll(() => resumed.evaluate(async () => !(await navigator.serviceWorker.getRegistration()).waiting)).toBe(true)
       expect((await response.body()).equals(await readFile(path.join(process.env.PWA_TEST_NEW, 'index.html')))).toBe(true)
-      row.safeLateActivation = { waiting: false, newDocumentBytes: true }
+      row.safeLateActivation = { waiting: false, newDocumentBytes: true, legacyCache,
+        networkDocuments, resumedErrors, resumedResponses, resumedDocuments, resumedRequests,
+        oldIndexHash: hash(await readFile(path.join(process.env.PWA_TEST_OLD, 'index.html'))),
+        newIndexHash: hash(await response.body()), fromWorker: response.fromServiceWorker(),
+        navigation: await resumed.evaluate(() => performance.getEntriesByType('navigation').map(e => ({ name: e.name, type: e.type }))),
+      }
+      expect(resumedErrors).toEqual([])
+      expect(resumedResponses.filter(response => response.status >= 400)).toEqual([])
+      expect(resumedDocuments).toHaveLength(1)
+      expect(resumedRequests).toHaveLength(1)
+      expect(networkDocuments.at(-1).fromDiskCache).toBe(false)
+      expect(response.fromServiceWorker()).toBe(true)
+      expect(response.headers()['cache-control']).toBe('no-store')
     }
     await writeFile(path.join(output, 'worker-observations.json'), JSON.stringify(results, null, 2))
     await context.close()

@@ -2,7 +2,24 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import type { RuntimeCaching } from 'workbox-build'
 import { compactProductionChunks } from './scripts/compact-production-chunks'
+
+// Auth stays outside precache and SPA fallback. Only this public document route
+// bypasses legacy HTTP-cache entries; JSON, other auth paths and methods do not.
+export const publicLoginNavigation: RuntimeCaching = {
+  urlPattern: ({ url, sameOrigin, request }) => sameOrigin
+    && request.mode === 'navigate' && url.pathname === '/auth/login',
+  method: 'GET',
+  handler: 'NetworkOnly',
+  options: {
+    plugins: [{
+      // Workbox 7 ignores fetchOptions for navigation requests. Its supported
+      // request hook preserves the original request while bypassing HTTP cache.
+      requestWillFetch: async ({ request }) => new Request(request, { cache: 'no-store' }),
+    }],
+  },
+}
 
 function retryableSettingsPanelHost(): Plugin {
   const publicPath = '/assets/settings-panel-host-loader.js'
@@ -96,6 +113,7 @@ export default defineConfig({
         // Prevent service worker from intercepting API, auth, and WebSocket paths
         navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/ws/, /^\/eventsub/, /^\/health/],
         runtimeCaching: [
+          publicLoginNavigation,
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',

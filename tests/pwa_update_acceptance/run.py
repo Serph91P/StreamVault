@@ -24,6 +24,17 @@ parser.add_argument("--new", type=Path, required=True)
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--expect-loss", action="store_true")
 parser.add_argument("--full", action="store_true")
+parser.add_argument(
+    "--native-races",
+    action="store_true",
+    help="Exercise original ApiClient through a test-only source-export accessor",
+)
+parser.add_argument("--expect-cache-loss", action="store_true")
+parser.add_argument(
+    "--legacy-source",
+    type=Path,
+    help="Exact original source export for legacy HTTP-cache population",
+)
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 for dist in (args.old, args.new):
@@ -71,28 +82,38 @@ with tempfile.TemporaryDirectory(
         PWA_TEST_OUTPUT=str(args.output.resolve()),
         PWA_EXPECT_LOSS=str(int(args.expect_loss)),
         PWA_FULL=str(int(args.full)),
+        PWA_NATIVE_RACES=str(int(args.native_races)),
+        PWA_EXPECT_CACHE_LOSS=str(int(args.expect_cache_loss)),
     )
+    if args.legacy_source:
+        assert not args.full, "Legacy server switching is only for first migration"
+        env["PWA_BACKEND_SWITCH"] = str(work / "backend-switch")
+        env["PYTHONPATH"] = str(args.legacy_source.resolve()) + os.pathsep + str(HERE)
+    generation = 0
     with (args.output / "backend.log").open("w") as log:
-        process = subprocess.Popen(
-            [
-                str(ROOT / ".venv/bin/python"),
-                "-m",
-                "uvicorn",
-                "backend:app",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(port),
-                "--lifespan",
-                "off",
-                "--no-access-log",
-            ],
-            cwd=work,
-            env=env,
-            stdout=log,
-            stderr=log,
-        )
-        try:
+
+        def start_backend():
+            return subprocess.Popen(
+                [
+                    str(ROOT / ".venv/bin/python"),
+                    "-m",
+                    "uvicorn",
+                    "backend:app",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(port),
+                    "--lifespan",
+                    "off",
+                    "--no-access-log",
+                ],
+                cwd=work,
+                env=env,
+                stdout=log,
+                stderr=log,
+            )
+
+        def wait_ready():
             deadline = time.monotonic() + 30
             while True:
                 if process.poll() is not None:
@@ -117,21 +138,59 @@ with tempfile.TemporaryDirectory(
                 if time.monotonic() > deadline:
                     raise RuntimeError("Factory host readiness failed; see backend.log")
                 time.sleep(0.1)
-            result = subprocess.run(
-                ["node", str(HERE / "browser.mjs")],
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
-            print(result.stdout)
+
+        process = start_backend()
+        result = None
+        try:
+            wait_ready()
+            with (
+                (args.output / "browser.stdout").open("w") as stdout,
+                (args.output / "browser.stderr").open("w") as stderr,
+            ):
+                result = subprocess.Popen(
+                    ["node", str(HERE / "browser.mjs")],
+                    env=env,
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+                deadline = time.monotonic() + 300
+                last_switch = ""
+                while result.poll() is None:
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("Browser acceptance exceeded 300 seconds")
+                    switch = work / "backend-switch"
+                    if args.legacy_source and switch.exists():
+                        requested = switch.read_text()
+                        if requested != last_switch:
+                            process.terminate()
+                            process.wait(timeout=15)
+                            generation += 1
+                            source = (
+                                args.legacy_source.resolve()
+                                if requested.endswith("old")
+                                else ROOT
+                            )
+                            env["PYTHONPATH"] = str(source) + os.pathsep + str(HERE)
+                            env["DATABASE_URL"] = (
+                                f"sqlite:///{work / ('fixture-' + str(generation) + '.sqlite')}"
+                            )
+                            process = start_backend()
+                            wait_ready()
+                            switch.with_suffix(".ready").write_text(requested)
+                            last_switch = requested
+                    time.sleep(0.05)
+            print((args.output / "browser.stdout").read_text())
             if result.returncode:
                 print(
-                    result.stderr.replace(
-                        env["PWA_TEST_PASSWORD"], "[synthetic-password]"
-                    ).replace(env["PWA_TEST_JWT"], "[synthetic-key]")
+                    (args.output / "browser.stderr")
+                    .read_text()
+                    .replace(env["PWA_TEST_PASSWORD"], "[synthetic-password]")
+                    .replace(env["PWA_TEST_JWT"], "[synthetic-key]")
                 )
                 raise RuntimeError(f"Browser acceptance failed: {result.returncode}")
         finally:
+            if result is not None and result.poll() is None:
+                result.terminate()
+                result.wait(timeout=15)
             process.terminate()
             process.wait(timeout=15)
