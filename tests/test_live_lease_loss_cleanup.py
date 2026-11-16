@@ -176,10 +176,16 @@ async def test_inactive_session_is_idempotently_cleanable(live):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "protection", ["fingerprint_mismatch", "replacement_adopts_same_process"]
+    "protection",
+    [
+        "fingerprint_mismatch",
+        "replacement_adopts_same_process",
+        "authorization_unavailable",
+        "identity_unavailable",
+    ],
 )
 async def test_lease_loss_never_signals_foreign_identity_but_cleans_local_sink(
-    live, protection
+    live, protection, monkeypatch
 ):
     service, session, _, factory, _, pipe = live
     session.user_id = "956"
@@ -192,9 +198,29 @@ async def test_lease_loss_never_signals_foreign_identity_but_cleans_local_sink(
             lease.live_session_id = "replacement956"
         else:
             lease.state = "RELEASED"
-            session.process_start_fingerprint = "not-the-child-fingerprint"
+            if protection == "fingerprint_mismatch":
+                session.process_start_fingerprint = "not-the-child-fingerprint"
         db.commit()
         before = list(db.execute(select(TwitchUpstreamLease.__table__)).tuples())
+    if protection == "authorization_unavailable":
+
+        async def unavailable(**kwargs):
+            raise OSError("controlled authorization read failure")
+
+        monkeypatch.setattr(
+            service._coordinator, "assert_local_process_cleanup_authorized", unavailable
+        )
+    elif protection == "identity_unavailable":
+        inspect = service._coordinator.inspect_process_identity
+
+        async def unavailable_identity(pid):
+            if pid == session.streamlink_process.pid:
+                raise ProcessLookupError("controlled native identity lookup failure")
+            return await inspect(pid)
+
+        monkeypatch.setattr(
+            service._coordinator, "inspect_process_identity", unavailable_identity
+        )
     await asyncio.wait_for(service._monitor_session(session.session_id), 3)
     assert session.streamlink_process.returncode is None
     assert session.ffmpeg_process.returncode is not None
@@ -214,6 +240,45 @@ async def test_lease_loss_never_signals_foreign_identity_but_cleans_local_sink(
         assert (
             list(db.execute(select(TwitchUpstreamLease.__table__)).tuples()) == before
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "active,error_type",
+    [(True, OSError), (True, asyncio.CancelledError), (False, asyncio.CancelledError)],
+)
+async def test_aborted_authorization_preserves_capture_and_previous_activity(
+    live, monkeypatch, active, error_type
+):
+    service, session, coordinator, factory, _, pipe = live
+    session.is_active = active
+    with factory() as db:
+        before = list(db.execute(select(TwitchUpstreamLease.__table__)))
+
+    async def abort(**kwargs):
+        raise error_type("controlled aborted authorization")
+
+    method = (
+        "assert_stop_authorized"
+        if active
+        else "assert_local_process_cleanup_authorized"
+    )
+    monkeypatch.setattr(coordinator, method, abort)
+    with pytest.raises(error_type):
+        await service.stop_stream(session.session_id)
+    assert session.is_active is active
+    assert service.sessions[session.session_id] is session
+    assert session.streamlink_process.returncode is None
+    assert session.ffmpeg_process.returncode is None and not pipe.done()
+    assert set(service._supervisor.process_names) == {
+        "owned956:streamlink",
+        "owned956:ffmpeg",
+    }
+    assert (
+        session.output_dir / "fragment.ts"
+    ).read_bytes() == b"owned synthetic fragment"
+    with factory() as db:
+        assert list(db.execute(select(TwitchUpstreamLease.__table__))) == before
 
 
 @pytest.mark.asyncio
