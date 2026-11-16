@@ -43,7 +43,7 @@ for dist in (args.old, args.new):
         == "real"
     )
 with tempfile.TemporaryDirectory(
-    prefix="hermes-verify-pwa-", dir="/opt/data/tmp"
+    prefix="hermes-verify-pwa-", dir=os.environ.get("TMPDIR")
 ) as tmp:
     work = Path(tmp)
     frontend = work / "app/frontend"
@@ -84,6 +84,7 @@ with tempfile.TemporaryDirectory(
         PWA_FULL=str(int(args.full)),
         PWA_NATIVE_RACES=str(int(args.native_races)),
         PWA_EXPECT_CACHE_LOSS=str(int(args.expect_cache_loss)),
+        PWA_NETWORK_CONTROL=str(work / "network-control"),
     )
     if args.legacy_source:
         assert not args.full, "Legacy server switching is only for first migration"
@@ -155,6 +156,7 @@ with tempfile.TemporaryDirectory(
                 )
                 deadline = time.monotonic() + 300
                 last_switch = ""
+                last_network = ""
                 while result.poll() is None:
                     if time.monotonic() > deadline:
                         raise TimeoutError("Browser acceptance exceeded 300 seconds")
@@ -178,6 +180,23 @@ with tempfile.TemporaryDirectory(
                             wait_ready()
                             switch.with_suffix(".ready").write_text(requested)
                             last_switch = requested
+                    network = work / "network-control"
+                    if (
+                        network.exists()
+                        and (requested_network := network.read_text()) != last_network
+                    ):
+                        if requested_network.endswith("offline"):
+                            process.terminate()
+                            process.wait(timeout=15)
+                        else:
+                            generation += 1
+                            env["DATABASE_URL"] = (
+                                f"sqlite:///{work / ('fixture-' + str(generation) + '.sqlite')}"
+                            )
+                            process = start_backend()
+                            wait_ready()
+                        network.with_suffix(".ready").write_text(requested_network)
+                        last_network = requested_network
                     time.sleep(0.05)
             print((args.output / "browser.stdout").read_text())
             if result.returncode:

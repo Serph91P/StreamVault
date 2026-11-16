@@ -1,6 +1,7 @@
 import { chromium, expect } from '../../app/frontend/node_modules/@playwright/test/index.mjs'
 import { readFile, writeFile, symlink, rename } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 
 const origin = process.env.PWA_TEST_ORIGIN
@@ -20,6 +21,14 @@ async function selectBuild(dist) {
       catch { return '' }
     }).toBe(request)
   }
+}
+async function setFactoryNetwork(online) {
+  const request = `${Date.now()}-${online ? 'online' : 'offline'}`
+  await writeFile(process.env.PWA_NETWORK_CONTROL, request)
+  await expect.poll(async () => {
+    try { return await readFile(process.env.PWA_NETWORK_CONTROL + '.ready', 'utf8') }
+    catch { return '' }
+  }).toBe(request)
 }
 async function verifyFactory(context, dist) {
   const compiled = await readFile(path.join(dist, 'sw.js'), 'utf8')
@@ -192,6 +201,9 @@ async function completeUpgrade(context, page, row, input, documents, requests, t
   expect(cachedPaths.filter(path => /^\/(auth|api)\//.test(path))).toEqual([])
   row.noPrivateCacheEntries = true
   await context.setOffline(true)
+  // Chromium's context offline emulation does not reliably stop SW fetches.
+  // Stop only this owned fixture host too, proving a genuinely unavailable origin.
+  await setFactoryNetwork(false)
   await page.goto(origin + '/streamers?offline=pwa')
   await expect(page.locator('#app')).not.toBeEmpty()
   const offlineResponse = await page.evaluate(async () => {
@@ -206,10 +218,11 @@ async function completeUpgrade(context, page, row, input, documents, requests, t
   await offlineAuth.close()
   row.offline.authDocumentNotCached = true
   await context.setOffline(false)
+  await setFactoryNetwork(true)
 }
 
 const browser = await chromium.launch({ headless: true,
-  executablePath: process.env.PWA_CHROMIUM || '/opt/hermes/tools/chromium-1208/chrome-linux64/chrome',
+  executablePath: process.env.PWA_CHROMIUM || (existsSync('/opt/hermes/tools/chromium-1208/chrome-linux64/chrome') ? '/opt/hermes/tools/chromium-1208/chrome-linux64/chrome' : chromium.executablePath()),
   args: ['--no-sandbox'],
 })
 const results = []
