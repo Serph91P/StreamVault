@@ -6,7 +6,7 @@ from app.schemas.settings import (
     StreamerNotificationSettingsUpdateSchema,
 )
 from app.dependencies import (
-    AuthIdentity,
+    AuthenticatedUser,
     get_application_session_factory,
     get_application_twitch_token_service,
     get_image_service,
@@ -14,7 +14,7 @@ from app.dependencies import (
     get_settings_service,
     get_streamlink_config_service,
     get_websocket_manager,
-    require_scopes,
+    require_admin_user,
 )
 from app.services.core.settings_service import SettingsService
 from app.services.system.twitch_token_service import TwitchTokenService
@@ -36,7 +36,9 @@ router = APIRouter(
 )  # This is the correct prefix
 
 
-@router.get("", response_model=GlobalSettingsSchema)
+@router.get(
+    "", response_model=GlobalSettingsSchema, dependencies=[Depends(require_admin_user)]
+)
 def get_settings(
     settings_service: SettingsService = Depends(get_settings_service),
 ) -> GlobalSettingsSchema:
@@ -63,7 +65,7 @@ def update_streamer_settings(
     settings_data: StreamerNotificationSettingsUpdateSchema,
     settings_service: SettingsService = Depends(get_settings_service),
     image_service: UnifiedImageService = Depends(get_image_service),
-    _identity: AuthIdentity = Depends(require_scopes("admin")),
+    _identity: AuthenticatedUser = Depends(require_admin_user),
 ) -> StreamerNotificationSettingsSchema:
     logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     try:
@@ -108,7 +110,7 @@ async def test_notification(
         get_notification_service_factory
     ),
     websocket_manager: ConnectionManager = Depends(get_websocket_manager),
-    _identity: AuthIdentity = Depends(require_scopes("admin")),
+    _identity: AuthenticatedUser = Depends(require_admin_user),
 ) -> dict[str, str]:
     try:
         validation_error = await run_in_thread_pool(
@@ -161,7 +163,7 @@ async def test_notification(
 @router.post("/test-websocket-notification", response_model=None)
 async def test_websocket_notification(
     websocket_manager: ConnectionManager = Depends(get_websocket_manager),
-    _identity: AuthIdentity = Depends(require_scopes("admin")),
+    _identity: AuthenticatedUser = Depends(require_admin_user),
 ) -> dict[str, str]:
     """Test WebSocket notification delivery to frontend"""
     try:
@@ -254,7 +256,7 @@ async def update_settings(
     notification_service_factory: Callable[[], NotificationService] = Depends(
         get_notification_service_factory
     ),
-    _identity: AuthIdentity = Depends(require_scopes("admin")),
+    _identity: AuthenticatedUser = Depends(require_admin_user),
 ) -> GlobalSettingsSchema:
     try:
         updated_settings, config_changed = await run_in_thread_pool(
