@@ -28,7 +28,7 @@ vi.mock('@/composables/useBackgroundQueue', () => ({
 }))
 
 vi.mock('@/composables/useSystemAndRecordingStatus', () => ({
-  useSystemAndRecordingStatus: () => ({ activeRecordings: { value: [] } }),
+  useSystemAndRecordingStatus: () => ({ activeRecordings: { value: [] }, snapshotsStale: { value: false } }),
 }))
 
 async function flushFocus() {
