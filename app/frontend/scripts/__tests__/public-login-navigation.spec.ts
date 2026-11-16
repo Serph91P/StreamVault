@@ -2,10 +2,10 @@
 import { describe, expect, it } from 'vitest'
 import { publicLoginNavigation } from '../../vite.config'
 
-function matches(path: string, mode = 'navigate', origin = 'https://app.test') {
+function matches(path: string, mode = 'navigate', origin = 'https://app.test', headers: HeadersInit = { Accept: 'text/html' }) {
   return Reflect.apply(publicLoginNavigation.urlPattern as CallableFunction, undefined, [{
     url: new URL(path, origin), sameOrigin: origin === 'https://app.test',
-    request: { mode },
+    request: { mode, headers: new Headers(headers) },
   }])
 }
 
@@ -20,6 +20,14 @@ describe('public login document HTTP cache migration', () => {
     }
     expect(matches('/auth/login', 'cors')).toBe(false)
     expect(matches('/auth/login', 'navigate', 'https://other.test')).toBe(false)
+  })
+
+  it('leaves even document-mode JSON/XHR authentication requests on their original cache policy', () => {
+    for (const headers of [
+      { Accept: 'application/json' },
+      { Accept: 'text/html,application/json' },
+      { Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
+    ]) expect(matches('/auth/login', 'navigate', 'https://app.test', headers)).toBe(false)
   })
 
   it('uses the supported Workbox request hook to bypass old HTTP entries without storing auth HTML', async () => {

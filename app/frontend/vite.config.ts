@@ -9,7 +9,9 @@ import { compactProductionChunks } from './scripts/compact-production-chunks'
 // bypasses legacy HTTP-cache entries; JSON, other auth paths and methods do not.
 export const publicLoginNavigation: RuntimeCaching = {
   urlPattern: ({ url, sameOrigin, request }) => sameOrigin
-    && request.mode === 'navigate' && url.pathname === '/auth/login',
+    && request.mode === 'navigate' && url.pathname === '/auth/login'
+    && !request.headers.get('accept')?.includes('application/json')
+    && request.headers.get('X-Requested-With') !== 'XMLHttpRequest',
   method: 'GET',
   handler: 'NetworkOnly',
   options: {
