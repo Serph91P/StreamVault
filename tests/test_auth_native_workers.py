@@ -87,6 +87,32 @@ async def auth_applications(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+async def test_public_login_html_is_not_stored_in_http_cache(
+    auth_applications, tmp_path, monkeypatch, method
+):
+    _, _, clients, _, _ = auth_applications
+    index = tmp_path / "app/frontend/dist/index.html"
+    index.parent.mkdir(parents=True)
+    index.write_text("<!doctype html><title>synthetic login shell</title>")
+    monkeypatch.chdir(tmp_path)
+    client = clients[0]
+    client.cookies.clear()
+    response = await client.request(
+        method, "/auth/login?returnTo=%2Fsettings", headers={"Accept": "text/html"}
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers.get("cache-control") == "no-store"
+    assert response.text == (index.read_text() if method == "GET" else "")
+    # The HTML policy must not change the public JSON authentication contract.
+    response = await client.get("/auth/login")
+    assert response.status_code == 200
+    assert response.json() == {"login_required": True}
+    assert "cache-control" not in response.headers
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "method,path,status",
     [
