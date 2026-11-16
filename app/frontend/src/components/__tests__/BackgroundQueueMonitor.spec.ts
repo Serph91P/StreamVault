@@ -3,10 +3,11 @@ import { defineComponent, h, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BackgroundQueueMonitor from '../BackgroundQueueMonitor.vue'
 
-const { forceRefreshFromAPI, queueState } = await vi.hoisted(async () => {
+const { forceRefreshFromAPI, queueState, recordingState } = await vi.hoisted(async () => {
   const { ref } = await import('vue')
   return {
     forceRefreshFromAPI: vi.fn(),
+    recordingState: { activeRecordings: ref<Array<{ id: number; status: string; streamer_name: string }>>([]), snapshotsStale: ref(false) },
     queueState: {
       queueStats: ref({ total_tasks: 0, completed_tasks: 0, failed_tasks: 0, pending_tasks: 0 }),
       activeTasks: ref<any[]>([]),
@@ -28,7 +29,7 @@ vi.mock('@/composables/useBackgroundQueue', () => ({
 }))
 
 vi.mock('@/composables/useSystemAndRecordingStatus', () => ({
-  useSystemAndRecordingStatus: () => ({ activeRecordings: { value: [] } }),
+  useSystemAndRecordingStatus: () => recordingState,
 }))
 
 async function flushFocus() {
@@ -56,6 +57,8 @@ describe('BackgroundQueueMonitor', () => {
     queueState.connectionStatus.value = 'connected'
     queueState.dataAvailable.value = true
     vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockReturnValue(document.body)
+    recordingState.activeRecordings.value = []
+    recordingState.snapshotsStale.value = false
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
     document.body.style.cssText = ''
   })
@@ -75,6 +78,35 @@ describe('BackgroundQueueMonitor', () => {
       expect(trigger.attributes('aria-label')).toContain(`Queue ${count}`)
       expect(wrapper.get('.queue-info').text()).toBe(`Queue ${count}`)
       expect(trigger.attributes('aria-label')).toContain(`${count} active ${count === 1 ? 'job' : 'jobs'}`)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it.each([0, 1])('does not certify cached recordings with %i fresh queue tasks, and restores the combined header after repair', async count => {
+    recordingState.activeRecordings.value = [{ id: 987, status: 'recording', streamer_name: 'Last known' }]
+    queueState.activeTasks.value = Array.from({ length: count }, (_, id) => ({
+      id: `task-${id}`, task_type: 'thumbnail', status: 'running', progress: 50,
+    }))
+    const wrapper = mount(BackgroundQueueMonitor)
+    try {
+      const trigger = wrapper.get('.queue-status-indicator')
+      expect(trigger.attributes('aria-expanded')).toBe('false')
+      expect(wrapper.get('.queue-count').text()).toBe(String(count + 1))
+      expect(trigger.find('.progress-bar').exists()).toBe(true)
+      recordingState.snapshotsStale.value = true
+      await nextTick()
+      expect(trigger.attributes('aria-label')).toMatch(/unavailable|outdated|last-known|stale/i)
+      expect(trigger.text()).toMatch(/unavailable|outdated|last-known|stale/i)
+      expect(wrapper.get('.queue-count').text()).toBe('?')
+      expect(trigger.find('.progress-bar').exists()).toBe(false)
+      expect(recordingState.activeRecordings.value).toHaveLength(1)
+      expect(queueState.activeTasks.value).toHaveLength(count)
+      recordingState.snapshotsStale.value = false
+      await nextTick()
+      expect(trigger.attributes('aria-label')).toContain(`${count + 1} active`)
+      expect(wrapper.get('.queue-count').text()).toBe(String(count + 1))
+      expect(trigger.find('.progress-bar').exists()).toBe(true)
     } finally {
       wrapper.unmount()
     }

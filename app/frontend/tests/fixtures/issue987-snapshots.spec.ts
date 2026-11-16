@@ -105,6 +105,8 @@ for (const reset of [true, false]) {
     await expect(queue).toContainText('fresh-task')
     await expect(queue).not.toContainText('stale-task')
     await expect(queue.getByRole('alert')).toHaveCount(0)
+    // The combined header also needs the existing delayed shared-status refresh.
+    await page.clock.runFor(1000)
     await expect(page.locator('.queue-count')).toHaveText('1')
     for (const path of ['/api/background-queue/stats', '/api/background-queue/active-tasks', '/api/background-queue/recent-tasks']) {
       expect(reads[path] - failed[path]).toBe(1)

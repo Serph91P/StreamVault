@@ -5,7 +5,7 @@
       v-if="!inline"
       type="button"
       class="queue-status-indicator"
-      :aria-label="dataAvailable ? `Open background queue, Queue ${combinedActiveTasks.length} active ${combinedActiveTasks.length === 1 ? 'job' : 'jobs'}` : 'Open background queue, status unavailable'"
+      :aria-label="combinedDataAvailable ? `Open background queue, Queue ${combinedActiveTasks.length} active ${combinedActiveTasks.length === 1 ? 'job' : 'jobs'}` : 'Open background queue, status unavailable'"
       aria-haspopup="dialog"
       :aria-expanded="showPanel"
       :aria-controls="panelId"
@@ -16,12 +16,12 @@
       </svg>
 
       <div class="queue-info">
-        <span class="queue-label">{{ 'Queue ' }}</span>
-        <span class="queue-count">{{ dataAvailable ? combinedActiveTasks.length : '?' }}</span>
+        <span class="queue-label">{{ snapshotsStale ? 'Queue outdated ' : 'Queue ' }}</span>
+        <span class="queue-count">{{ combinedDataAvailable ? combinedActiveTasks.length : '?' }}</span>
       </div>
 
       <!-- Progress Bar -->
-      <div v-if="dataAvailable && hasActiveTasks" class="progress-bar">
+      <div v-if="combinedDataAvailable && hasActiveTasks" class="progress-bar">
         <div class="progress-fill" :style="{ width: `${totalProgress}%` }"></div>
       </div>
     </button>
@@ -191,6 +191,7 @@ const {
 
 // Also track active recordings (they may not appear as queue tasks)
 const { activeRecordings, snapshotsStale } = useSystemAndRecordingStatus()
+const combinedDataAvailable = computed(() => dataAvailable.value && !snapshotsStale.value)
 
 // UI State
 const panelRef = ref<HTMLElement | null>(null)

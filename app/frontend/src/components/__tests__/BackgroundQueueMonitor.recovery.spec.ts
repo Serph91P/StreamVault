@@ -27,7 +27,7 @@ vi.mock('@/composables/useWebSocket', async () => {
   return { WebSocketManager: { getInstance: () => manager } }
 })
 vi.mock('@/services/api', () => ({ backgroundQueueApi: api }))
-vi.mock('@/composables/useSystemAndRecordingStatus', () => ({ useSystemAndRecordingStatus: () => ({ activeRecordings: ref([]) }) }))
+vi.mock('@/composables/useSystemAndRecordingStatus', () => ({ useSystemAndRecordingStatus: () => ({ activeRecordings: ref([]), snapshotsStale: ref(false) }) }))
 vi.mock('@/composables/useModal', () => ({ useModal: () => {
   const isOpen = ref(false)
   return { isOpen, open: () => { isOpen.value = true }, close: () => { isOpen.value = false } }
