@@ -25,7 +25,11 @@ class FakeRecordingService:
             }
         )
         self.orchestrator = SimpleNamespace(process_manager=self.process_manager)
+        self.process_manager.is_capture_running = self.is_capture_running
         self.calls = []
+
+    async def is_capture_running(self, stream_id: int) -> bool:
+        return any(row.get("stream_id") == stream_id for row in self.active.values())
 
     async def start_recording(self, stream_id: int, streamer_id: int, **kwargs):
         self.calls.append(("start", stream_id, streamer_id, kwargs))

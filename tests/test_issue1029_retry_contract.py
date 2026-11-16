@@ -1,7 +1,9 @@
-"""Signed callback/real-handler RED contracts; isolated DB and recorder boundary.
+"""Signed callback retry contracts with isolated persistence and owned children.
 
-The controlled recorder owns real local Python children, not Streamlink/FFmpeg.
-It deliberately does not claim production RecordingManager or restart acceptance.
+Most cases control the recorder boundary. The real-manager cases exercise the
+app-bound RecordingManager/Service/Lifecycle and native ProcessManager termination;
+only external media startup is replaced by an actual owned local Python child.
+No live provider or Streamlink/FFmpeg capture success is claimed by these tests.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -201,22 +203,23 @@ async def ctx(tmp_path, monkeypatch, request):
         connection.exec_driver_sql("BEGIN")
         Base.metadata.create_all(connection)
     with database.sync_session_factory() as session:
-        session.add(GlobalSettings(id=1, notifications_enabled=False))
-        session.add(
-            RecordingSettings(id=1, enabled=True, output_directory=str(tmp_path))
-        )
-        session.add(
-            Streamer(
-                id=1,
-                twitch_id="111",
-                username="fixture_channel",
-                title="Before",
-                is_live=False,
+        if session.get(GlobalSettings, 1) is None:
+            session.add(GlobalSettings(id=1, notifications_enabled=False))
+            session.add(
+                RecordingSettings(id=1, enabled=True, output_directory=str(tmp_path))
             )
-        )
-        session.flush()
-        session.add(StreamerRecordingSettings(streamer_id=1, enabled=True))
-        session.commit()
+            session.add(
+                Streamer(
+                    id=1,
+                    twitch_id="111",
+                    username="fixture_channel",
+                    title="Before",
+                    is_live=False,
+                )
+            )
+            session.flush()
+            session.add(StreamerRecordingSettings(streamer_id=1, enabled=True))
+            session.commit()
     settings = Settings(
         ENVIRONMENT="test",
         TWITCH_APP_ID="fixture-client",
@@ -636,8 +639,27 @@ async def test_callback_drains_committing_worker_before_retry(
         event.remove(ctx.database.sync_session_factory, "after_commit", after_commit)
 
 
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "raise",
+        "false",
+        "db-commit",
+        "db-replacement",
+        "cancel",
+        "timeout",
+        "dead",
+        "start",
+        "create-cancel",
+        "lost-state",
+        "durable-owner",
+        "stop-commit-cancel",
+        "state-cancel",
+        "replacement-live",
+    ],
+)
 async def test_real_manager_offline_retry_stops_child_after_termination_failure(
-    ctx, monkeypatch
+    ctx, monkeypatch, fault
 ):
     import asyncio
     from app.utils.async_db_utils import run_in_thread_pool
@@ -651,8 +673,46 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
     lifecycle = manager.orchestrator.lifecycle_manager
     children = []
     armed = True
+    entered = asyncio.Event()
+    native_terminate = manager.process_manager.terminate_process
+    from app.routes import eventsub
+
+    original_timeouts = eventsub.TIMEOUTS
+    from threading import Event
+
+    committed, release_commit = Event(), Event()
+
+    def observe_recording_flush(session, _):
+        if any(isinstance(row, Recording) for row in session.new):
+            session.info["recording_inserted"] = True
+        if any(
+            isinstance(row, Recording) and row.status == "stopped"
+            for row in session.dirty
+        ):
+            session.info["recording_stopped"] = True
+
+    def hold_recording_commit(session):
+        if (
+            fault == "stop-commit-cancel"
+            and armed
+            and session.info.pop("recording_stopped", False)
+        ):
+            committed.set()
+            assert release_commit.wait(10)
+        if (
+            fault == "create-cancel"
+            and armed
+            and session.info.pop("recording_inserted", False)
+        ):
+            committed.set()
+            assert release_commit.wait(10)
 
     async def spawn(**kwargs):
+        if armed and fault == "state-cancel":
+            entered.set()
+            await asyncio.Event().wait()
+        if armed and fault == "start":
+            return None
         child = await asyncio.create_subprocess_exec(
             sys.executable,
             "-c",
@@ -663,15 +723,33 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
         )
         children.append(child)
         assert await child.stdout.readline() == b"ready\n"
+        manager.process_manager.active_processes[f"stream_{kwargs['stream'].id}"] = (
+            child
+        )
         return child
 
-    async def terminate(process_id):
+    async def terminate(process_id, *, recording_id):
         assert process_id == "stream_1"
-        if armed:
+        assert recording_id == 1
+        if armed and fault in {"cancel", "timeout"}:
+            entered.set()
+            await asyncio.Event().wait()
+        if armed and fault in {"raise", "replacement-live"}:
             raise OSError("synthetic termination boundary unavailable")
-        children[0].terminate()
-        await children[0].wait()
-        return True
+        if armed and fault == "false":
+            return False
+        return await native_terminate(process_id, recording_id=recording_id)
+
+    def fail_stop_commit(session):
+        if (
+            armed
+            and fault in {"db-commit", "db-replacement"}
+            and any(
+                isinstance(row, Recording) and row.status == "stopped"
+                for row in session.dirty
+            )
+        ):
+            raise SQLAlchemyError("synthetic stop status commit failure")
 
     async def monitor(recording_id):
         await asyncio.Event().wait()
@@ -679,25 +757,168 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
     monkeypatch.setattr(manager.process_manager, "start_recording_process", spawn)
     monkeypatch.setattr(manager.process_manager, "terminate_process", terminate)
     monkeypatch.setattr(lifecycle, "monitor_and_process_recording", monitor)
+    event.listen(ctx.database.sync_session_factory, "before_commit", fail_stop_commit)
+    event.listen(
+        ctx.database.sync_session_factory, "after_commit", hold_recording_commit
+    )
+    event.listen(
+        ctx.database.sync_session_factory, "after_flush", observe_recording_flush
+    )
     try:
-        assert (
-            await ctx.client.post("/eventsub", **signed(ctx, payload("stream.online")))
-        ).status_code == 204
+        online_request = signed(ctx, payload("stream.online"))
+        if fault in {"create-cancel", "state-cancel"}:
+            task = asyncio.create_task(ctx.client.post("/eventsub", **online_request))
+            if fault == "create-cancel":
+                assert await asyncio.to_thread(committed.wait, 5)
+            else:
+                await asyncio.wait_for(entered.wait(), 5)
+            task.cancel()
+            release_commit.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            armed = False
+            assert (
+                await ctx.client.post("/eventsub", **online_request)
+            ).status_code == 204
+            assert len(children) == 1 and children[0].returncode is None
+            with ctx.database.sync_session_factory() as session:
+                assert session.query(Recording).count() == 1
+            return
+        online = await ctx.client.post("/eventsub", **online_request)
+        assert online.status_code == (500 if fault == "start" else 204)
+        if fault == "start":
+            armed = False
+            assert (
+                await ctx.client.post("/eventsub", **online_request)
+            ).status_code == 204
+            assert (
+                await ctx.client.post("/eventsub", **online_request)
+            ).status_code == 204
+            with ctx.database.sync_session_factory() as session:
+                assert session.query(Recording).count() == 1
+            assert len(children) == 1 and children[0].returncode is None
+            return
         assert len(children) == 1 and children[0].returncode is None
-        # A distinct message ID for offline, re-used verbatim on retry.
+        saved_state = None
+        if fault in {"lost-state", "durable-owner"}:
+            saved_state = lifecycle.state_manager.remove_active_recording(1)
+        if fault == "durable-owner":
+            from app.models import ActiveRecordingState
+
+            now = datetime.now(timezone.utc)
+            with ctx.database.sync_session_factory() as session:
+                session.add(
+                    ActiveRecordingState(
+                        stream_id=1,
+                        recording_id=1,
+                        process_id=children[0].pid,
+                        process_identifier="synthetic-owner",
+                        streamer_name="fixture_channel",
+                        started_at=now,
+                        ts_output_path=saved_state["file_path"],
+                        status="active",
+                        last_heartbeat=now,
+                    )
+                )
+                session.commit()
+            ctx.registry._processed_events.clear()
+            assert (
+                await ctx.client.post("/eventsub", **online_request)
+            ).status_code == 500
+        # A distinct event type gives offline its own fingerprint, re-used on retry.
         request = signed(ctx, payload("stream.offline"))
-        assert (await ctx.client.post("/eventsub", **request)).status_code == 500
-        assert children[0].returncode is None
+        if fault == "dead":
+            children[0].terminate()
+            await children[0].wait()
+        if fault == "stop-commit-cancel":
+            task = asyncio.create_task(ctx.client.post("/eventsub", **request))
+            assert await asyncio.to_thread(committed.wait, 5)
+            task.cancel()
+            release_commit.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert children[0].returncode is not None
+            with ctx.database.sync_session_factory() as session:
+                assert session.query(Recording).one().status == "stopped"
+            assert not lifecycle.state_manager.get_active_recordings()
+            assert lifecycle._postprocessing_scheduled == {1}
+            armed = False
+        elif fault in {"cancel", "timeout"}:
+            from dataclasses import replace
+            from app.routes import eventsub
+
+            if fault == "timeout":
+                monkeypatch.setattr(
+                    eventsub,
+                    "TIMEOUTS",
+                    replace(eventsub.TIMEOUTS, EVENT_HANDLER_TIMEOUT=0.1),
+                )
+            task = asyncio.create_task(ctx.client.post("/eventsub", **request))
+            await asyncio.wait_for(entered.wait(), 5)
+            if fault == "cancel":
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            else:
+                assert (await task).status_code == 500
+        else:
+            assert (await ctx.client.post("/eventsub", **request)).status_code == (
+                204 if fault == "dead" else 500
+            )
+        if fault not in {"db-commit", "db-replacement", "dead", "stop-commit-cancel"}:
+            assert children[0].returncode is None
+        if fault not in {"dead", "stop-commit-cancel"}:
+            with ctx.database.sync_session_factory() as session:
+                assert session.query(Recording).one().status == "recording"
+            if saved_state is None:
+                assert lifecycle.state_manager.get_active_recordings()
+            assert not lifecycle._postprocessing_scheduled
         armed = False
+        if saved_state is not None:
+            lifecycle.state_manager.add_active_recording(1, saved_state)
+        if fault == "durable-owner":
+            with ctx.database.sync_session_factory() as session:
+                session.query(ActiveRecordingState).delete()
+                session.commit()
+        if fault == "db-replacement":
+            await spawn(stream=SimpleNamespace(id=1))
+        if fault == "replacement-live":
+            await spawn(stream=SimpleNamespace(id=1))
+            manager.process_manager.long_stream_processes["stream_1"] = {
+                "recording_id": 999,
+                "monitor_task": None,
+            }
+            assert (await ctx.client.post("/eventsub", **request)).status_code == 500
+            assert children[0].returncode is None and children[1].returncode is None
+            manager.process_manager.long_stream_processes.pop("stream_1")
+            manager.process_manager.active_processes["stream_1"] = children[0]
+        monkeypatch.setattr(eventsub, "TIMEOUTS", original_timeouts)
+        assert (await ctx.client.post("/eventsub", **request)).status_code == 204
         assert (await ctx.client.post("/eventsub", **request)).status_code == 204
         assert children[0].returncode is not None
+        assert len(children) == (
+            2 if fault in {"db-replacement", "replacement-live"} else 1
+        )
+        if fault in {"db-replacement", "replacement-live"}:
+            assert children[1].returncode is None
+        assert not lifecycle.state_manager.get_active_recordings()
         with ctx.database.sync_session_factory() as session:
             assert session.query(Stream).count() == 1
             assert session.query(Recording).count() == 1
             assert session.query(Recording).one().status == "stopped"
     finally:
         for child in children:
+            release_commit.set()
             if child.returncode is None:
                 child.kill()
             await child.wait()
+        event.remove(
+            ctx.database.sync_session_factory, "before_commit", fail_stop_commit
+        )
+        event.remove(
+            ctx.database.sync_session_factory, "after_commit", hold_recording_commit
+        )
+        event.remove(
+            ctx.database.sync_session_factory, "after_flush", observe_recording_flush
+        )
         await close_owned([ctx.app])

@@ -230,10 +230,16 @@ class OnlineEvent:
     language: str | None
     new_stream: bool
     resume_recording: bool
+    recording_id: int | None = None
 
 
 def _online_snapshot(
-    streamer: Streamer, stream: Stream, *, new_stream: bool, resume_recording: bool
+    streamer: Streamer,
+    stream: Stream,
+    *,
+    new_stream: bool,
+    resume_recording: bool,
+    recording_id: int | None = None,
 ) -> OnlineEvent:
     return OnlineEvent(
         streamer_id=streamer.id,
@@ -245,6 +251,7 @@ def _online_snapshot(
         language=streamer.language,
         new_stream=new_stream,
         resume_recording=resume_recording,
+        recording_id=recording_id,
     )
 
 
@@ -271,6 +278,7 @@ def prepare_online(
         )
         if existing is not None:
             resume = False
+            active = None
             if existing.ended_at is None and recording_enabled(streamer.id):
                 active = (
                     session.query(Recording)
@@ -281,8 +289,25 @@ def prepare_online(
                     .first()
                 )
                 resume = active is None
+                if active is None and delivery_key.get() is not None:
+                    latest = (
+                        session.query(Recording)
+                        .filter(Recording.stream_id == existing.id)
+                        .order_by(Recording.id.desc())
+                        .first()
+                    )
+                    if (
+                        latest is not None
+                        and latest.status == "failed"
+                        and latest.error_message == "Failed to start recording process"
+                    ):
+                        active = latest
             return _online_snapshot(
-                streamer, existing, new_stream=False, resume_recording=resume
+                streamer,
+                existing,
+                new_stream=False,
+                resume_recording=resume,
+                recording_id=active.id if active else None,
             )
         if user_info:
             profile = user_info.get("profile_image_url")

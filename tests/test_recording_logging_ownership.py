@@ -58,7 +58,8 @@ async def test_real_lifecycle_log_call_is_off_loop(
         lifecycle = manager._service.orchestrator.lifecycle_manager
 
         async def unavailable_process(*_args, **_kwargs):
-            return False
+            # A stop log describes confirmed termination, never an unknown/live child.
+            return operation == "stop"
 
         if operation == "start":
             monkeypatch.setattr(
@@ -84,7 +85,7 @@ async def test_real_lifecycle_log_call_is_off_loop(
         if operation == "start":
             assert await lifecycle.start_recording(71, 1, quality="best") is None
         else:
-            assert await lifecycle.stop_recording(72) is False
+            assert await lifecycle.stop_recording(72) is True
         assert observed and get_ident() not in observed
 
         def contents():

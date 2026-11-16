@@ -89,7 +89,11 @@ class RecordingManager:
                 recording,
             ) in self._service.get_active_recordings().items():
                 if recording.get("stream_id") == stream_id:
-                    return recording_id
+                    running = await self.is_capture_running(recording_id)
+                    if running is True:
+                        return recording_id
+                    if running is None:
+                        return None
 
             recording_id = await self._service.start_recording(
                 stream_id, streamer_id, **kwargs
@@ -168,8 +172,24 @@ class RecordingManager:
         """Resolve recording identity before checking the actual owned child."""
         status = self.get_status(recording_id)
         if status is None or status.stream_id is None:
+            database = self.orchestrator.database_service
+            recording = await database.get_recording_by_id(recording_id)
+            if recording is not None and await database.has_capture_owner(recording_id):
+                return None
+            if recording is not None:
+                local = (await self.process_manager.capture_process_snapshot()).get(
+                    f"stream_{recording.stream_id}"
+                )
+                if local is not None and not local.exited:
+                    return None
             return False
-        return await self.process_manager.is_capture_running(status.stream_id)
+        running = await self.process_manager.is_capture_running(status.stream_id)
+        if (
+            running is False
+            and await self.orchestrator.database_service.has_capture_owner(recording_id)
+        ):
+            return None
+        return running
 
     def get_status(self, recording_id: int) -> RecordingStatus | None:
         recording = self._service.get_active_recording(recording_id)

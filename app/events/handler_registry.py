@@ -9,6 +9,7 @@ from cachetools import TTLCache
 
 from app.database import SessionLocal
 from app.events.event_catalog import (
+    delivery_key,
     prepare_offline,
     offline_recording_id,
     prepare_online,
@@ -211,7 +212,19 @@ class EventHandlerRegistry:
                 "Optional stream notification failed (%s)", type(error).__name__
             )
 
-    async def _start_recording(self, stream_id: int, streamer_id: int) -> None:
+    async def _start_recording(
+        self, stream_id: int, streamer_id: int, recording_id: int | None = None
+    ) -> None:
+        if recording_id is not None:
+            result = await self.recording_service.start_recording(
+                stream_id,
+                streamer_id,
+                force_mode=False,
+                resume_recording_id=recording_id,
+            )
+            if not result:
+                raise RuntimeError("Recording start was not accepted")
+            return
         if not await self.recording_service.start_recording(
             stream_id, streamer_id, force_mode=False
         ):
@@ -232,8 +245,26 @@ class EventHandlerRegistry:
             if not snapshot.new_stream:
                 if snapshot.resume_recording:
                     await self._start_recording(
-                        snapshot.stream_id, snapshot.streamer_id
+                        snapshot.stream_id, snapshot.streamer_id, snapshot.recording_id
                     )
+                elif (
+                    snapshot.recording_id is not None and delivery_key.get() is not None
+                ):
+                    capture = getattr(
+                        self.recording_service, "is_capture_running", None
+                    )
+                    if capture is not None:
+                        running = await capture(snapshot.recording_id)
+                        if running is None:
+                            raise RuntimeError(
+                                "Recording capture could not be confirmed"
+                            )
+                        if running is False:
+                            await self._start_recording(
+                                snapshot.stream_id,
+                                snapshot.streamer_id,
+                                snapshot.recording_id,
+                            )
                 return
             await self._notify_stream(
                 streamer_name=snapshot.username,
