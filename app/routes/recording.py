@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.database import SessionLocal, get_db
+from app.database import SessionLocal
 from app.models import (
     GlobalSettings,
     RecordingSettings,
@@ -15,17 +15,41 @@ from app.schemas.recording import (
     ActiveRecordingSchema,
 )
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
-from app.dependencies import get_recording_manager
+from app.dependencies import (
+    get_db,
+    get_recording_manager,
+    get_application_recording_manager,
+    get_application_session_factory,
+    get_streamlink_config_service,
+    get_websocket_manager,
+    get_logging_service,
+    get_image_service,
+    get_recording_status_cache,
+    get_retention_service,
+)
+from app.services.system.streamlink_config_service import StreamlinkConfigService
+from app.utils.async_db_utils import run_in_thread_pool
+from collections.abc import Callable
+from app.utils.cache import SimpleCache
 from app.services.recording.config_manager import (
     FILENAME_PRESETS,
 )  # Import FILENAME_PRESETS from config_manager
-from app.services.system.logging_service import logging_service
-from app.services.unified_image_service import unified_image_service
-from app.services.communication.websocket_manager import websocket_manager
+from app.services.system.logging_service import (
+    LoggingService,
+    logging_service as logging_service,
+)
+from app.services.communication.websocket_manager import ConnectionManager
+from app.services.unified_image_service import (
+    UnifiedImageService,
+    unified_image_service as unified_image_service,
+)
 from sqlalchemy.orm import Session, joinedload
 import logging
 from typing import List, Dict
 from datetime import datetime, timezone
+
+from app.services.recording.recording_manager import RecordingManager
+from app.services.system.cleanup_service import CleanupService
 
 # Cache constants
 FALLBACK_SUFFIX = "_fallback"
@@ -35,15 +59,17 @@ logger = logging.getLogger("streamvault")
 router = APIRouter(prefix="/api/recording", tags=["recording"])
 
 
-def get_recording_service():
+def get_recording_service() -> "RecordingManager":
     """Compatibility alias for the process-scoped recording manager."""
     return get_recording_manager()
 
 
 @router.get("/settings", response_model=RecordingSettingsSchema)
-async def get_recording_settings():
-    try:
-        with SessionLocal() as db:
+async def get_recording_settings(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+) -> RecordingSettingsSchema:
+    def read() -> RecordingSettingsSchema:
+        with session_factory() as db:
             settings = db.query(RecordingSettings).first()
             global_settings = db.query(GlobalSettings).first()
             if not global_settings:
@@ -96,15 +122,22 @@ async def get_recording_settings():
             )
 
             return response
+
+    try:
+        return await run_in_thread_pool(read)
     except Exception as e:
         logger.error(f"Error fetching recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/settings", response_model=RecordingSettingsSchema)
-async def update_recording_settings(settings_data: RecordingSettingsSchema):
-    try:
-        with SessionLocal() as db:
+async def update_recording_settings(
+    settings_data: RecordingSettingsSchema,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    config_service: StreamlinkConfigService = Depends(get_streamlink_config_service),
+) -> RecordingSettingsSchema:
+    def store() -> tuple[RecordingSettingsSchema, bool]:
+        with session_factory() as db:
             # Get existing settings
             existing_settings = db.query(RecordingSettings).first()
 
@@ -168,22 +201,6 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
             db.refresh(existing_settings)
             db.refresh(global_settings)
 
-            # Like /api/settings, regenerate only after the global row is committed.
-            if codec_changed:
-                try:
-                    from app.services.system.streamlink_config_service import (
-                        streamlink_config_service,
-                    )
-
-                    if not await streamlink_config_service.regenerate_config():
-                        logger.warning(
-                            "Failed to update Streamlink config after codec change"
-                        )
-                except Exception as config_error:
-                    logger.error(
-                        f"Error regenerating Streamlink config: {config_error}"
-                    )
-
             # Parse cleanup policy back to object for response
             cleanup_policy = None
             if existing_settings.cleanup_policy:
@@ -198,7 +215,7 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                     logger.warning(f"Error parsing cleanup policy for response: {e}")
 
             # Create response with properly parsed cleanup policy
-            return RecordingSettingsSchema(
+            response = RecordingSettingsSchema(
                 enabled=existing_settings.enabled,
                 output_directory=existing_settings.output_directory,
                 filename_template=existing_settings.filename_template,
@@ -216,15 +233,34 @@ async def update_recording_settings(settings_data: RecordingSettingsSchema):
                 ),
                 cleanup_policy=cleanup_policy,
             )
+            return response, codec_changed
+
+    try:
+        response, codec_changed = await run_in_thread_pool(store)
+        if codec_changed:
+            try:
+                if not await config_service.regenerate_config():
+                    logger.warning(
+                        "Failed to update Streamlink config after codec change"
+                    )
+            except Exception as config_error:
+                logger.error(
+                    "Error regenerating Streamlink config (%s)",
+                    type(config_error).__name__,
+                )
+        return response
     except Exception as e:
         logger.error(f"Error updating recording settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/streamers", response_model=List[StreamerRecordingSettingsSchema])
-async def get_all_streamer_recording_settings():
+def get_all_streamer_recording_settings(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    unified_image_service: UnifiedImageService = Depends(get_image_service),
+) -> list[StreamerRecordingSettingsSchema]:
     try:
-        with SessionLocal() as db:
+        with session_factory() as db:
             # Get all streamers first
             streamers = db.query(Streamer).all()
 
@@ -246,6 +282,7 @@ async def get_all_streamer_recording_settings():
                         streamer_id=streamer.id, enabled=True
                     )
                     db.add(settings)
+                    db.flush()
                 # Create response object
                 try:
                     cleanup_policy = None
@@ -281,11 +318,7 @@ async def get_all_streamer_recording_settings():
             return result
     except Exception as e:
         logger.error(f"Error fetching streamer recording settings: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        ) @ router.post(
-            "/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # async def update_streamer_recording_settings(
@@ -319,7 +352,7 @@ async def get_all_streamer_recording_settings():
 #         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-def _is_pending_auth_handoff(upstream_lease) -> bool:
+def _is_pending_auth_handoff(upstream_lease: TwitchUpstreamLease) -> bool:
     """Distinguish queued transitions from durable blocked/failure reasons."""
     if upstream_lease.handoff_reason in {
         "higher_priority_recording",
@@ -331,9 +364,12 @@ def _is_pending_auth_handoff(upstream_lease) -> bool:
     )
 
 
-def _read_active_recordings():
+def _read_active_recordings(
+    session_factory: Callable[[], Session] | None = None,
+) -> list[dict[str, object]]:
     """Own the entire synchronous DB scope and return only response values."""
-    with SessionLocal() as db:
+    factory = session_factory if session_factory is not None else SessionLocal
+    with factory() as db:
         recordings = (
             db.query(Recording)
             .join(Stream)
@@ -346,16 +382,16 @@ def _read_active_recordings():
             return []
         streamer_ids = {item.stream.streamer_id for item in recordings}
         recording_ids = {item.id for item in recordings}
-        settings = {}
-        for item in (
+        settings: dict[int, StreamerRecordingSettings] = {}
+        for setting_row in (
             db.query(StreamerRecordingSettings)
             .filter(StreamerRecordingSettings.streamer_id.in_(streamer_ids))
             .order_by(StreamerRecordingSettings.id)
             .all()
         ):
-            settings.setdefault(item.streamer_id, item)
-        leases = {}
-        for item in (
+            settings.setdefault(setting_row.streamer_id, setting_row)
+        leases: dict[int | None, TwitchUpstreamLease] = {}
+        for lease_row in (
             db.query(TwitchUpstreamLease)
             .filter(
                 TwitchUpstreamLease.recording_id.in_(recording_ids),
@@ -366,7 +402,7 @@ def _read_active_recordings():
             .order_by(TwitchUpstreamLease.id)
             .all()
         ):
-            leases.setdefault(item.recording_id, item)
+            leases.setdefault(lease_row.recording_id, lease_row)
         result = []
         now = datetime.now(timezone.utc)
         if now.tzinfo is None:
@@ -415,31 +451,20 @@ def _read_active_recordings():
 
 
 @router.get("/active", response_model=List[ActiveRecordingSchema])
-async def get_active_recordings():
+async def get_active_recordings(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    status_cache: SimpleCache = Depends(get_recording_status_cache),
+) -> list[dict[str, object]] | None:
     """Get all active recordings"""
     import asyncio
     from app.utils.async_db_utils import run_in_thread_pool
     from sqlalchemy.exc import TimeoutError, OperationalError
 
-    try:
-        from app.utils.cache import app_cache
-    except ImportError:
-        # Fallback if cache module is not available
-        class DummyCache:
-            def delete(self, key):
-                pass
-
-            def get(self, key):
-                return None
-
-            def set(self, key, value, ttl=None):
-                pass
-
-        app_cache = DummyCache()
+    app_cache = status_cache
 
     # Check cache first (with short TTL to reduce database load)
     cache_key = "active_recordings"
-    cached_result = app_cache.get(cache_key)
+    cached_result: list[dict[str, object]] | None = app_cache.get(cache_key)
     if cached_result is not None:
         logger.debug(f"Returning {len(cached_result)} active recordings from cache")
         return cached_result
@@ -449,7 +474,7 @@ async def get_active_recordings():
 
     for attempt in range(max_retries):
         try:
-            result = await run_in_thread_pool(_read_active_recordings)
+            result = await run_in_thread_pool(_read_active_recordings, session_factory)
 
             # Cache the result for a short time (2 seconds) to reduce database load
             app_cache.set(cache_key, result, ttl=2)
@@ -472,7 +497,9 @@ async def get_active_recordings():
                         f"Database connection pool exhausted after {max_retries} attempts"
                     )
                     # Return cached result if available, even if expired
-                    fallback_result = app_cache.get(f"{cache_key}{FALLBACK_SUFFIX}")
+                    fallback_result: list[dict[str, object]] | None = app_cache.get(
+                        f"{cache_key}{FALLBACK_SUFFIX}"
+                    )
                     if fallback_result is not None:
                         logger.info(
                             f"Returning fallback cached result with {len(fallback_result)} recordings"
@@ -487,24 +514,44 @@ async def get_active_recordings():
             # Return empty list on error
             return []
 
+    return None
 
-@router.post("/stop/{streamer_id}")
-async def stop_recording(streamer_id: int):
+
+def _streamer_name_snapshot(
+    session_factory: Callable[[], Session], streamer_id: int
+) -> str:
+    with session_factory() as db:
+        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
+        return streamer.username if streamer else f"Streamer {streamer_id}"
+
+
+@router.post("/stop/{streamer_id}", response_model=None)
+async def stop_recording(
+    streamer_id: int,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    recording_manager: RecordingManager = Depends(get_application_recording_manager),
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+    logging_service: LoggingService = Depends(get_logging_service),
+) -> dict[str, str]:
     """Manually stop an active recording"""
-    try:
-        # Get streamer info for notifications
-        with SessionLocal() as db:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
 
-        # Log the stop request
-        logging_service.log_recording_activity(
-            "STOP_REQUEST", f"Streamer {streamer_id}", "Manual stop requested via API"
+    try:
+        streamer_name = await run_in_thread_pool(
+            _streamer_name_snapshot, session_factory, streamer_id
         )
 
-        result = await get_recording_service().stop_recording_manual(streamer_id)
+        # Log the stop request
+        await run_in_thread_pool(
+            logging_service.log_recording_activity,
+            "STOP_REQUEST",
+            f"Streamer {streamer_id}",
+            "Manual stop requested via API",
+        )
+
+        result = await recording_manager.stop_recording_manual(streamer_id)
         if result:
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "STOP_SUCCESS",
                 f"Streamer {streamer_id}",
                 "Recording stopped successfully via API",
@@ -519,7 +566,8 @@ async def stop_recording(streamer_id: int):
 
             return {"status": "success", "message": "Recording stopped successfully"}
         else:
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "STOP_FAILED",
                 f"Streamer {streamer_id}",
                 "No active recording found",
@@ -535,18 +583,20 @@ async def stop_recording(streamer_id: int):
 
             return {"status": "error", "message": "No active recording found"}
     except Exception as e:
-        logging_service.log_recording_error(
-            streamer_id, f"Streamer {streamer_id}", "API_STOP_ERROR", str(e)
+        await run_in_thread_pool(
+            logging_service.log_recording_error,
+            streamer_id,
+            f"Streamer {streamer_id}",
+            "API_STOP_ERROR",
+            str(e),
         )
         logger.error(f"Error stopping recording: {e}")
 
         # Send error toast notification
         try:
-            with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-                streamer_name = (
-                    streamer.username if streamer else f"Streamer {streamer_id}"
-                )
+            streamer_name = await run_in_thread_pool(
+                _streamer_name_snapshot, session_factory, streamer_id
+            )
 
             await websocket_manager.send_toast_notification(
                 toast_type="error",
@@ -560,11 +610,13 @@ async def stop_recording(streamer_id: int):
 
 
 @router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
-async def update_streamer_recording_settings(
+def update_streamer_recording_settings(
     streamer_id: int,
     settings: StreamerRecordingSettingsSchema,
     db: Session = Depends(get_db),
-):
+    logging_service: LoggingService = Depends(get_logging_service),
+    unified_image_service: UnifiedImageService = Depends(get_image_service),
+) -> StreamerRecordingSettingsSchema:
     """Update recording settings for a specific streamer"""
     try:
         # Check if the streamer exists
@@ -684,25 +736,33 @@ async def update_streamer_recording_settings(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/force-start/{streamer_id}")
-async def force_start_recording(streamer_id: int):
+@router.post("/force-start/{streamer_id}", response_model=None)
+async def force_start_recording(
+    streamer_id: int,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    recording_manager: RecordingManager = Depends(get_application_recording_manager),
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+    logging_service: LoggingService = Depends(get_logging_service),
+) -> dict[str, str]:
     """Manually start a recording for an active stream"""
     try:
         # Get streamer info for notifications
-        with SessionLocal() as db:
-            streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-            streamer_name = streamer.username if streamer else f"Streamer {streamer_id}"
+        streamer_name = await run_in_thread_pool(
+            _streamer_name_snapshot, session_factory, streamer_id
+        )
 
         # Log force start attempt
-        logging_service.log_recording_activity(
+        await run_in_thread_pool(
+            logging_service.log_recording_activity,
             "FORCE_START_REQUEST",
             f"Streamer {streamer_id}",
             "Manual force start requested via API",
         )
 
-        result = await get_recording_service().force_start_recording(streamer_id)
+        result = await recording_manager.force_start_recording(streamer_id)
         if result:
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "FORCE_START_SUCCESS",
                 f"Streamer {streamer_id}",
                 "Force recording started successfully",
@@ -726,7 +786,8 @@ async def force_start_recording(streamer_id: int):
             logger.error("3. There are network connectivity issues")
             logger.error("4. The stream URL is not accessible")
 
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "FORCE_START_FAILED",
                 f"Streamer {streamer_id}",
                 "Force start failed - streamer may be offline or stream inaccessible",
@@ -748,18 +809,20 @@ async def force_start_recording(streamer_id: int):
         # Re-raise HTTP exceptions without modification
         raise
     except Exception as e:
-        logging_service.log_recording_error(
-            streamer_id, f"Streamer {streamer_id}", "FORCE_START_ERROR", str(e)
+        await run_in_thread_pool(
+            logging_service.log_recording_error,
+            streamer_id,
+            f"Streamer {streamer_id}",
+            "FORCE_START_ERROR",
+            str(e),
         )
         logger.error(f"Error force starting recording: {e}", exc_info=True)
 
         # Send error toast notification for unexpected errors
         try:
-            with SessionLocal() as db:
-                streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-                streamer_name = (
-                    streamer.username if streamer else f"Streamer {streamer_id}"
-                )
+            streamer_name = await run_in_thread_pool(
+                _streamer_name_snapshot, session_factory, streamer_id
+            )
 
             await websocket_manager.send_force_recording_feedback(
                 success=False,
@@ -772,33 +835,38 @@ async def force_start_recording(streamer_id: int):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/cleanup/{streamer_id}")
-async def cleanup_old_recordings(streamer_id: int):
+@router.post("/cleanup/{streamer_id}", response_model=None)
+async def cleanup_old_recordings(
+    streamer_id: int,
+    retention_service: CleanupService = Depends(get_retention_service),
+    logging_service: LoggingService = Depends(get_logging_service),
+) -> dict[str, str | int | list[str]]:
     """Manually clean up old recordings for a streamer"""
     try:
         # Log cleanup request
-        logging_service.log_recording_activity(
+        await run_in_thread_pool(
+            logging_service.log_recording_activity,
             "CLEANUP_REQUEST",
             f"Streamer {streamer_id}",
             "Manual cleanup requested via API",
         )
 
-        from app.services.system.cleanup_service import CleanupService
-
-        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(
+        deleted_count, deleted_paths = await retention_service.cleanup_old_recordings(
             streamer_id
         )
 
         # Log cleanup results
         if deleted_count > 0:
-            logging_service.log_file_operation(
+            await run_in_thread_pool(
+                logging_service.log_file_operation,
                 "CLEANUP",
                 f"{deleted_count} files",
                 True,
                 f"Deleted {deleted_count} old recordings",
             )
         else:
-            logging_service.log_recording_activity(
+            await run_in_thread_pool(
+                logging_service.log_recording_activity,
                 "CLEANUP_NO_FILES",
                 f"Streamer {streamer_id}",
                 "No files found to clean up",
@@ -811,23 +879,29 @@ async def cleanup_old_recordings(streamer_id: int):
             "deleted_paths": deleted_paths,
         }
     except Exception as e:
-        logging_service.log_recording_error(
-            streamer_id, f"Streamer {streamer_id}", "CLEANUP_ERROR", str(e)
+        await run_in_thread_pool(
+            logging_service.log_recording_error,
+            streamer_id,
+            f"Streamer {streamer_id}",
+            "CLEANUP_ERROR",
+            str(e),
         )
         logger.error(f"Error cleaning up recordings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/cleanup/{streamer_id}/custom", response_model=Dict)
-async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
+async def run_custom_cleanup(
+    streamer_id: int,
+    policy: CleanupPolicySchema,
+    retention_service: CleanupService = Depends(get_retention_service),
+) -> dict[str, str | int | list[str]]:
     """Run a custom cleanup with specified policy"""
     try:
-        from app.services.system.cleanup_service import CleanupService
-
         # Convert pydantic model to dict
         policy_dict = policy.dict(exclude_unset=True)
 
-        deleted_count, deleted_paths = await CleanupService.cleanup_old_recordings(
+        deleted_count, deleted_paths = await retention_service.cleanup_old_recordings(
             streamer_id, custom_policy=policy_dict
         )
 
@@ -843,12 +917,12 @@ async def run_custom_cleanup(streamer_id: int, policy: CleanupPolicySchema):
 
 
 @router.get("/storage/{streamer_id}", response_model=StorageUsageSchema)
-async def get_storage_usage(streamer_id: int):
+async def get_storage_usage(
+    streamer_id: int, retention_service: CleanupService = Depends(get_retention_service)
+) -> dict[str, object]:
     """Get storage usage information for a streamer"""
     try:
-        from app.services.system.cleanup_service import CleanupService
-
-        usage = await CleanupService.get_storage_usage(streamer_id)
+        usage = await retention_service.get_storage_usage(streamer_id)
         return usage
     except Exception as e:
         logger.error(f"Error getting storage usage: {e}", exc_info=True)
@@ -856,9 +930,9 @@ async def get_storage_usage(streamer_id: int):
 
 
 @router.post("/streamers/{streamer_id}/cleanup-policy", response_model=Dict)
-async def update_streamer_cleanup_policy(
-    streamer_id: int, request_data: Dict, db: Session = Depends(get_db)
-):
+def update_streamer_cleanup_policy(
+    streamer_id: int, request_data: dict[str, object], db: Session = Depends(get_db)
+) -> dict[str, str]:
     """Update cleanup policy for a specific streamer"""
     try:
         # Check if the streamer exists
@@ -881,7 +955,8 @@ async def update_streamer_cleanup_policy(
 
         # Handle the use_global_cleanup_policy flag
         use_global = request_data.get("use_global_cleanup_policy", False)
-        streamer_settings.use_global_cleanup_policy = use_global
+        # Preserve legacy raw-value validation by the SQLAlchemy Boolean binder.
+        setattr(streamer_settings, "use_global_cleanup_policy", use_global)
 
         if use_global:
             # Clear custom policy when using global
@@ -907,8 +982,8 @@ async def update_streamer_cleanup_policy(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/filename-presets")
-async def get_filename_presets():
+@router.get("/filename-presets", response_model=None)
+async def get_filename_presets() -> dict[str, str | list[dict[str, str]]]:
     """Get all available filename presets"""
     try:
         # Convert the backend dictionary format to frontend array format

@@ -1,12 +1,18 @@
 """FFmpeg utility functions for StreamVault."""
 
 import os
+import asyncio
 from app.utils.media_process import media_process
 import logging
 import tempfile
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING, TextIO
+
+if TYPE_CHECKING:
+    from app.services.system.logging_service import LoggingService
+
+from app.utils.async_db_utils import run_in_thread_pool
 
 
 logger = logging.getLogger("streamvault")
@@ -22,6 +28,11 @@ async def validate_mp4(mp4_path: str) -> bool:
     Returns:
         True if valid, False otherwise
     """
+    return await run_in_thread_pool(_validate_mp4_file, mp4_path)
+
+
+def _validate_mp4_file(mp4_path: str) -> bool:
+    """Keep the existing basic file check entirely inside the blocking scope."""
     try:
         # First check basic file properties
         if not os.path.exists(mp4_path) or os.path.getsize(mp4_path) < 10000:
@@ -35,7 +46,7 @@ async def validate_mp4(mp4_path: str) -> bool:
         return False
 
 
-async def create_metadata_file(metadata: dict) -> Optional[str]:
+async def create_metadata_file(metadata: dict[str, object]) -> Optional[str]:
     """
     Create a temporary metadata file for FFmpeg in the correct format.
 
@@ -75,7 +86,7 @@ async def embed_metadata_in_mp4(
     input_path: str,
     output_path: str,
     metadata: Dict[str, Any],
-    chapters: Optional[list] = None,
+    chapters: Optional[list[dict[str, str | float]]] = None,
 ) -> bool:
     """
     Embed metadata into MP4 file using FFmpeg.
@@ -129,7 +140,7 @@ async def convert_ts_to_mp4(
     output_path: str,
     metadata_file: Optional[str] = None,
     overwrite: bool = False,
-    logging_service=None,
+    logging_service: "LoggingService | None" = None,
     streamer_name: str = "unknown",
 ) -> Dict[str, Any]:
     """
@@ -269,9 +280,9 @@ async def embed_metadata_with_ffmpeg_wrapper(
     input_path: str,
     output_path: str,
     metadata: Dict[str, Any],
-    chapters: Optional[list] = None,
+    chapters: Optional[list[dict[str, str | float]]] = None,
     streamer_name: str = "unknown",
-    logging_service=None,
+    logging_service: "LoggingService | None" = None,
     overwrite: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -289,7 +300,11 @@ async def embed_metadata_with_ffmpeg_wrapper(
         Dict containing success status and details
     """
     operation_id = None
-    metadata_file = staged_output = owner = None
+    metadata_file: str | None = None
+    process: asyncio.subprocess.Process | None = None
+    communication_completed = False
+    cancelled = False
+    staged_output = owner = None
     final_output = output_path
     try:
         logger.info(
@@ -297,7 +312,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
         )
 
         # Validate input file exists and has content
-        if not os.path.exists(input_path):
+        if not await run_in_thread_pool(os.path.exists, input_path):
             logger.error(f"Input file {input_path} does not exist")
             return {
                 "success": False,
@@ -306,7 +321,7 @@ async def embed_metadata_with_ffmpeg_wrapper(
                 "stderr": "Input file does not exist",
             }
 
-        input_size = os.path.getsize(input_path)
+        input_size = await run_in_thread_pool(os.path.getsize, input_path)
         if input_size == 0:
             logger.error(f"Input file {input_path} is empty")
             return {
@@ -320,12 +335,11 @@ async def embed_metadata_with_ffmpeg_wrapper(
             # Queue ownership allows retry; publish only a finished valid MP4.
             from app.utils.queue_ownership import queue_owner_file
             from app.utils.remux_staging import prepare_remux_stage
-            from app.utils.async_db_utils import run_in_thread_pool
 
             owner = queue_owner_file.get()
             if owner is not None:
 
-                def create_owned_stage():
+                def create_owned_stage() -> None:
                     nonlocal staged_output, output_path
                     staged_output = output_path = prepare_remux_stage(
                         output_path, owner
@@ -342,10 +356,10 @@ async def embed_metadata_with_ffmpeg_wrapper(
                     staged_output = output_path = staged.name
 
         # Check if output file already exists
-        if os.path.exists(output_path):
-            if os.path.getsize(output_path) == 0:
+        if await run_in_thread_pool(os.path.exists, output_path):
+            if await run_in_thread_pool(os.path.getsize, output_path) == 0:
                 try:
-                    os.remove(output_path)
+                    await run_in_thread_pool(os.remove, output_path)
                     logger.debug(f"Removed empty output file: {output_path}")
                 except Exception as remove_e:
                     logger.warning(f"Could not remove empty output file: {remove_e}")
@@ -366,44 +380,52 @@ async def embed_metadata_with_ffmpeg_wrapper(
 
         # Log the operation start
         if logging_service:
-            logging_service.ffmpeg_logger.info(
-                f"[FFMPEG_METADATA_START] {streamer_name} - {input_path} -> {output_path}"
+            await run_in_thread_pool(
+                lambda: logging_service.ffmpeg_logger.info(
+                    f"[FFMPEG_METADATA_START] {streamer_name} - {input_path} -> {output_path}"
+                )
             )
 
         # Create a temporary file for FFmpeg chapters
-        if staged_output is not None and owner is not None:
-            metadata_file = str(Path(staged_output).with_suffix(".ffmeta"))
-            metadata_handle = open(metadata_file, "x")
-        else:
-            metadata_handle = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False
-            )
-        with metadata_handle as f:
-            metadata_file = f.name
-            # Write global metadata
-            f.write(";FFMETADATA1\n")
-            if "title" in metadata:
-                f.write(f"title={metadata['title']}\n")
-            if "artist" in metadata:
-                f.write(f"artist={metadata['artist']}\n")
-            if "date" in metadata:
-                f.write(f"date={metadata['date']}\n")
-                f.write(
-                    f"year={metadata['date'].split('-')[0] if '-' in metadata['date'] else metadata['date']}\n"
+        def write_metadata() -> str:
+            nonlocal metadata_file
+            metadata_handle: TextIO | tempfile._TemporaryFileWrapper[str]
+            if staged_output is not None and owner is not None:
+                metadata_file = str(Path(staged_output).with_suffix(".ffmeta"))
+                metadata_handle = open(metadata_file, "x")
+            else:
+                metadata_handle = tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".txt", delete=False
                 )
-            if "creation_time" in metadata:
-                f.write(f"creation_time={metadata['creation_time']}\n")
+            with metadata_handle as f:
+                metadata_file = f.name
+                f.write(";FFMETADATA1\n")
+                if "title" in metadata:
+                    f.write(f"title={metadata['title']}\n")
+                if "artist" in metadata:
+                    f.write(f"artist={metadata['artist']}\n")
+                if "date" in metadata:
+                    f.write(f"date={metadata['date']}\n")
 
-            # Write chapter information if available
-            if chapters:
-                for chapter in chapters:
-                    f.write("\n[CHAPTER]\n")
-                    f.write("TIMEBASE=1/1000\n")
                     f.write(
-                        f"START={int(float(chapter.get('start_time', 0)) * 1000)}\n"
+                        f"year={metadata['date'].split('-')[0] if '-' in metadata['date'] else metadata['date']}\n"
                     )
-                    f.write(f"END={int(float(chapter.get('end_time', 0)) * 1000)}\n")
-                    f.write(f"title={chapter.get('title', 'Chapter')}\n")
+                if "creation_time" in metadata:
+                    f.write(f"creation_time={metadata['creation_time']}\n")
+                if chapters:
+                    for chapter in chapters:
+                        f.write("\n[CHAPTER]\n")
+                        f.write("TIMEBASE=1/1000\n")
+                        f.write(
+                            f"START={int(float(chapter.get('start_time', 0)) * 1000)}\n"
+                        )
+                        f.write(
+                            f"END={int(float(chapter.get('end_time', 0)) * 1000)}\n"
+                        )
+                        f.write(f"title={chapter.get('title', 'Chapter')}\n")
+            return metadata_file
+
+        metadata_file = await run_in_thread_pool(write_metadata)
 
         # Use FFmpeg to remux with metadata
         cmd = [
@@ -426,8 +448,8 @@ async def embed_metadata_with_ffmpeg_wrapper(
 
         # Use the logging service to create per-streamer logs
         if logging_service:
-            streamer_log_path = logging_service.log_ffmpeg_start(
-                "metadata_embed", cmd, streamer_name
+            streamer_log_path = await run_in_thread_pool(
+                logging_service.log_ffmpeg_start, "metadata_embed", cmd, streamer_name
             )
             logger.info(f"FFmpeg logs will be written to: {streamer_log_path}")
 
@@ -435,25 +457,28 @@ async def embed_metadata_with_ffmpeg_wrapper(
         logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
         async with media_process(*cmd) as (process, output):
             stdout, stderr = await output.wait()
+        communication_completed = True
         success_code = process.returncode == 0
 
         # Log the FFmpeg output using the logging service
         if logging_service:
-            logging_service.log_ffmpeg_output(
-                "metadata_embed", stdout, stderr, process.returncode, streamer_name
+            await run_in_thread_pool(
+                logging_service.log_ffmpeg_output,
+                "metadata_embed",
+                stdout,
+                stderr,
+                process.returncode,
+                streamer_name,
             )
-
-        # Clean up temporary metadata file
-        try:
-            os.unlink(metadata_file)
-        except Exception as e:
-            logger.warning(f"Could not remove temporary metadata file: {e}")
 
         if success_code:
             # Validate the output file
-            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            if (
+                await run_in_thread_pool(os.path.exists, output_path)
+                and await run_in_thread_pool(os.path.getsize, output_path) > 0
+            ):
                 # Perform basic size check
-                output_size = os.path.getsize(output_path)
+                output_size = await run_in_thread_pool(os.path.getsize, output_path)
                 size_ratio = output_size / input_size if input_size > 0 else 0
 
                 if size_ratio < 0.8:  # Output is significantly smaller than input
@@ -477,8 +502,10 @@ async def embed_metadata_with_ffmpeg_wrapper(
         if success_code:
             logger.info(f"FFmpeg metadata embedding successful: {operation_id}")
             if logging_service:
-                logging_service.ffmpeg_logger.info(
-                    f"[FFMPEG_METADATA_SUCCESS] {streamer_name} - {output_path}"
+                await run_in_thread_pool(
+                    lambda: logging_service.ffmpeg_logger.info(
+                        f"[FFMPEG_METADATA_SUCCESS] {streamer_name} - {output_path}"
+                    )
                 )
 
             return {
@@ -492,19 +519,25 @@ async def embed_metadata_with_ffmpeg_wrapper(
                 f"FFmpeg metadata embedding failed - no valid output file: {operation_id}"
             )
             if logging_service:
-                logging_service.ffmpeg_logger.error(
-                    f"[FFMPEG_METADATA_FAILED] {streamer_name} - {input_path}"
+                await run_in_thread_pool(
+                    lambda: logging_service.ffmpeg_logger.error(
+                        f"[FFMPEG_METADATA_FAILED] {streamer_name} - {input_path}"
+                    )
                 )
 
             # Check if at least we have a partial output file
-            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            if (
+                await run_in_thread_pool(os.path.exists, output_path)
+                and await run_in_thread_pool(os.path.getsize, output_path) > 0
+            ):
+                partial_size = await run_in_thread_pool(os.path.getsize, output_path)
                 logger.warning(
-                    f"FFmpeg failed but output file exists with size {os.path.getsize(output_path)}"
+                    f"FFmpeg failed but output file exists with size {partial_size}"
                 )
                 # We'll just warn but not try to recover - better to re-process properly
                 try:
                     # Remove the partial file to avoid confusion
-                    os.remove(output_path)
+                    await run_in_thread_pool(os.remove, output_path)
                     logger.debug(f"Removed partial output file: {output_path}")
                 except Exception as remove_e:
                     logger.warning(f"Could not remove partial output file: {remove_e}")
@@ -516,11 +549,17 @@ async def embed_metadata_with_ffmpeg_wrapper(
                 "stderr": stderr.decode("utf-8", errors="replace"),
             }
 
+    except asyncio.CancelledError:
+        cancelled = True
+        raise
     except Exception as e:
         logger.error(f"Error during FFmpeg metadata embedding: {e}", exc_info=True)
         if logging_service:
-            logging_service.ffmpeg_logger.error(
-                f"[FFMPEG_METADATA_ERROR] {streamer_name} - {str(e)}"
+            await run_in_thread_pool(
+                logging_service.ffmpeg_logger.error,
+                "[FFMPEG_METADATA_ERROR] %s - %s",
+                streamer_name,
+                e,
             )
         return {
             "success": False,
@@ -529,21 +568,47 @@ async def embed_metadata_with_ffmpeg_wrapper(
             "stderr": f"Error in FFmpeg metadata embedding: {str(e)}",
         }
     finally:
-        for temporary in (metadata_file, staged_output):
-            if temporary is not None:
-                try:
-                    os.unlink(temporary)
-                except FileNotFoundError:
-                    pass
-                except OSError as error:
-                    logger.warning(
-                        "Could not remove owned remux temporary file (%s)",
-                        type(error).__name__,
-                    )
+
+        async def cleanup() -> None:
+            try:
+                if process is not None and not communication_completed:
+                    if process.returncode is None:
+                        try:
+                            process.kill()
+                        except ProcessLookupError:
+                            pass
+                    await process.communicate()
+            finally:
+                for temporary in (metadata_file, staged_output):
+                    if temporary is None:
+                        continue
+                    try:
+                        await run_in_thread_pool(
+                            Path(temporary).unlink, missing_ok=True
+                        )
+                    except OSError as error:
+                        logger.warning(
+                            "Could not remove temporary metadata file: %s", error
+                        )
+                if cancelled and process is not None:
+                    await run_in_thread_pool(Path(output_path).unlink, missing_ok=True)
+
+        # The remux task owns this drain even if shutdown cancels it again.
+        drain = asyncio.create_task(cleanup())
+        interrupted = False
+        while not drain.done():
+            try:
+                await asyncio.shield(drain)
+            except asyncio.CancelledError:
+                cancelled = True
+                interrupted = True
+        drain.result()
+        if interrupted:
+            raise asyncio.CancelledError
 
 
 async def create_ffmpeg_chapters_file(
-    chapters: list,
+    chapters: list[dict[str, str | float]],
     output_path: str,
     title: Optional[str] = None,
     artist: Optional[str] = None,
@@ -597,7 +662,9 @@ async def create_ffmpeg_chapters_file(
                     f.write(f"START={start_ms}\n")
                     f.write(f"END={end_ms}\n")
                     # Escape special characters in chapter title
-                    chapter_title = chapter.get("title", "Chapter").replace("=", "\\=")
+                    title_value = chapter.get("title", "Chapter")
+                    assert isinstance(title_value, str)
+                    chapter_title = title_value.replace("=", "\\=")
                     f.write(f"title={chapter_title}\n")
 
         logger.info(

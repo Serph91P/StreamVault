@@ -82,6 +82,8 @@ with tempfile.TemporaryDirectory(prefix="issue995-", dir=os.environ["TMPDIR"]) a
         "-e",
         "DATABASE_URL=sqlite:////scratch/acceptance.sqlite",
         "-e",
+        "ENVIRONMENT=test",
+        "-e",
         "TWITCH_APP_ID=synthetic",
         "-e",
         "TWITCH_APP_SECRET=synthetic",

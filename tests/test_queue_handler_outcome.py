@@ -1,7 +1,6 @@
-"""#955 original eea67f69: negative returns must not release dependents."""
+"""#955: returned failures are failures, including the real media handler."""
 
 import asyncio
-from datetime import datetime, timezone
 
 import pytest
 
@@ -12,10 +11,11 @@ from app.services.queues.task_progress_tracker import (
     TaskStatus,
 )
 from app.services.queues.worker_manager import WorkerManager
+from datetime import datetime, timezone
 from app.services.recording.segment_concatenation_task import (
     handle_segment_concatenation,
 )
-from test_queue_retry_contract import terminal
+from tests.test_queue_retry_contract import terminal
 
 
 @pytest.mark.asyncio

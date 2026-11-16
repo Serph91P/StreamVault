@@ -189,7 +189,8 @@ class WorkerManager:
                         None, handler, task.payload
                     )
 
-            # Legacy handlers may return None; explicit failures share the retry path.
+            # Legacy handlers may return None; explicit negative outcomes use
+            # the same bounded retry/dependency path as raised exceptions.
             if result is False:
                 raise RuntimeError("Task handler reported failure")
             if isinstance(result, dict) and result.get("success") is False:

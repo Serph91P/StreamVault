@@ -3,16 +3,20 @@
 from itertools import islice
 from pathlib import Path
 from uuid import UUID, uuid4
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.utils.queue_ownership import QueueOwnerFile
 
 
-def _uuid(value):
+def _uuid(value: str) -> bool:
     try:
         return str(UUID(value)) == value
     except ValueError:
         return False
 
 
-def prepare_remux_stage(output, owner):
+def prepare_remux_stage(output: str, owner: "QueueOwnerFile") -> str:
     root = Path(output).parent / f".{Path(output).name}.processing"
     if root.is_symlink():
         raise OSError("Remux scratch root must not be a symlink")

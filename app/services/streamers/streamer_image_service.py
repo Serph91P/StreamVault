@@ -145,11 +145,11 @@ class StreamerImageService:
 
             # Use the download service to test if the URL is accessible
             session = await self.image_service.download_service.get_session()
-            async with session.head(url) as response:
+            async with session.stream("HEAD", url) as response:
                 content_type = response.headers.get("content-type", "")
-                return response.status == 200 and "image" in content_type
+                return response.status_code == 200 and "image" in content_type
         except Exception as e:
-            logger.debug(f"Image URL validation failed for {url}: {e}")
+            logger.debug("Image URL validation failed: %s", type(e).__name__)
             return False
 
     async def get_image_dimensions(self, url: str) -> Optional[tuple]:

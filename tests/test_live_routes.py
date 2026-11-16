@@ -39,6 +39,12 @@ class Database:
     def query(self, model):
         return StreamerQuery(self.streamers)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
 
 @pytest.mark.asyncio
 async def test_start_route_normalizes_name_and_returns_idempotency(monkeypatch):
@@ -70,8 +76,9 @@ async def test_start_route_normalizes_name_and_returns_idempotency(monkeypatch):
                 "enhanced_quality": True,
             }
         ),
-        db=Database([streamer]),
+        session_factory=lambda: Database([streamer]),
         current_user=SimpleNamespace(id=7),
+        service=live_routes.live_streaming_service,
     )
 
     assert calls == [
@@ -117,8 +124,9 @@ async def test_start_route_returns_exact_coordinator_conflict(monkeypatch):
         await live_routes.start_live_stream(
             "streamer",
             JsonRequest({"enhanced_quality": True}),
-            db=Database([streamer]),
+            session_factory=lambda: Database([streamer]),
             current_user=SimpleNamespace(id=7),
+            service=live_routes.live_streaming_service,
         )
 
     assert raised.value.status_code == 409
@@ -145,7 +153,9 @@ async def test_stop_route_rejects_foreign_user_without_stopping(monkeypatch):
     monkeypatch.setattr(live_routes, "live_streaming_service", Service())
     with pytest.raises(HTTPException) as raised:
         await live_routes.stop_live_stream(
-            "foreign-session", current_user=SimpleNamespace(id=7)
+            "foreign-session",
+            current_user=SimpleNamespace(id=7),
+            service=live_routes.live_streaming_service,
         )
 
     assert raised.value.status_code == 403

@@ -6,14 +6,20 @@ Handles downloading, caching, and serving of streamer profile images.
 """
 
 import logging
+from collections.abc import Callable
+from contextlib import ExitStack
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import RLock
 from typing import Dict, Optional
 from cachetools import TTLCache
+from sqlalchemy import update
+from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Streamer
 from .image_download_service import ImageDownloadService
 from app.config.constants import CACHE_CONFIG
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -21,48 +27,39 @@ logger = logging.getLogger("streamvault")
 class ProfileImageService:
     """Handles streamer profile image management"""
 
-    def __init__(self, download_service: Optional[ImageDownloadService] = None):
+    def __init__(
+        self,
+        download_service: Optional[ImageDownloadService] = None,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+    ):
+        self._session_factory = session_factory
+        self._cache_lock = RLock()
         self.download_service = download_service or ImageDownloadService()
         # TTLCache for profile images (prevents memory leaks with automatic expiration)
-        self._profile_cache: TTLCache = TTLCache(
+        self._profile_cache: TTLCache[str, str] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
-        self._profile_sources: TTLCache = TTLCache(
+        self._profile_sources: TTLCache[str, str] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE, ttl=CACHE_CONFIG.IMAGE_CACHE_TTL
         )
-        self.profiles_dir = None
+        self.profiles_dir: Path | None = None
         self._cache_loaded = False
         # Don't load cache immediately during initialization - defer until first use
 
-    def _ensure_profiles_dir(self):
-        """Ensure profiles directory exists"""
+    def _sessions(self) -> Session:
+        return (self._session_factory or SessionLocal)()
+
+    def _ensure_profiles_dir(self) -> None:
         if self.profiles_dir is None:
-            try:
-                images_base_dir = self.download_service.get_images_base_dir()
-                self.profiles_dir = images_base_dir / "profiles"
-                self.profiles_dir.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
-                logger.error(f"Failed to initialize profiles directory: {e}")
-                # Fallback to a permanent path in the data directory
-                fallback_dir = Path("/recordings/.media/profiles")
-                try:
-                    self.profiles_dir = fallback_dir
-                    self.profiles_dir.mkdir(parents=True, exist_ok=True)
-                    logger.warning(
-                        f"Using fallback profiles directory: {self.profiles_dir}"
-                    )
-                except Exception as fallback_error:
-                    logger.critical(
-                        f"Failed to initialize fallback profiles directory: {fallback_error}"
-                    )
-                    raise RuntimeError(
-                        "Unable to initialize profiles directory or fallback directory."
-                    )
+            directory = self.download_service.get_images_base_dir() / "profiles"
+            directory.mkdir(parents=True, exist_ok=True)
+            self.profiles_dir = directory
 
     def _get_twitch_id_for_streamer(self, streamer_id: int) -> Optional[str]:
         """Get Twitch ID for a streamer by internal ID"""
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 from app.models import Streamer
 
                 streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
@@ -80,16 +77,18 @@ class ProfileImageService:
         else:
             return None  # File doesn't match expected patterns
 
-    def _ensure_cache_loaded(self):
+    def _ensure_cache_loaded(self) -> None:
+        with self._cache_lock:
+            self._ensure_cache_loaded_locked()
+
+    def _ensure_cache_loaded_locked(self) -> None:
         """Ensure cache is loaded, but only if database is available"""
         if self._cache_loaded:
             return
 
         try:
             # Test if database is ready by attempting a simple query
-            from app.database import SessionLocal
-
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 # Try a simple query to check if streamers table exists
                 # Use text() for raw SQL to avoid table reflection issues
                 from sqlalchemy import text
@@ -109,7 +108,11 @@ class ProfileImageService:
                 )
                 self._cache_load_attempted = True
 
-    def _load_existing_cache(self):
+    def _load_existing_cache(self) -> None:
+        with self._cache_lock:
+            self._load_existing_cache_locked()
+
+    def _load_existing_cache_locked(self) -> None:
         """Load information about already cached profile images"""
         # Disk filenames alone cannot prove which upstream URL produced the bytes.
         self._profile_sources.clear()
@@ -150,7 +153,7 @@ class ProfileImageService:
     def _get_internal_id_for_extracted_id(self, extracted_id: str) -> Optional[int]:
         """Convert extracted ID (could be internal ID or Twitch ID) to internal streamer ID"""
         try:
-            with SessionLocal() as db:
+            with self._sessions() as db:
                 from app.models import Streamer
 
                 # First try as internal ID (for old files)
@@ -179,6 +182,15 @@ class ProfileImageService:
             )
             return None
 
+    def _cached_profile_for_source(
+        self, streamer_id: str, source: str
+    ) -> Optional[str]:
+        self._ensure_cache_loaded()
+        with self._cache_lock:
+            if self._profile_sources.get(streamer_id) == source:
+                return self._profile_cache.get(streamer_id)
+            return None
+
     async def download_profile_image(
         self, streamer_id: int, profile_image_url: str
     ) -> Optional[str]:
@@ -192,25 +204,26 @@ class ProfileImageService:
         Returns:
             Relative path to the cached image or None if failed
         """
-        self._ensure_profiles_dir()
+        await run_in_thread_pool(self._ensure_profiles_dir)
 
         if not profile_image_url:
             return None
 
         # Get the Twitch ID for proper filename
-        twitch_id = self._get_twitch_id_for_streamer(streamer_id)
+        twitch_id = await run_in_thread_pool(
+            self._get_twitch_id_for_streamer, streamer_id
+        )
         if not twitch_id:
             logger.warning(f"Could not find Twitch ID for streamer {streamer_id}")
             return None
 
         # Check if already cached
-        self._ensure_cache_loaded()
         streamer_id_str = str(streamer_id)
-        if (
-            streamer_id_str in self._profile_cache
-            and self._profile_sources.get(streamer_id_str) == profile_image_url
-        ):
-            return self._profile_cache[streamer_id_str]
+        cached = await run_in_thread_pool(
+            self._cached_profile_for_source, streamer_id_str, profile_image_url
+        )
+        if cached is not None:
+            return cached
 
         try:
             filename = f"profile_avatar_{twitch_id}.jpg"
@@ -218,26 +231,38 @@ class ProfileImageService:
             if self.profiles_dir is None:
                 logger.error("Profiles directory not initialized")
                 return None
-            file_path = self.download_service._resolve_destination_path(
-                self.profiles_dir / filename
+            file_path = await run_in_thread_pool(
+                self.download_service._resolve_destination_path,
+                self.profiles_dir / filename,
             )
+            relative_path = f"/recordings/.media/profiles/{filename}"
+            staging = ExitStack()
 
-            # Publish only complete downloads; errors and cancellation preserve the old image.
-            with TemporaryDirectory(
-                dir=file_path.parent, prefix=".profile-"
-            ) as staging:
-                staged_path = Path(staging) / filename
+            def prepare_staging() -> Path:
+                directory = TemporaryDirectory(dir=file_path.parent, prefix=".profile-")
+                staging.callback(directory.cleanup)
+                return Path(directory.name) / filename
+
+            try:
+                staged_path = await run_in_thread_pool(prepare_staging)
                 success = await self.download_service.download_image(
                     profile_image_url, staged_path, retry_failed=True
                 )
-                if success and staged_path.stat().st_size:
-                    staged_path.replace(file_path)
-                else:
-                    success = False
+
+                def publish() -> bool:
+                    if not staged_path.stat().st_size:
+                        return False
+                    with self._cache_lock:
+                        staged_path.replace(file_path)
+                        self._profile_cache[streamer_id_str] = relative_path
+                        self._profile_sources[streamer_id_str] = profile_image_url
+                    return True
+
+                if success:
+                    success = await run_in_thread_pool(publish)
+            finally:
+                await run_in_thread_pool(staging.close)
             if success:
-                relative_path = f"/recordings/.media/profiles/{filename}"
-                self._profile_cache[streamer_id_str] = relative_path
-                self._profile_sources[streamer_id_str] = profile_image_url
                 logger.info(
                     f"Successfully cached profile image for streamer {streamer_id}"
                 )
@@ -257,86 +282,89 @@ class ProfileImageService:
     def get_cached_profile_image(self, streamer_id: int) -> Optional[str]:
         """Get cached profile image path for a streamer"""
         self._ensure_cache_loaded()
-        return self._profile_cache.get(str(streamer_id))
+        with self._cache_lock:
+            return self._profile_cache.get(str(streamer_id))
+
+    def _persist_profile_paths(self, updates: list[tuple[int, str]]) -> set[int]:
+        with self._sessions() as db:
+            changed: set[int] = set()
+            for streamer_id, path in updates:
+                changed.update(
+                    db.execute(
+                        update(Streamer)
+                        .where(Streamer.id == streamer_id)
+                        .values(profile_image_url=path)
+                        .returning(Streamer.id)
+                    )
+                    .scalars()
+                    .all()
+                )
+            db.commit()
+            return changed
 
     async def update_streamer_profile_image(
         self, streamer_id: int, profile_image_url: str
     ) -> bool:
-        """Update a streamer's profile image in database and cache"""
+        """Download first, then persist using a separate closed worker transaction."""
         try:
-            # Download the image
             cached_path = await self.download_profile_image(
                 streamer_id, profile_image_url
             )
-
             if cached_path:
-                # Update database
-                with SessionLocal() as db:
-                    streamer = (
-                        db.query(Streamer).filter(Streamer.id == streamer_id).first()
-                    )
-                    if streamer:
-                        streamer.profile_image_url = cached_path
-                        db.commit()
-                        logger.info(f"Updated profile image for streamer {streamer_id}")
-                        return True
+                changed = await run_in_thread_pool(
+                    self._persist_profile_paths, [(streamer_id, cached_path)]
+                )
+                return streamer_id in changed
+        except Exception as error:
+            logger.error("Profile image update failed: %s", type(error).__name__)
+        return False
 
-            return False
-        except Exception as e:
-            logger.error(
-                f"Error updating profile image for streamer {streamer_id}: {e}"
-            )
-            return False
+    def _profile_snapshot(self) -> list[tuple[int, str | None]]:
+        with self._sessions() as db:
+            return [
+                (row.id, row.profile_image_url)
+                for row in db.query(Streamer.id, Streamer.profile_image_url).all()
+            ]
 
     async def sync_all_profile_images(self) -> Dict[str, int]:
-        """Sync all profile images for all streamers"""
+        """Keep only scalar snapshots while performing provider I/O."""
         stats = {"downloaded": 0, "skipped": 0, "failed": 0}
-
         try:
-            with SessionLocal() as db:
-                streamers = db.query(Streamer).all()
-
-                for streamer in streamers:
-                    if (
-                        streamer.profile_image_url
-                        and streamer.profile_image_url.startswith("http")
-                    ):
-                        # This is a Twitch URL, download and cache it
-                        cached_path = await self.download_profile_image(
-                            streamer.id, streamer.profile_image_url
-                        )
-                        if cached_path:
-                            # Update to use cached path
-                            streamer.profile_image_url = cached_path
-                            stats["downloaded"] += 1
-                        else:
-                            stats["failed"] += 1
+            snapshot = await run_in_thread_pool(self._profile_snapshot)
+            updates: list[tuple[int, str]] = []
+            for streamer_id, source in snapshot:
+                if source and source.startswith("http"):
+                    cached_path = await self.download_profile_image(streamer_id, source)
+                    if cached_path:
+                        updates.append((streamer_id, cached_path))
                     else:
-                        stats["skipped"] += 1
-
-                db.commit()
-
-        except Exception as e:
-            logger.error(f"Error syncing profile images: {e}")
-
-        logger.info(f"Profile image sync completed: {stats}")
+                        stats["failed"] += 1
+                else:
+                    stats["skipped"] += 1
+            changed = await run_in_thread_pool(self._persist_profile_paths, updates)
+            stats["downloaded"] = len(changed)
+            stats["failed"] += len(updates) - len(changed)
+        except Exception as error:
+            logger.error("Profile image sync failed: %s", type(error).__name__)
+        logger.info("Profile image sync completed: %s", stats)
         return stats
 
     def get_profile_cache_stats(self) -> Dict[str, int]:
         """Get statistics about profile image cache"""
         self._ensure_cache_loaded()
-        return {
-            "cached_profiles": len(self._profile_cache),
-            "failed_downloads": len(
-                [
-                    url
-                    for url in self.download_service._failed_downloads
-                    if "profile" in url
-                ]
-            ),
-        }
+        with self._cache_lock:
+            return {
+                "cached_profiles": len(self._profile_cache),
+                "failed_downloads": sum(
+                    "profile" in url
+                    for url in tuple(self.download_service._failed_downloads)
+                ),
+            }
 
     async def cleanup_unused_profile_images(self) -> int:
+        return await run_in_thread_pool(self._cleanup_unused_profile_images)
+
+    def _cleanup_unused_profile_images(self) -> int:
         """Remove profile images that are no longer associated with any streamer"""
         cleaned_count = 0
 
@@ -344,10 +372,12 @@ class ProfileImageService:
             self._ensure_profiles_dir()
 
             # Get all streamer IDs from database
-            with SessionLocal() as db:
-                active_streamer_ids = set(
-                    str(s.id) for s in db.query(Streamer.id).all()
-                )
+            with self._sessions() as db:
+                rows = db.query(Streamer.id, Streamer.twitch_id).all()
+                active_streamer_ids = {str(row.id) for row in rows}
+                active_twitch_ids = {
+                    str(row.twitch_id) for row in rows if row.twitch_id
+                }
 
             # Check cached images (both old and new format)
             if self.profiles_dir is None:
@@ -358,12 +388,20 @@ class ProfileImageService:
                 if streamer_id is None:
                     continue  # Skip files that don't match expected patterns
 
-                if streamer_id not in active_streamer_ids:
+                active_ids = (
+                    active_twitch_ids
+                    if image_file.stem.startswith("profile_avatar_")
+                    else active_streamer_ids
+                )
+                if streamer_id not in active_ids:
                     try:
-                        image_file.unlink()
-                        # Remove from cache
-                        self._profile_cache.pop(streamer_id, None)
-                        self._profile_sources.pop(streamer_id, None)
+                        with self._cache_lock:
+                            image_file.unlink()
+                            relative = f"/recordings/.media/profiles/{image_file.name}"
+                            for key, cached_path in list(self._profile_cache.items()):
+                                if cached_path == relative:
+                                    self._profile_cache.pop(key, None)
+                                    self._profile_sources.pop(key, None)
                         cleaned_count += 1
                         logger.info(f"Removed unused profile image: {image_file.name}")
                     except Exception as e:
@@ -374,6 +412,6 @@ class ProfileImageService:
 
         return cleaned_count
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the download service"""
         await self.download_service.close()

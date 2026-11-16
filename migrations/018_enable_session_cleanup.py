@@ -13,9 +13,13 @@ from datetime import datetime, timedelta, timezone
 logger = logging.getLogger("streamvault")
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def upgrade(target_engine: Engine | None = None):
     """Enable session management and cleanup"""
-    db = next(get_db())
+    db = migration_session(target_engine, lambda: next(get_db()))
     try:
         logger.info("Migration 017: Enabling session management and cleanup")
 
@@ -75,7 +79,9 @@ def upgrade():
         result = db.execute(text("SELECT COUNT(*) as count FROM sessions"))
         final_session_count = result.fetchone()[0]
 
-        logger.info(f"Migration 017 completed successfully. Active sessions: {final_session_count}")
+        logger.info(
+            f"Migration 017 completed successfully. Active sessions: {final_session_count}"
+        )
 
     except Exception as e:
         logger.error(f"Migration 017 failed: {e}")

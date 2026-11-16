@@ -221,6 +221,7 @@ def get_streamlink_command(
     supported_codecs: Optional[str] = None,
     oauth_token: Optional[str] = None,
     anonymous: bool = False,
+    config_directory: str | os.PathLike[str] | None = None,
 ) -> List[str]:
     """
     Generate a Streamlink command for recording a stream.
@@ -258,9 +259,10 @@ def get_streamlink_command(
     cmd = [
         "streamlink",
         "--config",
-        "/app/config/streamlink/config.twitch-anonymous"
-        if anonymous
-        else "/app/config/streamlink/config.twitch",
+        os.path.join(
+            config_directory or "/app/config/streamlink",
+            "config.twitch-anonymous" if anonymous else "config.twitch",
+        ),
         f"twitch.tv/{streamer_name}",
         quality,
         "-o",

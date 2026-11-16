@@ -442,7 +442,7 @@ class TestChapterCrossContaminationGuard:
         mp4_path = wrong_dir / "episode.mp4"
 
         result = asyncio.run(
-            service.ensure_all_chapter_formats(stream.id, str(mp4_path), db)
+            service.ensure_all_chapter_formats(stream.id, str(mp4_path))
         )
 
         assert result is None
@@ -470,7 +470,7 @@ class TestChapterCrossContaminationGuard:
         mp4_path = right_dir / "episode.mp4"
 
         result = asyncio.run(
-            service.ensure_all_chapter_formats(stream.id, str(mp4_path), db)
+            service.ensure_all_chapter_formats(stream.id, str(mp4_path))
         )
 
         assert result is not None
@@ -503,7 +503,7 @@ class TestChapterCrossContaminationGuard:
         mp4_path = right_dir / "episode.mp4"
 
         result = asyncio.run(
-            service.ensure_all_chapter_formats(stream.id, str(mp4_path), db)
+            service.ensure_all_chapter_formats(stream.id, str(mp4_path))
         )
 
         assert result is not None

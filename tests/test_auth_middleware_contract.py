@@ -20,6 +20,7 @@ from app.models import ApiKey, RefreshToken, Session, User
 from app.services.core.auth_service import AuthService
 from app.services.core.api_key_service import ApiKeyService
 from app.dependencies import (
+    get_application_session_factory,
     get_auth_service,
     get_current_user,
     get_db,
@@ -95,9 +96,10 @@ def auth_stack(monkeypatch):
         "AuthService",
         lambda db: AuthService(db, settings=settings),
     )
-    monkeypatch.setattr(auth_routes, "get_settings", lambda: settings)
 
     app = FastAPI(openapi_url="/api/openapi.json")
+    app.state.settings = settings
+    app.dependency_overrides[get_application_session_factory] = lambda: SessionFactory
     app.include_router(auth_routes.router, prefix="/auth")
     app.include_router(api_key_routes.router)
     app.include_router(video_routes.router)
@@ -364,7 +366,9 @@ def test_fresh_jwt_login_can_check_session_list_library_and_keepalive(auth_stack
     assert keepalive.json() == {"ok": True}
 
 
-def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkeypatch, tmp_path):
+def test_fresh_jwt_login_reaches_authenticated_media_contract(
+    auth_stack, monkeypatch, tmp_path
+):
     """JWT cookies must work for every player route without minting a legacy session."""
     app, _settings, _SessionFactory, _user_id, _legacy_token, _api_key = auth_stack
     media_file = tmp_path / "recording.mp4"
@@ -376,47 +380,33 @@ def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkey
         "WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nOpening\n",
         encoding="utf-8",
     )
-    stream = SimpleNamespace(
-        id=1,
-        title="Synthetic recording",
-        recording_path=str(media_file),
-        started_at=None,
-        ended_at=None,
+    from app.models import Stream, Streamer, StreamMetadata
+
+    Base.metadata.create_all(_SessionFactory.kw["bind"])
+    with _SessionFactory() as db:
+        channel = Streamer(username="synthetic-media", twitch_id="synthetic-media")
+        db.add(channel)
+        db.flush()
+        db.add(
+            Stream(
+                id=1,
+                streamer_id=channel.id,
+                title="Synthetic recording",
+                recording_path=str(media_file),
+            )
+        )
+        db.flush()
+        db.add(StreamMetadata(stream_id=1, chapters_vtt_path=str(chapters)))
+        db.commit()
+    _settings.BASE_URL = "https://test.invalid"
+    _settings.RECORDING_DIRECTORY = str(tmp_path)
+    monkeypatch.setattr(
+        video_routes,
+        "validate_path_security",
+        lambda path, _mode, *, recording_directory=None: path,
     )
-    metadata = SimpleNamespace(
-        stream_id=1,
-        chapters_vtt_path=str(chapters),
-        chapters_ffmpeg_path=None,
-    )
-
-    class Query:
-        def __init__(self, value):
-            self.value = value
-
-        def filter(self, *_args):
-            return self
-
-        def first(self):
-            return self.value
-
-    class MediaDb:
-        def query(self, model):
-            return Query(metadata if model.__name__ == "StreamMetadata" else stream)
-
-    from app.config import settings as settings_module
-
-    monkeypatch.setattr(video_routes, "validate_path_security", lambda path, _mode: path)
     monkeypatch.setattr(video_routes, "validate_file_type", lambda *_args: None)
     monkeypatch.setattr(video_routes, "get_recordings_directory", lambda: str(tmp_path))
-    monkeypatch.setattr(video_routes, "store_share_token", lambda *_args: None)
-    monkeypatch.setattr(video_routes, "cleanup_expired_tokens", lambda: None)
-    monkeypatch.setattr(
-        settings_module, "get_settings", lambda: SimpleNamespace(BASE_URL="https://test.invalid")
-    )
-    from contextlib import nullcontext
-
-    app.dependency_overrides[get_db] = lambda: MediaDb()
-    monkeypatch.setattr(video_routes, "SessionLocal", lambda: nullcontext(MediaDb()))
 
     with TestClient(app) as client:
         login = client.post(
@@ -426,7 +416,9 @@ def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkey
         thumbnail_response = client.get("/api/videos/1/thumbnail")
         chapters_response = client.get("/api/videos/1/chapters")
         share_response = client.post("/api/videos/1/share-token")
-        stream_response = client.get("/api/videos/1/stream", headers={"Range": "bytes=0-8"})
+        stream_response = client.get(
+            "/api/videos/1/stream", headers={"Range": "bytes=0-8"}
+        )
 
     assert login.status_code == 200
     assert "access_token" in login.cookies
@@ -445,7 +437,9 @@ def test_fresh_jwt_login_reaches_authenticated_media_contract(auth_stack, monkey
         }
     ]
     assert share_response.status_code == 200
-    assert share_response.json()["share_url"].startswith("https://test.invalid/api/videos/public/1?token=")
+    assert share_response.json()["share_url"].startswith(
+        "https://test.invalid/api/videos/public/1?token="
+    )
     assert stream_response.status_code == 206
     assert stream_response.content == b"synthetic"
 

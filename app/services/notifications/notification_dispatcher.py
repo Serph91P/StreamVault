@@ -6,6 +6,10 @@ Central dispatcher that coordinates WebSocket, external, and push notifications.
 """
 
 import logging
+from collections.abc import Callable
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
+from app.services.communication.enhanced_push_service import EnhancedPushService
 from typing import Dict, Any, Optional
 from app.services.communication.websocket_manager import ConnectionManager
 from .external_notification_service import ExternalNotificationService
@@ -17,10 +21,23 @@ logger = logging.getLogger("streamvault")
 class NotificationDispatcher:
     """Main notification coordination service"""
 
-    def __init__(self, websocket_manager: Optional[ConnectionManager] = None):
+    def __init__(
+        self,
+        websocket_manager: Optional[ConnectionManager] = None,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+        settings: Settings | None = None,
+    ):
         self.websocket_manager = websocket_manager
-        self.external_service = ExternalNotificationService()
-        self.push_service = PushNotificationService()
+        self.external_service = ExternalNotificationService(
+            session_factory=session_factory, settings=settings
+        )
+        self.push_service = PushNotificationService(
+            session_factory=session_factory,
+            push_service=EnhancedPushService(settings=settings)
+            if settings is not None
+            else None,
+        )
 
     async def send_stream_notification(
         self, streamer_name: str, event_type: str, details: dict

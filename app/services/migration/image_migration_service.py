@@ -1,37 +1,59 @@
-"""
-Image Migration Service
+"""Legacy image migration with scoped catalogue values and atomic publication."""
 
-Migrates images from old directory structure to new simplified structure.
-Cleans up old directories and prevents duplicates.
-"""
-
-import shutil
-import logging
 import asyncio
+import logging
+import shutil
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict, Optional, Awaitable, Any
 
+from sqlalchemy.orm import Session
+
+from app.config.settings import Settings
+from app.database import SessionLocal
 from app.models import Streamer
-from app.utils.file_utils import sanitize_filename, safe_remove_directory
+from app.utils.async_db_utils import batch_process_items, run_in_thread_pool
+from app.utils.file_utils import (
+    sanitize_filename,
+    safe_remove_directory,
+    validate_directory_path,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class MigrationStreamer:
+    id: int
+    username: str
 
 
 class ImageMigrationService:
     """Service to migrate images from old structure to new simplified structure"""
 
-    def __init__(self):
-        # Hardcoded Docker path - always /recordings in container
-        self.recordings_dir = Path("/recordings")
+    def __init__(
+        self,
+        *,
+        settings: Settings | None = None,
+        session_factory: Callable[[], Session] | None = None,
+    ):
+        self._session_factory = session_factory
+        self.recordings_dir = (
+            Path(settings.RECORDING_DIRECTORY) if settings else Path("/recordings")
+        )
         self.old_images_dir = self.recordings_dir / ".images"
         self.old_artwork_dir = self.recordings_dir / ".artwork"
 
-    async def migrate_all_images(self) -> Dict[str, int]:
-        """
-        Migrate all images from old structure to new structure
-        Returns statistics about migration
-        """
+    def _streamers(self) -> list[MigrationStreamer]:
+        with (self._session_factory or SessionLocal)() as session:
+            return [
+                MigrationStreamer(row.id, row.username)
+                for row in session.query(Streamer.id, Streamer.username).all()
+            ]
+
+    async def migrate_all_images(self) -> dict[str, int]:
+        """Migrate images from old structure to new structure."""
         stats = {
             "streamers_migrated": 0,
             "images_moved": 0,
@@ -39,271 +61,163 @@ class ImageMigrationService:
             "errors": 0,
             "directories_cleaned": 0,
         }
-
         try:
-            # Get all streamers from database using async session management
-            from app.utils.async_db_utils import get_all_streamers, batch_process_items
-
-            streamers = await get_all_streamers()
-
-            # Process streamers in batches for better performance
+            streamers = await run_in_thread_pool(self._streamers)
             async for batch in batch_process_items(
                 streamers, batch_size=5, max_concurrent=2
             ):
-                # Create task-to-streamer mapping for O(1) lookup performance
-                task_to_streamer_map: Dict[Awaitable[Any], Streamer] = {}
-                tasks = []
-
-                for streamer in batch:
-                    try:
-                        task = asyncio.create_task(
-                            self.migrate_streamer_images(streamer)
+                async with asyncio.TaskGroup() as group:
+                    tasks = [
+                        group.create_task(
+                            self.migrate_streamer_images(streamer),
+                            name=f"streamvault:image-migration:{streamer.id}",
                         )
-                        task_to_streamer_map[task] = streamer
-                        tasks.append(task)
-                    except Exception as e:
-                        logger.error(
-                            f"Error creating migration task for streamer {streamer.username}: {e}"
-                        )
-                        stats["errors"] += 1
-
-                # Process tasks as they complete to avoid memory buildup
-                if tasks:
-                    for completed_task in asyncio.as_completed(tasks):
-                        try:
-                            result = await completed_task
-                            # O(1) lookup for streamer associated with completed task
-                            # Note: asyncio.as_completed() returns the original task objects,
-                            # so the mapping lookup works correctly
-                            streamer = self._get_streamer_for_task(
-                                task_to_streamer_map, completed_task
-                            )
-                            streamer_name = streamer.username if streamer else "Unknown"
-
-                            stats["errors"] += result["errors"]
-                            stats["images_moved"] += result["images_moved"]
-                            stats["duplicates_found"] += result["duplicates_found"]
-
-                            if not result["errors"]:
-                                stats["streamers_migrated"] += 1
-                                logger.debug(
-                                    f"Successfully migrated images for streamer {streamer_name}"
-                                )
-                        except Exception as e:
-                            # O(1) lookup for streamer associated with failed task
-                            # Note: asyncio.as_completed() returns the original task objects,
-                            # so the mapping lookup works correctly
-                            streamer = self._get_streamer_for_task(
-                                task_to_streamer_map, completed_task
-                            )
-                            streamer_name = streamer.username if streamer else "Unknown"
-                            logger.error(
-                                f"Error migrating images for streamer {streamer_name}: {e}"
-                            )
-                            stats["errors"] += 1
-
-            # Clean up old directories
-            cleanup_result = await self.cleanup_old_directories()
-            stats["directories_cleaned"] = cleanup_result["directories_removed"]
-
-            if stats["errors"]:
-                logger.warning(f"Migration completed with errors: {stats}")
-            else:
-                logger.info(f"Migration completed: {stats}")
-            return stats
-
-        except Exception as e:
-            logger.error(f"Error during image migration: {e}")
+                        for streamer in batch
+                    ]
+                for task in tasks:
+                    result = task.result()
+                    stats["errors"] += result["errors"]
+                    stats["images_moved"] += result["images_moved"]
+                    stats["duplicates_found"] += result["duplicates_found"]
+                    if not result["errors"]:
+                        stats["streamers_migrated"] += 1
+            cleanup = await self.cleanup_old_directories()
+            stats["directories_cleaned"] = cleanup["directories_removed"]
+        except Exception as error:
+            logger.error("Error during image migration (%s)", type(error).__name__)
             stats["errors"] += 1
-            return stats
+        if stats["errors"]:
+            logger.warning("Migration completed with errors: %s", stats)
+        else:
+            logger.info("Migration completed: %s", stats)
+        return stats
 
-    async def migrate_streamer_images(self, streamer: Streamer) -> Dict[str, int]:
-        """
-        Migrate images for a specific streamer
-        """
+    async def migrate_streamer_images(
+        self, streamer: MigrationStreamer
+    ) -> dict[str, int]:
+        try:
+            return await run_in_thread_pool(self._migrate_streamer_images, streamer)
+        except Exception as error:
+            logger.error("Image migration failed (%s)", type(error).__name__)
+            return {"images_moved": 0, "duplicates_found": 0, "errors": 1}
+
+    def _migrate_streamer_images(self, streamer: MigrationStreamer) -> dict[str, int]:
         result = {"images_moved": 0, "duplicates_found": 0, "errors": 0}
-
-        # Get streamer directory
-        streamer_dir = self.recordings_dir / sanitize_filename(streamer.username)
-
-        if not streamer_dir.exists():
-            logger.warning(f"Streamer directory not found: {streamer_dir}")
+        name = sanitize_filename(streamer.username)
+        streamer_dir = self.recordings_dir / name
+        if not validate_directory_path(streamer_dir, self.recordings_dir):
+            result["errors"] += 1
             return result
-
-        # Create .media directory structure (hidden from media servers)
+        if not streamer_dir.exists():
+            return result
         media_dir = self.recordings_dir / ".media"
-        artwork_dir = media_dir / "artwork" / sanitize_filename(streamer.username)
-        profiles_dir = media_dir / "profiles"
-        categories_dir = media_dir / "categories"
-
-        # Ensure directories exist
-        for directory in [media_dir, artwork_dir, profiles_dir, categories_dir]:
+        artwork_dir = media_dir / "artwork" / name
+        profiles_dir, categories_dir = media_dir / "profiles", media_dir / "categories"
+        directories = (media_dir, artwork_dir, profiles_dir, categories_dir)
+        legacy_directories = (
+            self.old_images_dir / "profiles",
+            self.old_images_dir / "artwork" / name,
+            self.old_artwork_dir / name,
+        )
+        if not all(
+            validate_directory_path(path, self.recordings_dir)
+            for path in (*directories, *legacy_directories)
+        ):
+            result["errors"] += 1
+            return result
+        for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
-
-        # Migration paths to check
-        migration_sources = [
-            # Old .images structure
+        sources = [
             self.old_images_dir / "profiles" / f"streamer_{streamer.id}.jpg",
-            self.old_images_dir
-            / "artwork"
-            / sanitize_filename(streamer.username)
-            / "poster.jpg",
-            self.old_images_dir
-            / "artwork"
-            / sanitize_filename(streamer.username)
-            / "banner.jpg",
-            self.old_images_dir
-            / "artwork"
-            / sanitize_filename(streamer.username)
-            / "fanart.jpg",
-            # Old .artwork structure
-            self.old_artwork_dir / sanitize_filename(streamer.username) / "poster.jpg",
-            self.old_artwork_dir / sanitize_filename(streamer.username) / "banner.jpg",
-            self.old_artwork_dir / sanitize_filename(streamer.username) / "fanart.jpg",
+            self.old_images_dir / "artwork" / name / "poster.jpg",
+            self.old_images_dir / "artwork" / name / "banner.jpg",
+            self.old_images_dir / "artwork" / name / "fanart.jpg",
+            self.old_artwork_dir / name / "poster.jpg",
+            self.old_artwork_dir / name / "banner.jpg",
+            self.old_artwork_dir / name / "fanart.jpg",
         ]
-
-        # Target files in .media directory structure
-        target_files = {
-            "poster.jpg": artwork_dir / "poster.jpg",
-            "banner.jpg": artwork_dir / "banner.jpg",
-            "fanart.jpg": artwork_dir / "fanart.jpg",
+        targets = {
+            filename: artwork_dir / filename
+            for filename in ("poster.jpg", "banner.jpg", "fanart.jpg")
         }
-
-        for source_path in migration_sources:
-            if source_path.exists():
-                # Determine target filename
-                target_name = source_path.name
-                if target_name.startswith("streamer_"):
-                    target_name = "poster.jpg"  # Profile images become poster
-
-                target_path = target_files.get(target_name)
-                if target_path:
-                    # Check for duplicates
-                    if target_path.exists():
-                        if self._files_are_identical(source_path, target_path):
-                            logger.debug(
-                                f"Identical file found, removing source: {source_path}"
-                            )
-                            source_path.unlink()
-                            result["duplicates_found"] += 1
-                            continue
-                        else:
-                            # Keep newer file
-                            if (
-                                source_path.stat().st_mtime
-                                > target_path.stat().st_mtime
-                            ):
-                                logger.info(f"Replacing older file: {target_path}")
-                            else:
-                                logger.info(
-                                    f"Keeping newer target file, removing source: {source_path}"
-                                )
-                                source_path.unlink()
-                                result["duplicates_found"] += 1
-                                continue
-
-                    # Stage on the target filesystem; never expose a partial copy.
-                    try:
-                        with TemporaryDirectory(
-                            dir=target_path.parent, prefix=".image-migration-"
-                        ) as temporary_dir:
-                            staged_path = Path(temporary_dir) / target_path.name
-                            shutil.copy2(source_path, staged_path)
-                            if not self._files_are_identical(source_path, staged_path):
-                                raise OSError("Staged image does not match source")
-                            staged_path.replace(target_path)
-                        source_path.unlink()
-                        logger.info(f"Moved image: {source_path} -> {target_path}")
-                        result["images_moved"] += 1
-                    except Exception as e:
-                        result["errors"] += 1
-                        logger.error(
-                            f"Error moving file {source_path} to {target_path}: {e}"
-                        )
-
+        for source in sources:
+            if not validate_directory_path(source, self.recordings_dir):
+                result["errors"] += 1
+                continue
+            if not source.exists():
+                continue
+            target_name = (
+                "poster.jpg" if source.name.startswith("streamer_") else source.name
+            )
+            target = targets.get(target_name)
+            if target is None:
+                continue
+            try:
+                if target.exists():
+                    if (
+                        self._files_are_identical(source, target)
+                        or source.stat().st_mtime <= target.stat().st_mtime
+                    ):
+                        source.unlink()
+                        result["duplicates_found"] += 1
+                        continue
+                with TemporaryDirectory(
+                    dir=target.parent, prefix=".image-migration-"
+                ) as temporary_directory:
+                    staged = Path(temporary_directory) / target.name
+                    shutil.copy2(source, staged)
+                    if not self._files_are_identical(source, staged):
+                        raise OSError("Staged image does not match source")
+                    staged.replace(target)
+                source.unlink()
+                result["images_moved"] += 1
+            except Exception as error:
+                result["errors"] += 1
+                logger.error("Image migration file failed (%s)", type(error).__name__)
         return result
 
-    async def cleanup_old_directories(self) -> Dict[str, int]:
-        """
-        Remove old empty directories after migration
-        """
+    async def cleanup_old_directories(self) -> dict[str, int]:
+        return await run_in_thread_pool(self._cleanup_old_directories)
+
+    def _cleanup_old_directories(self) -> dict[str, int]:
         result = {"directories_removed": 0}
-
-        directories_to_check = [self.old_images_dir, self.old_artwork_dir]
-
-        for directory in directories_to_check:
+        for directory in (self.old_images_dir, self.old_artwork_dir):
             if directory.exists():
                 try:
-                    # Use safe directory removal with path validation
                     if self._is_directory_empty_recursive(directory):
                         if safe_remove_directory(directory, self.recordings_dir):
-                            logger.info(f"Safely removed empty directory: {directory}")
                             result["directories_removed"] += 1
-                        else:
-                            logger.error(
-                                f"Failed to safely remove directory: {directory}"
-                            )
-                    else:
-                        logger.warning(f"Directory not empty, keeping: {directory}")
-                        # List remaining files for debugging
-                        remaining_files = list(directory.rglob("*"))
-                        logger.debug(
-                            f"Remaining files in {directory}: {remaining_files}"
-                        )
-                except Exception as e:
-                    logger.error(f"Error removing directory {directory}: {e}")
-
+                except Exception as error:
+                    logger.error(
+                        "Image migration cleanup failed (%s)", type(error).__name__
+                    )
         return result
 
-    def _get_streamer_for_task(
-        self, task_to_streamer_map: Dict[Awaitable[Any], Streamer], task: Awaitable[Any]
-    ) -> Optional[Streamer]:
-        """
-        Helper function to get streamer associated with a task.
-        Uses O(1) dictionary lookup instead of O(n) linear search.
-
-        Args:
-            task_to_streamer_map: Dictionary mapping awaitable objects (Tasks/Futures) to Streamer instances
-            task: The awaitable object to look up (Task or Future from as_completed)
-
-        Returns:
-            The Streamer associated with the task, or None if not found
-        """
-        return task_to_streamer_map.get(task)
-
     def _files_are_identical(self, file1: Path, file2: Path) -> bool:
-        """Check if two files are identical (same size and content)"""
         try:
             if file1.stat().st_size != file2.stat().st_size:
                 return False
-
-            # Compare file content in chunks
-            chunk_size = 8192
-            with open(file1, "rb") as f1, open(file2, "rb") as f2:
+            with file1.open("rb") as first, file2.open("rb") as second:
                 while True:
-                    chunk1 = f1.read(chunk_size)
-                    chunk2 = f2.read(chunk_size)
-                    if chunk1 != chunk2:
+                    first_chunk, second_chunk = first.read(8192), second.read(8192)
+                    if first_chunk != second_chunk:
                         return False
-                    if not chunk1:  # End of file
+                    if not first_chunk:
                         return True
-        except Exception as e:
-            logger.error(f"Error comparing files {file1} and {file2}: {e}")
+        except Exception as error:
+            logger.error("Image comparison failed (%s)", type(error).__name__)
             return False
 
     def _is_directory_empty_recursive(self, directory: Path) -> bool:
-        """Check if directory is empty or only contains empty subdirectories"""
         try:
             for item in directory.iterdir():
                 if item.is_file():
                     return False
-                elif item.is_dir():
-                    if not self._is_directory_empty_recursive(item):
-                        return False
+                if item.is_dir() and not self._is_directory_empty_recursive(item):
+                    return False
             return True
         except Exception:
             return False
 
 
-# Global instance
 image_migration_service = ImageMigrationService()

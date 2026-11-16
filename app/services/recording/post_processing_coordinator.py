@@ -7,12 +7,16 @@ Handles post-processing coordination, file validation, and metadata generation.
 
 import logging
 import asyncio
+from collections.abc import Callable
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from app.utils import async_file
 from app.utils.ffmpeg_utils import validate_mp4
 from app.services.init.background_queue_init import enqueue_recording_post_processing
+from app.services.background_queue_service import BackgroundQueueService
 
 logger = logging.getLogger("streamvault")
 
@@ -20,9 +24,20 @@ logger = logging.getLogger("streamvault")
 class PostProcessingCoordinator:
     """Coordinates post-processing workflows for recordings"""
 
-    def __init__(self, config_manager=None, websocket_service=None):
+    def __init__(
+        self,
+        config_manager=None,
+        websocket_service=None,
+        *,
+        queue_service: BackgroundQueueService | None = None,
+        settings: Settings | None = None,
+        session_factory: Callable[[], Session] | None = None,
+    ):
         self.config_manager = config_manager
         self.websocket_service = websocket_service
+        self.queue_service = queue_service
+        self.settings = settings
+        self.session_factory = session_factory
 
     async def enqueue_post_processing(
         self, recording_id: int, ts_file_path: str, recording_data: Dict[str, Any]
@@ -36,13 +51,22 @@ class PostProcessingCoordinator:
                 "recording_id": recording_id,
                 "ts_file_path": ts_file_path,
                 "streamer_id": recording_data.get("streamer_id"),
+                "streamer_name": recording_data.get("streamer_name"),
                 "stream_id": recording_data.get("stream_id"),
                 "started_at": recording_data.get("started_at"),
                 "metadata": recording_data.get("metadata", {}),
             }
 
             # Enqueue post-processing task
-            await enqueue_recording_post_processing(payload)
+            if self.queue_service is None:
+                await enqueue_recording_post_processing(payload)
+            else:
+                await enqueue_recording_post_processing(
+                    payload,
+                    queue_service=self.queue_service,
+                    settings=self.settings,
+                    session_factory=self.session_factory,
+                )
 
             # Send WebSocket update
             if self.websocket_service:

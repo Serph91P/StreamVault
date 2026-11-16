@@ -23,7 +23,11 @@ from app.database import SessionLocal
 logger = logging.getLogger("streamvault")
 
 
-def run_migration():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def run_migration(target_engine: Engine | None = None):
     """
     Add proxy_encryption_key column to global_settings.
 
@@ -31,7 +35,7 @@ def run_migration():
     preventing data loss when containers restart.
     """
 
-    with SessionLocal() as session:
+    with migration_session(target_engine, SessionLocal) as session:
         try:
             logger.info("🔄 Running Migration 032: Add Proxy Encryption Key")
 
@@ -65,7 +69,9 @@ def run_migration():
             # === STEP 3: Commit changes ===
             session.commit()
             logger.info("✅ Migration 032 completed successfully")
-            logger.info("💡 Proxy encryption key now persists across container restarts")
+            logger.info(
+                "💡 Proxy encryption key now persists across container restarts"
+            )
             logger.info("   - No manual copying from logs required")
             logger.info("   - Existing proxies remain decryptable after restart")
 

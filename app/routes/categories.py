@@ -12,6 +12,7 @@ from app.dependencies import (
     get_image_service,
 )
 from app.services.categories.category_service import CategoryService
+from app.utils.async_db_utils import run_in_thread_pool
 import logging
 
 logger = logging.getLogger("streamvault")
@@ -92,7 +93,9 @@ async def get_category_image(
     """Get the URL for a category image - downloads immediately if not cached"""
     try:
         # First check if already cached
-        cached_url = image_service.get_cached_category_image(category_name)
+        cached_url = await run_in_thread_pool(
+            image_service.get_cached_category_image, category_name
+        )
         if cached_url:
             return {"category_name": category_name, "image_url": cached_url}
 
@@ -118,7 +121,7 @@ async def get_multiple_category_images(
         results = {}
         for category_name in category_names:
             try:
-                image_url = image_service.get_category_image_url(category_name)
+                image_url = await image_service.get_category_image_url(category_name)
                 results[category_name] = image_url
             except Exception as e:
                 logger.warning(f"Failed to get image for {category_name}: {e}")

@@ -4,6 +4,7 @@ Migration 019: Update Twitch Profile URLs
 Updates outdated numeric Twitch profile URLs to use current UUID-based format
 and clears invalid cached profile images to force re-download
 """
+
 import os
 import sys
 import logging
@@ -17,14 +18,13 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Constants for URL patterns and template
-TWITCH_PROFILE_IMAGE_URL_TEMPLATE = (
-    "https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
-)
+TWITCH_PROFILE_IMAGE_URL_TEMPLATE = "https://static-cdn.jtvnw.net/jtv_user_pictures/{twitch_id}-profile_image-300x300.png"
 OLD_URL_PATTERN = r"^https://static-cdn\.jtvnw\.net/jtv_user_pictures/\d+-profile_image"
 OLD_CACHED_FILENAME_PATTERN = r"profile_avatar_\d+\.jpg"
 OLD_URL_SEARCH_PATTERN = r"jtv_user_pictures/\d+-profile_image"
@@ -38,16 +38,20 @@ def validate_twitch_id(twitch_id):
     return re.match(r"^[a-zA-Z0-9_-]+$", str(twitch_id)) is not None
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Update Twitch profile URLs to force refresh from API"""
     session = None
     try:
         # Validate DATABASE_URL
-        if not settings.DATABASE_URL:
+        if target_engine is None and not settings.DATABASE_URL:
             raise ValueError("DATABASE_URL not configured")
 
         # Create database connection
-        engine = create_engine(settings.DATABASE_URL)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 
@@ -76,13 +80,19 @@ def run_migration():
 
             # Validate Twitch ID before using in URL
             if not validate_twitch_id(twitch_id):
-                logger.warning(f"Invalid Twitch ID for streamer {username}: {twitch_id}")
+                logger.warning(
+                    f"Invalid Twitch ID for streamer {username}: {twitch_id}"
+                )
                 continue
 
-            logger.info(f"Updating streamer {username} (ID: {streamer_id}, Twitch ID: {twitch_id})")
+            logger.info(
+                f"Updating streamer {username} (ID: {streamer_id}, Twitch ID: {twitch_id})"
+            )
 
             # Generate new profile URL using template
-            new_profile_url = TWITCH_PROFILE_IMAGE_URL_TEMPLATE.format(twitch_id=twitch_id)
+            new_profile_url = TWITCH_PROFILE_IMAGE_URL_TEMPLATE.format(
+                twitch_id=twitch_id
+            )
 
             # Clear the cached profile_image_url to force re-download
             # Set it to the new URL so the image service will download it
@@ -139,12 +149,18 @@ def run_migration():
 
                     # Validate Twitch ID before using in URL
                     if not validate_twitch_id(twitch_id):
-                        logger.warning(f"Invalid Twitch ID for streamer {username}: {twitch_id}")
+                        logger.warning(
+                            f"Invalid Twitch ID for streamer {username}: {twitch_id}"
+                        )
                         continue
 
                     # If original URL is also old format, update it
-                    if not original_url or re.search(OLD_URL_SEARCH_PATTERN, original_url):
-                        new_original_url = TWITCH_PROFILE_IMAGE_URL_TEMPLATE.format(twitch_id=twitch_id)
+                    if not original_url or re.search(
+                        OLD_URL_SEARCH_PATTERN, original_url
+                    ):
+                        new_original_url = TWITCH_PROFILE_IMAGE_URL_TEMPLATE.format(
+                            twitch_id=twitch_id
+                        )
                     else:
                         new_original_url = original_url
 
@@ -161,7 +177,9 @@ def run_migration():
                         {"original_url": new_original_url, "streamer_id": streamer_id},
                     )
 
-                    logger.info(f"  Cleared cached image for {username}, will re-download from: {new_original_url}")
+                    logger.info(
+                        f"  Cleared cached image for {username}, will re-download from: {new_original_url}"
+                    )
                     updated_count += 1
 
         # Commit the changes
@@ -169,7 +187,9 @@ def run_migration():
 
         logger.info("Migration completed successfully!")
         logger.info(f"Updated {updated_count} streamers")
-        logger.info("Note: Profile images will be automatically re-downloaded by the image sync service")
+        logger.info(
+            "Note: Profile images will be automatically re-downloaded by the image sync service"
+        )
 
         return True
 
@@ -185,7 +205,9 @@ def run_migration():
 
 def rollback_migration():
     """Rollback migration 016 - Note: This cannot restore original URLs if they were invalid"""
-    logger.warning("Rollback for migration 016 is not recommended as it cannot restore the original invalid URLs")
+    logger.warning(
+        "Rollback for migration 016 is not recommended as it cannot restore the original invalid URLs"
+    )
     logger.warning("The updated URLs are correct and should remain in place")
     return True
 

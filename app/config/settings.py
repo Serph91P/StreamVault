@@ -3,7 +3,7 @@ from __future__ import annotations
 import ipaddress
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import Annotated, Any
 from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 def _secret_value(value: SecretStr | None) -> str | None:
-    return cast(str, value.get_secret_value()) if value is not None else None
+    return value.get_secret_value() if value is not None else None
 
 
 def _validate_http_url(value: str, *, setting: str, origin_only: bool = False) -> str:
@@ -288,7 +288,7 @@ class Settings(BaseSettings):
 
     @property
     def TWITCH_APP_SECRET(self) -> str:
-        return cast(str, self.twitch_app_secret.get_secret_value())
+        return self.twitch_app_secret.get_secret_value()
 
     @property
     def DATABASE_URL(self) -> str | None:

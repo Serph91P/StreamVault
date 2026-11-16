@@ -7,27 +7,92 @@ Use twitch_api.py for general Twitch API interactions.
 """
 
 import asyncio
+import json
 import logging
-import aiohttp
-from app.config.settings import settings
+from collections.abc import Coroutine
+from itertools import count
+from typing import TypeVar
+from app.config.settings import Settings, get_settings
+from app.services.http_client import HTTPClientError, HTTPPolicy, ManagedHTTPClient
+from app.services.api.twitch_api import TwitchAPIService
 from app.services.streamer_service import StreamerService
+from app.services.system.supervisor import TaskSupervisor
 from app.services.api.twitch_api import FOLLOW_FETCH_TIMEOUT, twitch_api
-from typing import Dict, List, Any, Optional
+
 from urllib.parse import urlencode
 
 logger = logging.getLogger("streamvault")
+T = TypeVar("T")
 
 
 class TwitchOAuthService:
     """Service for handling Twitch OAuth flows and follower imports"""
 
-    def __init__(self, streamer_service: StreamerService):
+    def __init__(
+        self,
+        streamer_service: StreamerService | None = None,
+        *,
+        settings: Settings | None = None,
+        twitch_api: TwitchAPIService | None = None,
+        http_client: ManagedHTTPClient | None = None,
+    ) -> None:
         self.streamer_service = streamer_service
-        self.client_id = settings.TWITCH_APP_ID
-        self.client_secret = settings.TWITCH_APP_SECRET
-        self.redirect_uri = f"{settings.BASE_URL}/api/twitch/callback"
+        self.settings = settings if settings is not None else get_settings()
+        self.client_id = self.settings.TWITCH_APP_ID
+        self.client_secret = self.settings.TWITCH_APP_SECRET
+        self.redirect_uri = f"{self.settings.BASE_URL}/api/twitch/callback"
+        self._twitch_api = twitch_api
+        self._supervisor = TaskSupervisor("twitch-oauth")
+        self._operation_ids = count()
+        self._close_task: asyncio.Task[None] | None = None
+        self._owns_http = http_client is None
+        self._http = (
+            http_client
+            if http_client is not None
+            else ManagedHTTPClient(
+                HTTPPolicy(
+                    total_timeout=300.0,
+                    connect_timeout=30.0,
+                    read_timeout=300.0,
+                    write_timeout=300.0,
+                )
+            )
+        )
 
-    def get_auth_url(self, state: Optional[str] = None) -> str:
+    async def _operation(self, name: str, work: Coroutine[object, object, T]) -> T:
+        if self._close_task is not None:
+            work.close()
+            raise RuntimeError("Twitch OAuth service is closed")
+        owned_name = f"{name}:{next(self._operation_ids)}"
+        task = self._supervisor.create_task(owned_name, work)
+        try:
+            return await task
+        finally:
+            await self._supervisor.cancel_task(owned_name)
+
+    async def close(self) -> None:
+        if self._close_task is None:
+            self._close_task = asyncio.create_task(
+                self._close_resources(), name="streamvault:twitch-oauth:close"
+            )
+        cancelled = False
+        while not self._close_task.done():
+            try:
+                await asyncio.shield(self._close_task)
+            except asyncio.CancelledError:
+                cancelled = True
+        self._close_task.result()
+        if cancelled:
+            raise asyncio.CancelledError
+
+    async def _close_resources(self) -> None:
+        try:
+            await self._supervisor.shutdown()
+        finally:
+            if self._owns_http:
+                await self._http.close()
+
+    def get_auth_url(self, state: str | None = None) -> str:
         """Generate Twitch OAuth URL for user authentication
 
         Args:
@@ -46,43 +111,58 @@ class TwitchOAuthService:
 
         return f"https://id.twitch.tv/oauth2/authorize?{urlencode(params)}"
 
-    async def exchange_code(self, code: str) -> Optional[Dict[str, Any]]:
-        """Exchange authorization code for access token"""
+    async def exchange_code(self, code: str) -> dict[str, object] | None:
+        """Exchange authorization code for access token without retrying the grant."""
+        return await self._operation("exchange", self._exchange_code(code))
+
+    async def _exchange_code(self, code: str) -> dict[str, object] | None:
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://id.twitch.tv/oauth2/token",
-                    data={
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
-                        "code": code,
-                        "grant_type": "authorization_code",
-                        "redirect_uri": self.redirect_uri,
-                    },
-                ) as response:
-                    if response.status == 200:
-                        return await response.json()
-                    else:
-                        error_text = await response.text()
-                        logger.error(
-                            f"Failed to exchange code: {response.status} - {error_text}"
-                        )
-                        return None
-        except Exception as e:
-            logger.error(f"Error exchanging code: {e}")
+            response = await self._http.request(
+                "POST",
+                "https://id.twitch.tv/oauth2/token",
+                data={
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": self.redirect_uri,
+                },
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "OAuth code exchange rejected: status=%s", response.status_code
+                )
+                return None
+            value: object = json.loads(response.body)
+            if (
+                not isinstance(value, dict)
+                or not isinstance(value.get("access_token"), str)
+                or not value["access_token"]
+            ):
+                raise ValueError("Invalid OAuth exchange response")
+            return value
+        except (HTTPClientError, ValueError):
+            logger.warning("OAuth code exchange failed")
             return None
 
     async def get_user_followed_channels(
         self, access_token: str
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> list[dict[str, object]] | None:
         """Project the complete follow list; provider failures must reach the route."""
+        return await self._operation(
+            "follows", self._get_user_followed_channels(access_token)
+        )
+
+    async def _get_user_followed_channels(
+        self, access_token: str
+    ) -> list[dict[str, object]] | None:
         async with asyncio.timeout(FOLLOW_FETCH_TIMEOUT):
             user_id = await self._get_authenticated_user_id(access_token)
             if not user_id:
                 return None
-            follows = await twitch_api.get_user_followed_streamers(
-                user_id, access_token
-            )
+            follows = await (
+                self._twitch_api or twitch_api
+            ).get_user_followed_streamers(user_id, access_token)
             return [
                 {
                     "id": follow["broadcaster_id"],
@@ -93,22 +173,37 @@ class TwitchOAuthService:
                 for follow in follows
             ]
 
-    async def _get_authenticated_user_id(self, access_token: str) -> Optional[str]:
+    async def _get_authenticated_user_id(self, access_token: str) -> str | None:
         """Get the user ID of the authenticated user"""
         try:
-            user_data = await twitch_api.validate_token(access_token)
+            user_data = await (self._twitch_api or twitch_api).validate_token(
+                access_token
+            )
             if user_data:
-                return user_data.get("user_id")
+                user_id = user_data.get("user_id")
+                return user_id if isinstance(user_id, str) else None
             return None
-        except Exception as e:
-            logger.error(f"Error getting user ID: {e}")
+        except Exception:
+            logger.warning("Could not validate OAuth user identity")
             return None
 
     async def import_followed_streamers(
-        self, streamers: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self,
+        streamers: list[dict[str, object]],
+        *,
+        streamer_service: StreamerService | None = None,
+    ) -> dict[str, list[dict[str, object]]]:
         """Import selected streamers from followed channels"""
-        results = {"imported": [], "failed": [], "already_exists": []}
+        service = (
+            streamer_service if streamer_service is not None else self.streamer_service
+        )
+        if service is None:
+            raise RuntimeError("Streamer importer is required")
+        results: dict[str, list[dict[str, object]]] = {
+            "imported": [],
+            "failed": [],
+            "already_exists": [],
+        }
 
         for streamer_info in streamers:
             try:
@@ -119,18 +214,17 @@ class TwitchOAuthService:
                     "login"
                 )
 
-                if not username:
-                    logger.warning(
-                        f"Skipping streamer with missing username: {streamer_info}"
-                    )
+                if not isinstance(username, str) or not username:
+                    logger.warning("Skipping streamer with missing username")
                     results["failed"].append(
                         {"streamer": streamer_info, "reason": "Missing username"}
                     )
                     continue
 
                 # Use StreamerService to add the streamer
-                added_streamer = await self.streamer_service.add_streamer(
-                    username, display_name
+                added_streamer = await service.add_streamer(
+                    username,
+                    display_name if isinstance(display_name, str) else username,
                 )
 
                 if added_streamer:
@@ -154,9 +248,11 @@ class TwitchOAuthService:
                     )
                     logger.error(f"Failed to import streamer: {username}")
 
-            except Exception as e:
-                logger.error(f"Error importing streamer {streamer_info}: {e}")
-                results["failed"].append({"streamer": streamer_info, "reason": str(e)})
+            except Exception:
+                logger.warning("Could not import selected streamer")
+                results["failed"].append(
+                    {"streamer": streamer_info, "reason": "Failed to add streamer"}
+                )
 
         logger.info(
             f"Import complete: {len(results['imported'])} imported, {len(results['already_exists'])} already existed, {len(results['failed'])} failed"

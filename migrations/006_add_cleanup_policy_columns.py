@@ -3,6 +3,7 @@
 Migration 006: Add cleanup_policy columns
 Adds cleanup_policy to recording_settings and streamer_recording_settings tables
 """
+
 import os
 import sys
 import logging
@@ -13,17 +14,22 @@ from sqlalchemy.orm import sessionmaker
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Add cleanup_policy columns to recording settings tables"""
     session = None
     try:
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 

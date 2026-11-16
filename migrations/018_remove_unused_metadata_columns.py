@@ -3,6 +3,7 @@
 Migration 018: Remove unused metadata columns
 Removes chat_path, chat_srt_path, and chapters_path columns as they are never used
 """
+
 import os
 import sys
 import logging
@@ -16,21 +17,26 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Remove unused metadata columns from stream_metadata"""
     session = None
     try:
         # Validate DATABASE_URL
-        if not settings.DATABASE_URL:
+        if target_engine is None and not settings.DATABASE_URL:
             raise ValueError("DATABASE_URL not configured")
 
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 
@@ -51,21 +57,37 @@ def run_migration():
         for column_name in unused_columns:
             # Security check: only allow whitelisted column names
             if column_name not in allowed_columns:
-                logger.error(f"❌ Column {column_name} not in allowed whitelist - skipping for security")
+                logger.error(
+                    f"❌ Column {column_name} not in allowed whitelist - skipping for security"
+                )
                 continue
 
             if column_name in column_names:
                 logger.info(f"🔄 Removing unused column {column_name}...")
                 # Use whitelisted column name directly (no user input)
                 if column_name == "chat_path":
-                    session.execute(text("ALTER TABLE stream_metadata DROP COLUMN IF EXISTS chat_path"))
+                    session.execute(
+                        text(
+                            "ALTER TABLE stream_metadata DROP COLUMN IF EXISTS chat_path"
+                        )
+                    )
                 elif column_name == "chat_srt_path":
-                    session.execute(text("ALTER TABLE stream_metadata DROP COLUMN IF EXISTS chat_srt_path"))
+                    session.execute(
+                        text(
+                            "ALTER TABLE stream_metadata DROP COLUMN IF EXISTS chat_srt_path"
+                        )
+                    )
                 elif column_name == "chapters_path":
-                    session.execute(text("ALTER TABLE stream_metadata DROP COLUMN IF EXISTS chapters_path"))
+                    session.execute(
+                        text(
+                            "ALTER TABLE stream_metadata DROP COLUMN IF EXISTS chapters_path"
+                        )
+                    )
 
                 columns_removed += 1
-                logger.info(f"✅ Removed unused column {column_name} from stream_metadata")
+                logger.info(
+                    f"✅ Removed unused column {column_name} from stream_metadata"
+                )
             else:
                 logger.info(f"✅ Column {column_name} already doesn't exist, skipping")
 

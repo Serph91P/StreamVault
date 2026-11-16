@@ -1,8 +1,9 @@
 import asyncio
-import importlib.util
+import importlib
+import json
 import logging
 import sys
-from pathlib import Path
+
 from types import ModuleType
 from types import SimpleNamespace
 
@@ -39,26 +40,37 @@ class RaisingRequest:
         return False
 
 
-class RecordingSession:
-    def __init__(self, recorder, responses, **kwargs):
+class RecordingHTTPClient:
+    def __init__(self, recorder, responses, policy, proxy=None):
         self.recorder = recorder
         self.responses = responses
+        self.policy = policy
+        self.proxy = proxy
+        self._closed = False
 
-    async def __aenter__(self):
-        return self
+    async def request(self, method, url, **kwargs):
+        from app.services.http_client import HTTPReply, HTTPClientError
 
-    async def __aexit__(self, exc_type, exc, traceback):
-        return False
+        if self._closed:
+            raise HTTPClientError("closed")
+        if method == "POST":
+            self.recorder["token_requests"] += 1
+            response = self.responses["token"]
+        else:
+            self.recorder["reachability_requests"] += 1
+            self.recorder["authorization_values"].append(
+                kwargs["headers"]["Authorization"]
+            )
+            self.recorder["redirect_values"].append(kwargs["follow_redirects"])
+            response = self.responses["proxies"].pop(0)
+        async with response as reply:
+            if not 200 <= reply.status < 300:
+                raise HTTPClientError("status", status_code=reply.status)
+            body = json.dumps(reply.payload).encode() if method == "POST" else b"ok"
+            return HTTPReply(reply.status, {}, body)
 
-    def post(self, url, **kwargs):
-        self.recorder["token_requests"] += 1
-        return self.responses["token"]
-
-    def get(self, url, **kwargs):
-        self.recorder["reachability_requests"] += 1
-        self.recorder["authorization_values"].append(kwargs["headers"]["Authorization"])
-        self.recorder["redirect_values"].append(kwargs["allow_redirects"])
-        return self.responses["proxies"].pop(0)
+    async def close(self):
+        self._closed = True
 
 
 class FakeQuery:
@@ -66,7 +78,17 @@ class FakeQuery:
         self.proxies = proxies
 
     def filter(self, *args):
+        rows = self.proxies
+        for expression in args:
+            if getattr(getattr(expression, "left", None), "key", None) == "id":
+                rows = [proxy for proxy in rows if proxy.id == expression.right.value]
+        return FakeQuery(rows)
+
+    def with_for_update(self):
         return self
+
+    def first(self):
+        return self.proxies[0] if self.proxies else None
 
     def all(self):
         return self.proxies
@@ -74,6 +96,14 @@ class FakeQuery:
 
 class FakeDatabase:
     def __init__(self, proxies):
+        from base64 import urlsafe_b64encode
+        from app.utils.proxy_encryption import ProxyEncryption
+
+        self.info = {
+            "streamvault.proxy_encryption": ProxyEncryption(
+                urlsafe_b64encode(b"x" * 32).decode()
+            )
+        }
         self.proxies = proxies
 
     def __enter__(self):
@@ -101,46 +131,25 @@ def make_proxy(proxy_id, url):
         consecutive_failures=0,
         health_status="unknown",
         average_response_time_ms=None,
+        _proxy_url_encrypted=url,
+        priority=0,
+        last_health_check=None,
+        total_recordings=0,
+        failed_recordings=0,
+        created_at=None,
     )
 
 
 @pytest.fixture
 def proxy_health_module(monkeypatch):
-    constants_module = ModuleType("app.config.constants")
-    constants_module.ASYNC_DELAYS = SimpleNamespace(PROXY_HEALTH_CHECK_ERROR_WAIT=1)
-    settings_module = ModuleType("app.config.settings")
-    settings_module.settings = SimpleNamespace(
-        TWITCH_APP_ID="test-app-id",
-        TWITCH_APP_SECRET="test-app-secret",
+    module = importlib.import_module("app.services.proxy.proxy_health_service")
+    monkeypatch.setattr(
+        module,
+        "settings",
+        SimpleNamespace(
+            TWITCH_APP_ID="test-app-id", TWITCH_APP_SECRET="test-app-secret"
+        ),
     )
-    database_module = ModuleType("app.database")
-    database_module.SessionLocal = lambda: None
-    models_module = ModuleType("app.models")
-
-    class EnabledField:
-        def is_(self, value):
-            return value
-
-    models_module.ProxySettings = type("ProxySettings", (), {"enabled": EnabledField()})
-    models_module.RecordingSettings = type("RecordingSettings", (), {})
-
-    monkeypatch.setitem(sys.modules, "app.config.constants", constants_module)
-    monkeypatch.setitem(sys.modules, "app.config.settings", settings_module)
-    monkeypatch.setitem(sys.modules, "app.database", database_module)
-    monkeypatch.setitem(sys.modules, "app.models", models_module)
-
-    module_path = (
-        Path(__file__).parents[1]
-        / "app"
-        / "services"
-        / "proxy"
-        / "proxy_health_service.py"
-    )
-    spec = importlib.util.spec_from_file_location(
-        "proxy_health_service_under_test", module_path
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
     return module
 
 
@@ -157,11 +166,13 @@ def install_fakes(monkeypatch, proxy_health_module, proxies, responses):
         lambda: FakeDatabase(proxies),
     )
     monkeypatch.setattr(
-        proxy_health_module.aiohttp,
-        "ClientSession",
-        lambda **kwargs: RecordingSession(recorder, responses, **kwargs),
+        proxy_health_module,
+        "ManagedHTTPClient",
+        lambda policy, **kwargs: RecordingHTTPClient(
+            recorder, responses, policy, **kwargs
+        ),
     )
-    monkeypatch.setattr(proxy_health_module.aiohttp, "TCPConnector", lambda: object())
+
     return recorder
 
 
@@ -329,6 +340,27 @@ async def test_token_request_cancellation_propagates_without_reachability(
     assert recorder["token_requests"] == 1
     assert recorder["reachability_requests"] == 0
     assert cancellation_secret not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [True, 123, [], {}])
+async def test_invalid_token_value_is_rejected_without_reachability(
+    monkeypatch, proxy_health_module, value
+):
+    responses = {
+        "token": FakeResponse(200, {"access_token": value}),
+        "proxies": [FakeResponse(200)],
+    }
+    recorder = install_fakes(
+        monkeypatch,
+        proxy_health_module,
+        [make_proxy(1, "http://proxy.example:8080")],
+        responses,
+    )
+    service = await prepare_service(monkeypatch, proxy_health_module)
+    await service.run_health_checks()
+    assert recorder["token_requests"] == 1
+    assert recorder["reachability_requests"] == 0
 
 
 @pytest.mark.asyncio

@@ -25,7 +25,7 @@ async def test_deferred_task_status_uses_worker_owned_session_on_both_routes(tmp
     queue = TaskQueueManager(task_store=DurableTaskStore(sessionmaker(engine)))
     task_id = await queue.enqueue_task("synthetic", {})
     monkeypatch.setattr(api, "get_background_queue_service", lambda: queue)
-    monkeypatch.setattr(legacy, "background_queue_service", queue)
+    from app import dependencies
     reads_on_loop = []
 
     def inspect_read(connection, cursor, statement, parameters, context, many):
@@ -40,6 +40,7 @@ async def test_deferred_task_status_uses_worker_owned_session_on_both_routes(tmp
     app = FastAPI()
     app.include_router(api.router)
     app.include_router(legacy.router)
+    app.dependency_overrides[dependencies.get_background_queue_service] = lambda: queue
     try:
         with TestClient(app) as client:
             detail = client.get(f"/api/background-queue/task/{task_id}")

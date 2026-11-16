@@ -5,7 +5,8 @@ import json
 import asyncio
 import logging
 
-from app.dependencies import get_event_registry
+from app.dependencies import get_application_event_registry
+from app.bootstrap.settings import resolve_app_settings
 from app.config.settings import settings
 from app.config.constants import TIMEOUTS
 
@@ -23,6 +24,11 @@ async def eventsub_root():
 @router.post("/eventsub")
 async def eventsub_callback(request: Request):
     try:
+        runtime_settings = (
+            resolve_app_settings(request.app)
+            if hasattr(request.app.state, "database_lifecycle")
+            else settings
+        )
         # Read headers and body
         headers = request.headers
         body = await request.body()
@@ -50,7 +56,7 @@ async def eventsub_callback(request: Request):
         calculated_signature = (
             "sha256="
             + hmac.new(
-                settings.EVENTSUB_SECRET.encode(), hmac_message, hashlib.sha256
+                runtime_settings.EVENTSUB_SECRET.encode(), hmac_message, hashlib.sha256
             ).hexdigest()
         )
 
@@ -58,9 +64,7 @@ async def eventsub_callback(request: Request):
         logger.debug(f"HMAC message length: {len(hmac_message)}")
 
         if not hmac.compare_digest(received_signature, calculated_signature):
-            logger.error(
-                f"Signature mismatch. Got: {received_signature[:16]}..., Expected: {calculated_signature[:16]}..."
-            )
+            logger.warning("EventSub signature mismatch")
             return Response(status_code=403)
 
         # SECURITY: Reject messages older than 10 minutes to prevent replay attacks
@@ -102,7 +106,7 @@ async def eventsub_callback(request: Request):
             # Handle event notifications
             try:
                 body_json = json.loads(body)
-                event_registry = await get_event_registry()
+                event_registry = await get_application_event_registry(request)
                 event_type = body_json.get("subscription", {}).get("type")
                 event_data = body_json.get("event")
 

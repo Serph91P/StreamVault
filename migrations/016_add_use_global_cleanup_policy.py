@@ -3,6 +3,7 @@
 Migration 016: Add use_global_cleanup_policy flag to streamer settings
 Adds a flag to control whether streamers use global cleanup policy or custom settings
 """
+
 import os
 import sys
 import logging
@@ -16,25 +17,32 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Add use_global_cleanup_policy flag to streamer_recording_settings"""
     session = None
     try:
         # Validate DATABASE_URL
-        if not settings.DATABASE_URL:
+        if target_engine is None and not settings.DATABASE_URL:
             raise ValueError("DATABASE_URL not configured")
 
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 
-        logger.info("🔄 Adding use_global_cleanup_policy column to streamer_recording_settings...")
+        logger.info(
+            "🔄 Adding use_global_cleanup_policy column to streamer_recording_settings..."
+        )
 
         # Use SQLAlchemy's introspection for database-agnostic column checking
         inspector = inspect(engine)
@@ -48,7 +56,7 @@ def run_migration():
         logger.info("🔄 Adding use_global_cleanup_policy column...")
 
         # Use database-agnostic approach
-        database_url = settings.DATABASE_URL.lower()
+        database_url = engine.dialect.name
 
         if "postgresql" in database_url:
             # PostgreSQL syntax
@@ -83,7 +91,9 @@ def run_migration():
 
         session.commit()
 
-        logger.info("✅ Added use_global_cleanup_policy column to streamer_recording_settings")
+        logger.info(
+            "✅ Added use_global_cleanup_policy column to streamer_recording_settings"
+        )
         logger.info("✅ Migration 016 completed successfully")
         return True
 

@@ -1,7 +1,6 @@
-"""#965 original bdd0de27: real registration must satisfy queue invocation."""
+"""#965: production registration must be executable by the actual queue worker."""
 
 import asyncio
-from datetime import datetime, timezone
 import inspect
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -17,6 +16,7 @@ from app.services.queues.worker_manager import WorkerManager
 from app.services.recording.orphaned_recovery_tasks import (
     handle_orphaned_recovery_check,
 )
+from datetime import datetime, timezone
 
 
 @pytest.fixture

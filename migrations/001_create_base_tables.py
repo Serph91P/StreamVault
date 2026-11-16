@@ -3,10 +3,12 @@
 Migration 001: Create base tables (no foreign keys)
 Creates: users, categories, global_settings, recording_settings, system_config, push_subscriptions
 """
+
 import os
 import sys
 import logging
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
 # Add parent directory to path
@@ -18,12 +20,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Create base tables without foreign key dependencies"""
     session = None
     try:
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -46,13 +45,11 @@ class _ChapterDb:
 
 
 def _chapters(db):
-    return asyncio.run(
-        get_video_chapters(
-            1,
-            request=SimpleNamespace(),
-            db=db,
-            identity=SimpleNamespace(interactive=True),
-        )
+    return get_video_chapters(
+        1,
+        request=SimpleNamespace(),
+        db=db,
+        identity=SimpleNamespace(interactive=True),
     )
 
 

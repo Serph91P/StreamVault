@@ -5,6 +5,9 @@ Creates task chains for recording post-processing with proper dependencies
 
 import logging
 import os
+from collections.abc import Callable
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
 from typing import List
 from datetime import datetime
 from pathlib import Path
@@ -20,9 +23,12 @@ class RecordingTaskFactory:
     """Factory for creating recording post-processing task chains"""
 
     @staticmethod
-    def _validated_recording_path(file_path: str) -> Path:
+    def _validated_recording_path(
+        file_path: str, *, settings: Settings | None = None
+    ) -> Path:
         """Resolve a recording path and enforce recording directory containment."""
-        from app.config.settings import settings
+        if settings is None:
+            from app.config.settings import settings
 
         recording_dir = os.path.realpath(settings.RECORDING_DIRECTORY)
         resolved_path = os.path.realpath(os.path.abspath(file_path))
@@ -45,6 +51,9 @@ class RecordingTaskFactory:
         streamer_name: str,
         started_at: str,
         cleanup_ts_file: bool = True,
+        *,
+        settings: Settings | None = None,
+        session_factory: Callable[[], Session] | None = None,
     ) -> List[Task]:
         """Create a complete post-processing task chain for a recording
 
@@ -64,7 +73,7 @@ class RecordingTaskFactory:
         # Load persisted state to skip completed steps
         completed = set()
         try:
-            with SessionLocal() as db:
+            with (session_factory or SessionLocal)() as db:
                 state = (
                     db.query(RecordingProcessingState)
                     .filter(RecordingProcessingState.recording_id == recording_id)
@@ -118,8 +127,15 @@ class RecordingTaskFactory:
         thumbnail_task_id = f"{base_id}_thumbnail"
         cleanup_task_id = f"{base_id}_cleanup"
 
-        validated_ts_path = RecordingTaskFactory._validated_recording_path(ts_file_path)
-        from app.config.settings import settings
+        validated_ts_path = (
+            RecordingTaskFactory._validated_recording_path(
+                ts_file_path, settings=settings
+            )
+            if settings is not None
+            else RecordingTaskFactory._validated_recording_path(ts_file_path)
+        )
+        if settings is None:
+            from app.config.settings import settings
 
         recording_dir = os.path.realpath(settings.RECORDING_DIRECTORY)
         resolved_ts_path = os.path.realpath(

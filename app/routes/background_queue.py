@@ -4,11 +4,12 @@ Background Queue API Routes
 Provides endpoints for monitoring and managing the background queue.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any, Optional
 import logging
 
-from app.services.background_queue_service import background_queue_service, TaskPriority
+from app.services.background_queue_service import BackgroundQueueService, TaskPriority
+from app.dependencies import get_background_queue_service
 from app.utils.async_db_utils import run_in_thread_pool
 
 router = APIRouter(prefix="/background-queue", tags=["background-queue"])
@@ -16,7 +17,11 @@ logger = logging.getLogger("streamvault")
 
 
 @router.get("/stats")
-async def get_queue_stats():
+async def get_queue_stats(
+    background_queue_service: BackgroundQueueService = Depends(
+        get_background_queue_service
+    ),
+):
     """Get background queue statistics - Note: Consider using WebSocket for real-time updates"""
     try:
         stats = await background_queue_service.get_queue_stats()
@@ -30,7 +35,11 @@ async def get_queue_stats():
 
 
 @router.get("/active-tasks")
-async def get_active_tasks():
+async def get_active_tasks(
+    background_queue_service: BackgroundQueueService = Depends(
+        get_background_queue_service
+    ),
+):
     """Get currently active tasks - Note: Consider using WebSocket for real-time updates"""
     try:
         active_tasks = background_queue_service.get_active_tasks()
@@ -45,7 +54,12 @@ async def get_active_tasks():
 
 
 @router.get("/recent-tasks")
-async def get_recent_tasks(limit: int = 50):
+async def get_recent_tasks(
+    limit: int = 50,
+    background_queue_service: BackgroundQueueService = Depends(
+        get_background_queue_service
+    ),
+):
     """Get recently completed tasks"""
     try:
         recent_tasks = await background_queue_service.get_recent_tasks(limit=limit)
@@ -56,7 +70,12 @@ async def get_recent_tasks(limit: int = 50):
 
 
 @router.get("/tasks/{task_id}")
-async def get_task_status(task_id: str):
+async def get_task_status(
+    task_id: str,
+    background_queue_service: BackgroundQueueService = Depends(
+        get_background_queue_service
+    ),
+):
     """Get status of a specific task"""
     try:
         task_status = await run_in_thread_pool(
@@ -78,6 +97,9 @@ async def enqueue_task(
     payload: Dict[str, Any],
     priority: str = "normal",
     max_retries: int = 3,
+    background_queue_service: BackgroundQueueService = Depends(
+        get_background_queue_service
+    ),
 ):
     """Manually enqueue a background task"""
     try:
@@ -107,7 +129,13 @@ async def enqueue_task(
 
 @router.post("/tasks/metadata-generation")
 async def enqueue_metadata_generation(
-    stream_id: int, base_path: str, base_filename: str, priority: str = "normal"
+    stream_id: int,
+    base_path: str,
+    base_filename: str,
+    priority: str = "normal",
+    background_queue_service: BackgroundQueueService = Depends(
+        get_background_queue_service
+    ),
 ):
     """Enqueue metadata generation task"""
     try:
@@ -145,6 +173,9 @@ async def enqueue_thumbnail_generation(
     output_dir: str,
     video_path: Optional[str] = None,
     priority: str = "normal",
+    background_queue_service: BackgroundQueueService = Depends(
+        get_background_queue_service
+    ),
 ):
     """Enqueue thumbnail generation task"""
     try:
@@ -182,6 +213,9 @@ async def enqueue_file_cleanup(
     files_to_delete: List[str] = [],
     directories_to_delete: List[str] = [],
     priority: str = "low",
+    background_queue_service: BackgroundQueueService = Depends(
+        get_background_queue_service
+    ),
 ):
     """Enqueue file cleanup task"""
     try:
@@ -216,7 +250,11 @@ async def enqueue_file_cleanup(
 
 
 @router.get("/health")
-async def queue_health():
+async def queue_health(
+    background_queue_service: BackgroundQueueService = Depends(
+        get_background_queue_service
+    ),
+):
     """Check if the background queue is healthy"""
     try:
         stats = await background_queue_service.get_queue_stats()

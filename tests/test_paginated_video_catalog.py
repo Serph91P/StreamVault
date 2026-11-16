@@ -56,7 +56,9 @@ def test_sql_catalog_page_is_bounded_stable_and_uses_global_totals(
         assert processed == 36 and cursor == 36
     app = FastAPI()
     app.include_router(videos.router)
-    monkeypatch.setattr(videos, "SessionLocal", sessions, raising=False)
+    app.dependency_overrides[dependencies.get_application_session_factory] = lambda: (
+        sessions
+    )
     app.dependency_overrides[dependencies.get_current_identity] = lambda: (
         dependencies.AuthIdentity(
             subject="synthetic-catalog",
@@ -134,11 +136,11 @@ async def test_background_backfill_completes_and_drains_on_cancel(
         db.commit()
         stream_id = stream.id
     lifecycle = importlib.import_module("app.lifespan")
-    monkeypatch.setattr(lifecycle, "SessionLocal", sessions)
+
     assert hasattr(lifecycle, "_run_catalog_reconciliation"), (
         "backfill must run outside request handlers"
     )
-    task = asyncio.create_task(lifecycle._run_catalog_reconciliation())
+    task = asyncio.create_task(lifecycle._run_catalog_reconciliation(sessions))
     try:
         async with asyncio.timeout(5):
             while True:

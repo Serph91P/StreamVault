@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/categories", tags=["categories"])
 async def get_category_image(category_name: str):
     """Get the URL for a category image"""
     try:
-        image_url = unified_image_service.get_category_image_url(category_name)
+        image_url = await unified_image_service.get_category_image_url(category_name)
         return {"category_name": category_name, "image_url": image_url}
     except Exception as e:
         logger.error(f"Error getting category image for {category_name}: {e}")

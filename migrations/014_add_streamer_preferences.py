@@ -3,6 +3,7 @@
 Migration 014: Add streamer preferences and missing table columns
 Adds is_favorite/auto_record to streamers and missing columns to other tables
 """
+
 import os
 import sys
 import logging
@@ -16,21 +17,26 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Add preference fields to streamers and missing columns to other tables"""
     session = None
     try:
         # Validate DATABASE_URL
-        if not settings.DATABASE_URL:
+        if target_engine is None and not settings.DATABASE_URL:
             raise ValueError("DATABASE_URL not configured")
 
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL, echo=False)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL, echo=False)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 
@@ -101,9 +107,13 @@ def run_migration():
             )
             logger.info("✅ Added missing columns to push_subscriptions")
         except (DatabaseError, OperationalError) as e:
-            logger.warning(f"Database error while adding push_subscriptions columns: {e}")
+            logger.warning(
+                f"Database error while adding push_subscriptions columns: {e}"
+            )
         except Exception as e:
-            logger.warning(f"Unexpected error while adding push_subscriptions columns: {e}")
+            logger.warning(
+                f"Unexpected error while adding push_subscriptions columns: {e}"
+            )
 
         # 3. Add indexes for performance
         session.execute(

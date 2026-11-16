@@ -25,9 +25,13 @@ from sqlalchemy import text
 from app.database import SessionLocal
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def upgrade(target_engine: Engine | None = None):
     """Add multi-proxy support tables and columns"""
-    with SessionLocal() as db:
+    with migration_session(target_engine, SessionLocal) as db:
         try:
             # Create proxy_settings table
             db.execute(
@@ -169,13 +173,31 @@ def downgrade():
     with SessionLocal() as db:
         try:
             # Remove columns from recording_settings
-            db.execute(text("ALTER TABLE recording_settings DROP COLUMN IF EXISTS fallback_to_direct_connection;"))
-            db.execute(text("ALTER TABLE recording_settings DROP COLUMN IF EXISTS proxy_max_consecutive_failures;"))
             db.execute(
-                text("ALTER TABLE recording_settings DROP COLUMN IF EXISTS proxy_health_check_interval_seconds;")
+                text(
+                    "ALTER TABLE recording_settings DROP COLUMN IF EXISTS fallback_to_direct_connection;"
+                )
             )
-            db.execute(text("ALTER TABLE recording_settings DROP COLUMN IF EXISTS proxy_health_check_enabled;"))
-            db.execute(text("ALTER TABLE recording_settings DROP COLUMN IF EXISTS enable_proxy;"))
+            db.execute(
+                text(
+                    "ALTER TABLE recording_settings DROP COLUMN IF EXISTS proxy_max_consecutive_failures;"
+                )
+            )
+            db.execute(
+                text(
+                    "ALTER TABLE recording_settings DROP COLUMN IF EXISTS proxy_health_check_interval_seconds;"
+                )
+            )
+            db.execute(
+                text(
+                    "ALTER TABLE recording_settings DROP COLUMN IF EXISTS proxy_health_check_enabled;"
+                )
+            )
+            db.execute(
+                text(
+                    "ALTER TABLE recording_settings DROP COLUMN IF EXISTS enable_proxy;"
+                )
+            )
 
             # Drop indexes
             db.execute(text("DROP INDEX IF EXISTS idx_proxy_priority;"))

@@ -12,6 +12,11 @@ Original God Class (728 lines) split into:
 """
 
 import logging
+from collections.abc import Callable
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
+from app.services.http_client import ManagedHTTPClient
+from app.utils.async_db_utils import run_in_thread_pool
 from typing import Dict, List, Optional, Any
 from app.services.images import (
     ImageDownloadService,
@@ -27,13 +32,26 @@ logger = logging.getLogger("streamvault")
 class UnifiedImageService:
     """Backward compatibility wrapper for the refactored image services"""
 
-    def __init__(self):
-        # Initialize the refactored services
-        self.download_service = ImageDownloadService()
-        self.profile_service = ProfileImageService(self.download_service)
-        self.banner_service = BannerImageService(self.download_service)
-        self.category_service = CategoryImageService(self.download_service)
-        self.artwork_service = StreamArtworkService(self.download_service)
+    def __init__(
+        self,
+        *,
+        settings: Settings | None = None,
+        session_factory: Callable[[], Session] | None = None,
+    ):
+        self._session_factory = session_factory
+        self.download_service = ImageDownloadService(settings=settings)
+        self.profile_service = ProfileImageService(
+            self.download_service, session_factory=session_factory
+        )
+        self.banner_service = BannerImageService(
+            self.download_service, session_factory=session_factory
+        )
+        self.category_service = CategoryImageService(
+            self.download_service, session_factory=session_factory
+        )
+        self.artwork_service = StreamArtworkService(
+            self.download_service, session_factory=session_factory
+        )
 
         # Legacy properties for compatibility
         self.session = self.download_service.session
@@ -64,13 +82,13 @@ class UnifiedImageService:
     def _ensure_initialized(self):
         """Legacy method - already initialized"""
 
-    async def _get_session(self):
+    async def _get_session(self) -> ManagedHTTPClient:
         """Legacy method - get HTTP session"""
         return await self.download_service.get_session()
 
     async def close(self):
-        """Close all services"""
-        await self.download_service.close()
+        """Drain category producers before closing the shared downloader."""
+        await self.category_service.close()
 
     def _load_existing_cache(self):
         """Legacy method - already loaded"""
@@ -131,26 +149,6 @@ class UnifiedImageService:
         self, category_name: str, box_art_url: Optional[str] = None
     ) -> Optional[str]:
         """Download and cache a category's box art image"""
-        # If no box_art_url provided, try to get it from database
-        if not box_art_url:
-            from app.database import SessionLocal
-            from app.models import Category
-
-            with SessionLocal() as db:
-                category = (
-                    db.query(Category).filter(Category.name == category_name).first()
-                )
-                if category and category.box_art_url:
-                    box_art_url = category.box_art_url
-                else:
-                    logger.warning(
-                        f"No box_art_url found for category: {category_name}"
-                    )
-                    return None
-
-        # Type guard to satisfy type checker and ensure valid URL
-        if not box_art_url or not isinstance(box_art_url, str):
-            return None
         return await self.category_service.download_category_image(
             category_name, box_art_url
         )
@@ -159,9 +157,9 @@ class UnifiedImageService:
         """Get cached category image path"""
         return self.category_service.get_cached_category_image(category_name)
 
-    def get_category_image_url(self, category_name: str) -> Optional[str]:
+    async def get_category_image_url(self, category_name: str) -> Optional[str]:
         """Get category image URL (legacy compatibility method)"""
-        return self.category_service.get_cached_category_image_with_download(
+        return await self.category_service.get_cached_category_image_with_download(
             category_name
         )
 
@@ -329,34 +327,28 @@ class UnifiedImageService:
         """Legacy method - get image cache statistics"""
         return self.get_cache_stats()
 
-    async def get_missing_images_report(self) -> Dict[str, Any]:
-        """Generate report of missing images"""
+    async def get_missing_images_report(self) -> dict[str, int]:
+        return await run_in_thread_pool(self._missing_images_report)
+
+    def _missing_images_report(self) -> dict[str, int]:
+        """Close scalar source reads before entering the worker-owned caches."""
         from app.database import SessionLocal
         from app.models import Streamer, Category
 
-        missing_report = {
-            "missing_profiles": 0,
-            "missing_categories": 0,
-            "total_streamers": 0,
-            "total_categories": 0,
+        with (self._session_factory or SessionLocal)() as db:
+            streamer_ids = [row.id for row in db.query(Streamer.id).all()]
+            category_names = [row.name for row in db.query(Category.name).all()]
+        return {
+            "missing_profiles": sum(
+                not self.get_cached_profile_image(streamer_id)
+                for streamer_id in streamer_ids
+            ),
+            "missing_categories": sum(
+                not self.get_cached_category_image(name) for name in category_names
+            ),
+            "total_streamers": len(streamer_ids),
+            "total_categories": len(category_names),
         }
-
-        with SessionLocal() as db:
-            # Check missing profile images
-            streamers = db.query(Streamer).all()
-            for streamer in streamers:
-                missing_report["total_streamers"] += 1
-                if not self.get_cached_profile_image(streamer.id):
-                    missing_report["missing_profiles"] += 1
-
-            # Check missing category images
-            categories = db.query(Category).all()
-            for category in categories:
-                missing_report["total_categories"] += 1
-                if not self.get_cached_category_image(category.name):
-                    missing_report["missing_categories"] += 1
-
-        return missing_report
 
     async def preload_categories(self, category_names: list) -> Dict[str, int]:
         """Preload category images for given category names"""

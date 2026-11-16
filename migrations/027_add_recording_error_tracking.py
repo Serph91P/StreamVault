@@ -9,9 +9,13 @@ from sqlalchemy import text
 from app.database import SessionLocal
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def upgrade(target_engine: Engine | None = None):
     """Add error tracking columns to recordings table"""
-    with SessionLocal() as db:
+    with migration_session(target_engine, SessionLocal) as db:
         try:
             # Add error tracking columns
             db.execute(

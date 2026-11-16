@@ -3,11 +3,12 @@ API endpoints for unified recording recovery management
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from typing import Dict, Any
 from pydantic import BaseModel
 
-from app.services.recording.unified_recovery_service import get_unified_recovery_service
+from app.dependencies import get_application_recovery_service
+from app.services.recording.unified_recovery_service import UnifiedRecoveryService
 
 logger = logging.getLogger("streamvault")
 
@@ -20,11 +21,14 @@ class RecoveryScanRequest(BaseModel):
 
 
 @router.get("/statistics")
-async def get_recovery_statistics(max_age_hours: int = 72) -> Dict[str, Any]:
+async def get_recovery_statistics(
+    max_age_hours: int = 72,
+    recovery_service: UnifiedRecoveryService = Depends(
+        get_application_recovery_service
+    ),
+) -> Dict[str, Any]:
     """Get statistics about recoverable recordings"""
     try:
-        recovery_service = await get_unified_recovery_service()
-
         # Run scan to get current statistics
         stats = await recovery_service.comprehensive_recovery_scan(
             max_age_hours=max_age_hours, dry_run=True
@@ -48,12 +52,14 @@ async def get_recovery_statistics(max_age_hours: int = 72) -> Dict[str, Any]:
 
 @router.post("/scan")
 async def comprehensive_recovery_scan(
-    request: RecoveryScanRequest, background_tasks: BackgroundTasks
+    request: RecoveryScanRequest,
+    background_tasks: BackgroundTasks,
+    recovery_service: UnifiedRecoveryService = Depends(
+        get_application_recovery_service
+    ),
 ) -> Dict[str, Any]:
     """Comprehensive recovery scan and optionally trigger recovery"""
     try:
-        recovery_service = await get_unified_recovery_service()
-
         if request.dry_run:
             # Synchronous dry run
             stats = await recovery_service.comprehensive_recovery_scan(
@@ -96,11 +102,13 @@ async def comprehensive_recovery_scan(
 
 
 @router.get("/status")
-async def get_recovery_status() -> Dict[str, Any]:
+async def get_recovery_status(
+    recovery_service: UnifiedRecoveryService = Depends(
+        get_application_recovery_service
+    ),
+) -> Dict[str, Any]:
     """Get current recovery service status"""
     try:
-        recovery_service = await get_unified_recovery_service()
-
         return {
             "success": True,
             "status": {

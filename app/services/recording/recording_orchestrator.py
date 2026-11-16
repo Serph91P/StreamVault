@@ -6,7 +6,18 @@ Central coordinator that uses all other refactored services for recording operat
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from collections.abc import Callable
+from time import monotonic
+from typing import Dict, Any, Optional, List, TYPE_CHECKING, Unpack
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
+from app.utils.cache import SimpleCache
+from app.services.system.logging_service import LoggingService
+from app.services.background_queue_service import BackgroundQueueService
+from app.services.communication.websocket_manager import ConnectionManager
+from app.services.core.state_persistence_service import StatePersistenceService
+from app.services.api.twitch_api import TwitchAPIService
+from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
 
 # websocket_manager will be imported when needed to avoid circular imports
 from .recording_database_service import RecordingDatabaseService
@@ -27,31 +38,79 @@ process_monitor = None
 
 logger = logging.getLogger("streamvault")
 
+if TYPE_CHECKING:
+    from .recording_lifecycle_manager import RecordingStartOptions
+
 
 class RecordingOrchestrator:
     """Central coordinator for all recording operations"""
 
-    def __init__(self, db=None):
+    def __init__(
+        self,
+        db: None = None,
+        *,
+        settings: Settings | None = None,
+        session_factory: Callable[[], Session] | None = None,
+        connection_manager: ConnectionManager | None = None,
+        queue_service: BackgroundQueueService | None = None,
+        logging_service: LoggingService | None = None,
+        status_cache: SimpleCache | None = None,
+        twitch_api_service: TwitchAPIService | None = None,
+    ):
+        context = (settings, session_factory, connection_manager, queue_service)
+        owned = any(value is not None for value in context)
+        if owned and (db is not None or any(value is None for value in context)):
+            raise ValueError(
+                "Recording application context requires settings, session factory, socket manager and queue, without a borrowed session"
+            )
         # Initialize existing managers
-        self.config_manager = ConfigManager()
+        self.config_manager = (
+            ConfigManager(session_factory=session_factory, settings=settings)
+            if owned
+            else ConfigManager()
+        )
 
         # Initialize refactored services first (needed for callback)
-        self.database_service = RecordingDatabaseService(db)
-        self.state_manager = RecordingStateManager(self.config_manager)
+        self.database_service = (
+            RecordingDatabaseService(session_factory=session_factory)
+            if owned
+            else RecordingDatabaseService(db)
+        )
+        self.state_manager = (
+            RecordingStateManager.for_application(
+                self.config_manager,
+                StatePersistenceService(session_factory=session_factory),
+            )
+            if owned
+            else RecordingStateManager(self.config_manager)
+        )
         # Import websocket_manager here to avoid circular imports
-        from app.dependencies import websocket_manager
+        if not owned:
+            from app.dependencies import websocket_manager
 
-        self.websocket_service = RecordingWebSocketService(websocket_manager)
-        self.post_processing_coordinator = PostProcessingCoordinator(
-            self.config_manager, self.websocket_service
+            connection_manager = websocket_manager
+
+        self.websocket_service = RecordingWebSocketService(connection_manager)
+        self.post_processing_coordinator = (
+            PostProcessingCoordinator(
+                self.config_manager,
+                self.websocket_service,
+                queue_service=queue_service,
+                settings=settings,
+                session_factory=session_factory,
+            )
+            if owned
+            else PostProcessingCoordinator(self.config_manager, self.websocket_service)
         )
 
         # Create post-processing callback for ProcessManager dependency injection
-        async def post_processing_callback(recording_id: int, file_path: str):
+        async def post_processing_callback(recording_id: int, file_path: str) -> None:
             """Callback for ProcessManager to trigger post-processing"""
             try:
                 # Get recording data needed for post-processing
-                recording_data = self.database_service.get_recording_by_id(recording_id)
+                recording_data = await self.database_service.get_recording_by_id(
+                    recording_id
+                )
                 if recording_data:
                     # Update recording status first
                     await self.database_service.update_recording_status(
@@ -107,13 +166,28 @@ class RecordingOrchestrator:
                 logger.error(f"Error in post-processing callback: {e}", exc_info=True)
 
         # Initialize ProcessManager with the post-processing callback
-        self.process_manager = ProcessManager(
-            config_manager=self.config_manager,
-            post_processing_callback=post_processing_callback,
+        self.process_manager = (
+            ProcessManager.for_application(
+                config_manager=self.config_manager,
+                logging_service=logging_service,
+                database_service=self.database_service,
+                connection_manager=connection_manager,
+                post_processing_callback=post_processing_callback,
+                upstream_coordinator=TwitchUpstreamCoordinator(
+                    session_factory, monotonic_clock=monotonic
+                ),
+            )
+            if owned
+            else ProcessManager(
+                config_manager=self.config_manager,
+                post_processing_callback=post_processing_callback,
+            )
         )
 
         # Initialize remaining managers
-        self.recording_logger = RecordingLogger(config_manager=self.config_manager)
+        self.recording_logger = RecordingLogger(
+            config_manager=self.config_manager, service=logging_service
+        )
         self.notification_manager = NotificationManager(
             config_manager=self.config_manager
         )
@@ -126,13 +200,23 @@ class RecordingOrchestrator:
             websocket_service=self.websocket_service,
             state_manager=self.state_manager,
             recording_logger=self.recording_logger,
+            status_cache=status_cache,
+            twitch_api_service=twitch_api_service,
+            queue_service=queue_service,
         )
 
         # Initialize logging service
+        self.logging_service = None
         try:
-            from app.services.system.logging_service import logging_service
+            from app.services.system.logging_service import (
+                logging_service as legacy_logging_service,
+            )
 
-            self.logging_service = logging_service
+            self.logging_service = (
+                logging_service
+                if logging_service is not None
+                else legacy_logging_service
+            )
         except Exception as e:
             logger.warning(f"Could not initialize logging service: {e}")
             self.logging_service = None
@@ -140,7 +224,10 @@ class RecordingOrchestrator:
     # Main public API methods (delegate to appropriate services)
 
     async def start_recording(
-        self, stream_id: int, streamer_id: int, **kwargs
+        self,
+        stream_id: int,
+        streamer_id: int,
+        **kwargs: Unpack["RecordingStartOptions"],
     ) -> Optional[int]:
         """Start a new recording - main entry point"""
         logger.info(
@@ -201,8 +288,8 @@ class RecordingOrchestrator:
         self,
         recording_id: int,
         status: str,
-        path: str = None,
-        duration_seconds: int = None,
+        path: str | None = None,
+        duration_seconds: int | None = None,
     ) -> None:
         """Update recording status in database"""
         await self.database_service.update_recording_status(
@@ -283,29 +370,25 @@ class RecordingOrchestrator:
 
     # Legacy compatibility methods (delegate to appropriate services)
 
-    def _ensure_db_session(self):
-        """Legacy method - handled by database service"""
-        self.database_service._ensure_db_session()
-
     async def _update_recording_status(
         self, recording_id: int, status: str, path: str, duration_seconds: int
-    ):
+    ) -> None:
         """Legacy method - delegate to database service"""
         await self.database_service.update_recording_status(
             recording_id, status, path, duration_seconds
         )
 
-    async def _ensure_stream_ended(self, stream_id: int):
+    async def _ensure_stream_ended(self, stream_id: int) -> None:
         """Legacy method - delegate to database service"""
         await self.database_service.ensure_stream_ended(stream_id)
 
-    async def _monitor_and_process_recording(self, recording_id: int):
+    async def _monitor_and_process_recording(self, recording_id: int) -> None:
         """Legacy method - delegate to lifecycle manager"""
         await self.lifecycle_manager.monitor_and_process_recording(recording_id)
 
     async def _enqueue_post_processing(
         self, recording_id: int, ts_file_path: str, recording_data: Dict[str, Any]
-    ):
+    ) -> None:
         """Legacy method - delegate to post-processing coordinator"""
         await self.post_processing_coordinator.enqueue_post_processing(
             recording_id, ts_file_path, recording_data
@@ -313,7 +396,7 @@ class RecordingOrchestrator:
 
     async def _find_and_validate_mp4(
         self, ts_file_path: str, max_wait_minutes: int = 10
-    ):
+    ) -> str | None:
         """Legacy method - delegate to post-processing coordinator"""
         return await self.post_processing_coordinator.find_and_validate_mp4(
             ts_file_path, max_wait_minutes
@@ -321,7 +404,7 @@ class RecordingOrchestrator:
 
     async def _send_recording_job_update(
         self, recording_id: int, job_type: str, status: str, progress: float = 0.0
-    ):
+    ) -> None:
         """Legacy method - delegate to websocket service"""
         await self.websocket_service.send_recording_job_update(
             recording_id, job_type, status, progress
@@ -329,23 +412,23 @@ class RecordingOrchestrator:
 
     async def _send_background_task_update(
         self, task_id: str, task_type: str, status: str, progress: float = 0.0
-    ):
+    ) -> None:
         """Legacy method - delegate to websocket service"""
         await self.websocket_service.send_background_task_update(
             task_id, task_type, status, progress
         )
 
-    async def _force_stop_all_recordings(self):
+    async def _force_stop_all_recordings(self) -> None:
         """Legacy method - delegate to cleanup"""
         await self.cleanup_all_recordings()
 
-    def _cancel_all_tasks(self):
+    def _cancel_all_tasks(self) -> list[int]:
         """Legacy method - delegate to state manager"""
         return self.state_manager.cancel_all_tasks()
 
     async def _delayed_metadata_generation(
         self, recording_id: int, delay_minutes: int = 5
-    ):
+    ) -> None:
         """Legacy method - delegate to post-processing coordinator"""
         await self.post_processing_coordinator.delayed_metadata_generation(
             recording_id, delay_minutes
@@ -353,7 +436,7 @@ class RecordingOrchestrator:
 
     async def _generate_stream_metadata(
         self, recording_id: int, stream_data: Dict[str, Any]
-    ):
+    ) -> dict[str, object]:
         """Legacy method - delegate to post-processing coordinator"""
         return await self.post_processing_coordinator.generate_stream_metadata(
             recording_id, stream_data
@@ -361,7 +444,7 @@ class RecordingOrchestrator:
 
     async def _recover_single_recording(
         self, recording_id: int, recording_data: Dict[str, Any]
-    ):
+    ) -> bool:
         """Legacy method - handled by state manager"""
         return await self.state_manager._recover_single_recording(
             recording_id, recording_data, self.database_service

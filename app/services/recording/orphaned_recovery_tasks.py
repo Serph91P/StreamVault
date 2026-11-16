@@ -8,7 +8,14 @@ on a time-based schedule.
 
 import logging
 from collections.abc import Callable
-from typing import Dict, Any
+from typing import TYPE_CHECKING, Dict, Any
+
+from app.utils.async_db_utils import run_in_thread_pool
+
+if TYPE_CHECKING:
+    from app.services.background_queue_service import BackgroundQueueService
+    from app.services.communication.websocket_manager import ConnectionManager
+    from app.services.recording.unified_recovery_service import UnifiedRecoveryService
 
 # Configuration constants
 ORPHANED_RECOVERY_TIMEOUT_SECONDS = 120  # 2 minutes timeout for recovery operations
@@ -18,7 +25,12 @@ logger = logging.getLogger("streamvault")
 
 
 async def handle_orphaned_recovery_check(
-    task_data: Dict[str, Any], progress_callback: Callable[[float], None] | None = None
+    task_data: Dict[str, Any],
+    progress_callback: Callable[[float], None] | None = None,
+    *,
+    queue_service: "BackgroundQueueService | None" = None,
+    recovery_service_factory: "Callable[[], UnifiedRecoveryService] | None" = None,
+    connection_manager: "ConnectionManager | None" = None,
 ) -> Dict[str, Any]:
     """
     Handle background orphaned recovery check task
@@ -42,7 +54,8 @@ async def handle_orphaned_recovery_check(
         # PRODUCTION FIX: Check if too many orphaned checks are already running
         from app.services.init.background_queue_init import get_background_queue_service
 
-        queue_service = get_background_queue_service()
+        if queue_service is None:
+            queue_service = get_background_queue_service()
         if queue_service:
             active_tasks = queue_service.get_active_tasks()
             orphaned_check_count = sum(
@@ -69,7 +82,16 @@ async def handle_orphaned_recovery_check(
             get_orphaned_recovery_service,
         )
 
-        recovery_service = await get_orphaned_recovery_service()
+        if recovery_service_factory is None:
+            recovery_service = await get_orphaned_recovery_service()
+        else:
+            from app.services.recording.orphaned_recovery_service import (
+                OrphanedRecoveryService,
+            )
+
+            recovery_service = OrphanedRecoveryService(
+                await run_in_thread_pool(recovery_service_factory)
+            )
 
         # Get statistics first
         stats = await recovery_service.get_orphaned_statistics(
@@ -117,22 +139,19 @@ async def handle_orphaned_recovery_check(
         )
 
         # Send notification if significant number of orphaned recordings were found
-        if result["recovery_triggered"] > 0:
+        if result["recovery_triggered"] > 0 and connection_manager is not None:
             try:
-                from app.services.websocket.websocket_service import websocket_service
-
-                if websocket_service:
-                    await websocket_service.send_system_notification(
-                        {
-                            "type": "orphaned_recovery_auto_triggered",
-                            "message": f"Automatic orphaned recovery: {result['recovery_triggered']} recordings processed",
-                            "data": {
-                                "recovery_triggered": result["recovery_triggered"],
-                                "trigger_reason": trigger_reason,
-                                "statistics": stats,
-                            },
-                        }
-                    )
+                await connection_manager.send_notification(
+                    {
+                        "type": "orphaned_recovery_auto_triggered",
+                        "message": f"Automatic orphaned recovery: {result['recovery_triggered']} recordings processed",
+                        "data": {
+                            "recovery_triggered": result["recovery_triggered"],
+                            "trigger_reason": trigger_reason,
+                            "statistics": stats,
+                        },
+                    }
+                )
             except Exception as e:
                 logger.debug(f"Could not send WebSocket notification: {e}")
 

@@ -7,9 +7,12 @@ focuses on extracting metadata from database records.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, TYPE_CHECKING
 
 from app.models import Stream
+
+if TYPE_CHECKING:
+    from .config_manager import ConfigManager
 
 logger = logging.getLogger("streamvault")
 
@@ -17,7 +20,7 @@ logger = logging.getLogger("streamvault")
 class StreamInfoManager:
     """Manager for handling stream information from webhooks and database"""
 
-    def __init__(self, config_manager=None):
+    def __init__(self, config_manager: "ConfigManager | None" = None) -> None:
         """Initialize the stream information manager
 
         Args:

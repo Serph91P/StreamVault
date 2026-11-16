@@ -1,20 +1,29 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
+
 from app.schemas.settings import (
     GlobalSettingsSchema,
     StreamerNotificationSettingsSchema,
     StreamerNotificationSettingsUpdateSchema,
 )
 from app.dependencies import (
-    get_db,
+    AuthIdentity,
+    get_application_session_factory,
+    get_application_twitch_token_service,
     get_image_service,
     get_notification_service_factory,
     get_settings_service,
+    get_streamlink_config_service,
     get_websocket_manager,
     require_scopes,
 )
 from app.services.core.settings_service import SettingsService
+from app.services.system.twitch_token_service import TwitchTokenService
+from app.services.system.streamlink_config_service import StreamlinkConfigService
+from sqlalchemy.orm import Session
 from app.services.notification_service import NotificationService
+from app.services.unified_image_service import UnifiedImageService
+from app.services.communication.websocket_manager import ConnectionManager
+from app.utils.async_db_utils import run_in_thread_pool
 import logging
 from datetime import datetime, timezone
 from collections.abc import Callable
@@ -28,17 +37,17 @@ router = APIRouter(
 
 
 @router.get("", response_model=GlobalSettingsSchema)
-async def get_settings(
+def get_settings(
     settings_service: SettingsService = Depends(get_settings_service),
-):
+) -> GlobalSettingsSchema:
     return settings_service.get_global_settings_schema()
 
 
 @router.get("/streamer", response_model=List[StreamerNotificationSettingsSchema])
-async def get_all_streamer_settings(
+def get_all_streamer_settings(
     settings_service: SettingsService = Depends(get_settings_service),
-    image_service=Depends(get_image_service),
-):
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> list[StreamerNotificationSettingsSchema]:
     try:
         return settings_service.get_all_streamer_notification_settings(image_service)
     except Exception as e:
@@ -49,13 +58,13 @@ async def get_all_streamer_settings(
 @router.post(
     "/streamer/{streamer_id}", response_model=StreamerNotificationSettingsSchema
 )
-async def update_streamer_settings(
+def update_streamer_settings(
     streamer_id: int,
     settings_data: StreamerNotificationSettingsUpdateSchema,
     settings_service: SettingsService = Depends(get_settings_service),
-    image_service=Depends(get_image_service),
-    _identity=Depends(require_scopes("admin")),
-):
+    image_service: UnifiedImageService = Depends(get_image_service),
+    _identity: AuthIdentity = Depends(require_scopes("admin")),
+) -> StreamerNotificationSettingsSchema:
     logger.debug(f"Updating settings for streamer {streamer_id}: {settings_data}")
     try:
         return settings_service.update_streamer_notification_settings(
@@ -66,10 +75,10 @@ async def update_streamer_settings(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/streamers")
-async def get_streamer_settings(
+@router.get("/streamers", response_model=None)
+def get_streamer_settings(
     settings_service: SettingsService = Depends(get_settings_service),
-):
+) -> list[dict[str, int | bool | None]]:
     try:
         return settings_service.get_streamer_settings_flat()
     except Exception as e:
@@ -77,25 +86,36 @@ async def get_streamer_settings(
         raise HTTPException(status_code=500, detail="Failed to fetch streamer settings")
 
 
-@router.post("/test-notification")
+def _notification_validation_error(
+    session_factory: Callable[[], Session],
+) -> str | None:
+    """Close validation's transaction before either notification transport awaits."""
+    with session_factory() as db:
+        settings = SettingsService(db).get_global_settings_row()
+        if not settings:
+            return "No settings configured"
+        if not settings.notifications_enabled:
+            return "Notifications are disabled"
+        if not settings.notification_url:
+            return "No notification URL configured"
+        return None
+
+
+@router.post("/test-notification", response_model=None)
 async def test_notification(
-    settings_service: SettingsService = Depends(get_settings_service),
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     notification_service_factory: Callable[[], NotificationService] = Depends(
         get_notification_service_factory
     ),
-    websocket_manager=Depends(get_websocket_manager),
-    _identity=Depends(require_scopes("admin")),
-):
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+    _identity: AuthIdentity = Depends(require_scopes("admin")),
+) -> dict[str, str]:
     try:
-        settings = settings_service.get_global_settings_row()
-        if not settings:
-            raise HTTPException(status_code=400, detail="No settings configured")
-        if not settings.notifications_enabled:
-            raise HTTPException(status_code=400, detail="Notifications are disabled")
-        if not settings.notification_url:
-            raise HTTPException(
-                status_code=400, detail="No notification URL configured"
-            )
+        validation_error = await run_in_thread_pool(
+            _notification_validation_error, session_factory
+        )
+        if validation_error is not None:
+            raise HTTPException(status_code=400, detail=validation_error)
 
         import uuid
 
@@ -138,11 +158,11 @@ async def test_notification(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/test-websocket-notification")
+@router.post("/test-websocket-notification", response_model=None)
 async def test_websocket_notification(
-    websocket_manager=Depends(get_websocket_manager),
-    _identity=Depends(require_scopes("admin")),
-):
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+    _identity: AuthIdentity = Depends(require_scopes("admin")),
+) -> dict[str, str]:
     """Test WebSocket notification delivery to frontend"""
     try:
         import time
@@ -190,62 +210,63 @@ async def test_websocket_notification(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("", response_model=GlobalSettingsSchema)
-async def update_settings(
-    settings_data: GlobalSettingsSchema,
-    settings_service: SettingsService = Depends(get_settings_service),
-    notification_service_factory: Callable[[], NotificationService] = Depends(
-        get_notification_service_factory
-    ),
-    _identity=Depends(require_scopes("admin")),
-):
-    try:
-        if settings_data.notification_url and not settings_service.validate_apprise_url(
+def _persist_settings_snapshot(
+    session_factory: Callable[[], Session], settings_data: GlobalSettingsSchema
+) -> tuple[GlobalSettingsSchema, bool]:
+    with session_factory() as db:
+        service = SettingsService(db)
+        if settings_data.notification_url and not service.validate_apprise_url(
             settings_data.notification_url
         ):
             raise HTTPException(
                 status_code=400, detail="Invalid notification URL format"
             )
-
-        # Validate proxy URLs
-        if settings_data.http_proxy and not settings_service.validate_proxy_url(
+        if settings_data.http_proxy and not service.validate_proxy_url(
             settings_data.http_proxy
         ):
             raise HTTPException(
                 status_code=400,
                 detail="HTTP proxy URL must start with 'http://' or 'https://'",
             )
-
-        if settings_data.https_proxy and not settings_service.validate_proxy_url(
+        if settings_data.https_proxy and not service.validate_proxy_url(
             settings_data.https_proxy
         ):
             raise HTTPException(
                 status_code=400,
                 detail="HTTPS proxy URL must start with 'http://' or 'https://'",
             )
-
-        settings = settings_service.get_global_settings_row()
-
-        proxy_changed = (
+        settings = service.get_global_settings_row()
+        changed = (
             settings_data.http_proxy != settings.http_proxy
             or settings_data.https_proxy != settings.https_proxy
+            or settings_data.supported_codecs != settings.supported_codecs
         )
-        codec_changed = (
-            hasattr(settings_data, "supported_codecs")
-            and settings_data.supported_codecs != settings.supported_codecs
-        )
-        updated_settings = settings_service.update_global_settings(settings_data)
+        return service.update_global_settings(settings_data), changed
 
-        notification_service = notification_service_factory()
-        notification_service._initialize_apprise()
+
+@router.post("", response_model=GlobalSettingsSchema)
+async def update_settings(
+    settings_data: GlobalSettingsSchema,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    streamlink_config_service: StreamlinkConfigService = Depends(
+        get_streamlink_config_service
+    ),
+    notification_service_factory: Callable[[], NotificationService] = Depends(
+        get_notification_service_factory
+    ),
+    _identity: AuthIdentity = Depends(require_scopes("admin")),
+) -> GlobalSettingsSchema:
+    try:
+        updated_settings, config_changed = await run_in_thread_pool(
+            _persist_settings_snapshot, session_factory, settings_data
+        )
+
+        notification_service = await run_in_thread_pool(notification_service_factory)
+        await run_in_thread_pool(notification_service._initialize_apprise)
 
         # Regenerate Streamlink config after the updated settings are committed.
         try:
-            from app.services.system.streamlink_config_service import (
-                streamlink_config_service,
-            )
-
-            if proxy_changed or codec_changed:
+            if config_changed:
                 logger.info(
                     "🔄 Proxy or codec settings changed - regenerating Streamlink config..."
                 )
@@ -267,8 +288,10 @@ async def update_settings(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/quality-options")
-async def get_quality_options(db: Session = Depends(get_db)):
+@router.get("/quality-options", response_model=None)
+async def get_quality_options(
+    token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
+) -> dict[str, object]:
     """
     Get available quality options based on OAuth token configuration.
 
@@ -280,9 +303,7 @@ async def get_quality_options(db: Session = Depends(get_db)):
         from app.services.system.streamlink_config_service import (
             streamlink_config_service,
         )
-        from app.services.system.twitch_token_service import TwitchTokenService
 
-        token_service = TwitchTokenService(db)
         has_oauth = bool(await token_service.get_valid_access_token())
 
         # Get quality options with availability info
@@ -300,8 +321,10 @@ async def get_quality_options(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/codec-options")
-async def get_codec_options(db: Session = Depends(get_db)):
+@router.get("/codec-options", response_model=None)
+async def get_codec_options(
+    token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
+) -> dict[str, object]:
     """
     Get available codec options with OAuth authentication requirements.
 
@@ -309,9 +332,6 @@ async def get_codec_options(db: Session = Depends(get_db)):
     H.265/HEVC and AV1 require OAuth authentication on Twitch.
     """
     try:
-        from app.services.system.twitch_token_service import TwitchTokenService
-
-        token_service = TwitchTokenService(db)
         has_oauth = bool(await token_service.get_valid_access_token())
 
         codecs = [

@@ -1,33 +1,58 @@
 import asyncio
+from collections.abc import Callable, Awaitable, AsyncIterator
+from typing import TYPE_CHECKING
 from contextlib import asynccontextmanager
+from functools import partial
 from types import SimpleNamespace
 
 from fastapi import FastAPI
+from sqlalchemy.orm import Session
 
 from app.config.constants import TIMEOUTS
 from app.config.logging_config import setup_logging
+from app.config.settings import Settings
 from app.database import SessionLocal, database_lifecycle
 from app.dependencies import (
     get_event_registry,
     get_lifespan_service,
     get_recording_manager,
+    get_proxy_health_service,
+    _get_application_proxy_health_service,
+    _get_application_twitch_api,
+    _get_application_image_sync_service,
+    _get_application_image_refresh_service,
+    _get_application_image_migration_service,
+    _get_application_auto_image_sync_service,
+    _get_application_logging_service,
+    _get_application_streamlink_config_service,
 )
-from app.services.core.auth_service import AuthService
+
+from app.services.core.session_maintenance import cleanup_expired_sessions
 from app.services.images.image_sync_service import image_sync_service
 from app.services.system.supervisor import TaskSupervisor
 from app.tasks.websocket_broadcast_task import websocket_broadcast_task
+from app.utils.async_db_utils import run_in_thread_pool
+
+if TYPE_CHECKING:
+    from app.events.handler_registry import EventHandlerRegistry
+    from app.services.system.logging_service import LoggingService
+    from app.services.proxy.proxy_health_service import ProxyHealthService
 
 logger = setup_logging()
 
 
-def _reconcile_catalog_batch(cursor):
+def _reconcile_catalog_batch(
+    cursor: int, session_factory: Callable[[], Session] = SessionLocal
+) -> tuple[int, int]:
     from app.services.media.video_catalog_service import VideoCatalogService
 
-    with SessionLocal() as db:
+    with session_factory() as db:
         return VideoCatalogService(db).reconcile_next_batch(cursor)
 
 
-async def _run_catalog_reconciliation():
+async def _run_catalog_reconciliation(
+    session_factory: Callable[[], Session] = SessionLocal,
+) -> None:
     from app.services.media.video_catalog_service import VideoCatalogService
     from app.utils.async_db_utils import run_in_thread_pool
 
@@ -36,7 +61,7 @@ async def _run_catalog_reconciliation():
         while True:
             try:
                 cursor, count = await run_in_thread_pool(
-                    _reconcile_catalog_batch, cursor
+                    _reconcile_catalog_batch, cursor, session_factory
                 )
                 await asyncio.sleep(0.05 if count else 60)
             except asyncio.CancelledError:
@@ -46,13 +71,18 @@ async def _run_catalog_reconciliation():
                 await asyncio.sleep(2)
 
 
-async def _run_session_cleanup() -> None:
+async def _run_session_cleanup(
+    session_factory: Callable[[], Session] = SessionLocal,
+    settings: Settings | None = None,
+) -> None:
     """Periodically clean up expired sessions without retaining a DB lock."""
+
     while True:
         await asyncio.sleep(6 * 3600)
         try:
-            with SessionLocal() as db:
-                expired_count = await AuthService(db=db).cleanup_expired_sessions()
+            expired_count = await run_in_thread_pool(
+                cleanup_expired_sessions, session_factory, settings
+            )
             if expired_count:
                 logger.info("Cleaned up %s expired sessions", expired_count)
         except asyncio.CancelledError:
@@ -63,12 +93,21 @@ async def _run_session_cleanup() -> None:
             )
 
 
-async def _run_recording_cleanup() -> None:
+async def _run_recording_cleanup(
+    session_factory: Callable[[], Session] | None = None,
+    settings: Settings | None = None,
+    activity_logger: "LoggingService | None" = None,
+) -> None:
     from app.services.system.cleanup_service import CleanupService
 
+    retention_service = CleanupService(
+        session_factory=session_factory,
+        settings=settings,
+        activity_logger=activity_logger,
+    )
     while True:
         try:
-            await CleanupService.run_scheduled_cleanup()
+            await retention_service.run_scheduled_cleanup()
         except asyncio.CancelledError:
             raise
         except Exception as error:
@@ -80,7 +119,7 @@ async def _run_recording_cleanup() -> None:
         await asyncio.sleep(12 * 3600)
 
 
-async def _stop_event_registry(event_registry) -> None:
+async def _stop_event_registry(event_registry: "EventHandlerRegistry") -> None:
     eventsub = getattr(event_registry, "eventsub", None)
     if eventsub is not None and hasattr(eventsub, "stop"):
         await eventsub.stop()
@@ -88,7 +127,7 @@ async def _stop_event_registry(event_registry) -> None:
         await event_registry.cleanup()
 
 
-async def _shutdown_step(name: str, operation) -> None:
+async def _shutdown_step(name: str, operation: Callable[[], Awaitable[object]]) -> None:
     try:
         await operation()
     except asyncio.CancelledError:
@@ -97,49 +136,156 @@ async def _shutdown_step(name: str, operation) -> None:
         logger.error("Shutdown step %s failed (%s)", name, type(error).__name__)
 
 
+async def _close_application_logging(app: FastAPI) -> None:
+    actor = getattr(app.state, "logging_service", None)
+    if actor is not None:
+        await run_in_thread_pool(actor.close)
+        app.state.logging_service = None
+
+
+async def _close_application_proxy(app: FastAPI) -> None:
+    actor = getattr(app.state, "proxy_health_service", None)
+    if actor is not None:
+        await actor.stop()
+        app.state.proxy_health_service = None
+
+
+async def _close_application_images(app: FastAPI) -> None:
+    auto_worker = getattr(app.state, "auto_image_sync_service", None)
+    if auto_worker is not None:
+        await auto_worker.stop_sync_worker()
+        app.state.auto_image_sync_service = None
+    worker = getattr(app.state, "image_sync_service", None)
+    if worker is not None:
+        await worker.stop_sync_worker()
+        app.state.image_sync_service = None
+    images = getattr(app.state, "image_service", None)
+    if images is not None:
+        await images.close()
+        app.state.image_service = None
+
+
+async def _close_application_twitch(app: FastAPI) -> None:
+    oauth = getattr(app.state, "twitch_oauth_service", None)
+    if oauth is not None:
+        await oauth.close()
+        app.state.twitch_oauth_service = None
+    tokens = getattr(app.state, "twitch_token_service", None)
+    if tokens is not None:
+        await tokens.close()
+        app.state.twitch_token_service = None
+    client = getattr(app.state, "twitch_api", None)
+    if client is not None:
+        await client.close()
+        app.state.twitch_api = None
+        app.state.unified_recovery_service = None
+    app.state.event_registry = None
+
+
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Run ordered startup phases and reverse, idempotent shutdown ownership."""
     if app is None:
         app = SimpleNamespace(state=SimpleNamespace(), dependency_overrides={})
     supervisor = TaskSupervisor("application")
+    runtime_database = getattr(app.state, "database_lifecycle", database_lifecycle)
+    legacy_context = (
+        getattr(app.state, "legacy_default", True)
+        and runtime_database is database_lifecycle
+    )
+    queue_manager = None
     app.state.task_supervisor = supervisor
     app.state.startup_phases = []
+    app.state.startup_complete = False
+    app.state.startup_failure = None
     event_registry = None
     recording_manager = None
     background_services_started = False
     image_sync_started = False
+    image_sync_actor = image_sync_service
+    auto_image_sync_actor = None
     websocket_started = False
-    proxy_started = False
+    broadcast_task = getattr(
+        app.state, "websocket_broadcast_task", websocket_broadcast_task
+    )
+    proxy_actor = None
+    logging_actor = None
 
     def phase(name: str) -> None:
         app.state.startup_phases.append(name)
         logger.info("Startup phase complete: %s", name)
 
-    logger.info("Starting application initialization")
+    from app.bootstrap.settings import resolve_app_settings
+
     try:
+        runtime_settings = resolve_app_settings(app)
+        setup_logging(runtime_settings)
+        logger.info("Starting application initialization")
+        from app.bootstrap.storage import prepare_storage_directories
+
+        await run_in_thread_pool(prepare_storage_directories, runtime_settings)
         from app.services.system.migration_service import MigrationService
 
-        if not MigrationService.run_safe_migrations():
+        def run_migrations() -> bool:
+            if legacy_context:
+                return MigrationService.run_safe_migrations()
+            return MigrationService.for_engine(
+                runtime_database.sync_engine
+            ).run_safe_migrations()
+
+        if not await run_in_thread_pool(run_migrations):
             raise RuntimeError("Database migrations did not complete successfully")
         phase("migrations")
 
         # Persistent identities must only be touched after a current schema exists.
         from app.services.system.persistent_key_service import bootstrap_persistent_keys
 
-        bootstrap_persistent_keys()
+        def bootstrap_keys() -> None:
+            if legacy_context:
+                bootstrap_persistent_keys()
+            else:
+                from app.services.system.persistent_key_service import (
+                    PersistentKeyBootstrapService,
+                )
+
+                PersistentKeyBootstrapService(
+                    runtime_database.sync_session_factory
+                ).bootstrap(runtime_settings)
+
+            from app.utils.proxy_encryption import bootstrap_proxy_identity
+
+            bootstrap_proxy_identity(
+                getattr(runtime_database, "sync_session_factory", SessionLocal),
+                timeout_seconds=runtime_settings.READINESS_TIMEOUT_SECONDS,
+            )
+
+        await run_in_thread_pool(bootstrap_keys)
         phase("persistent-identities")
+
+        if hasattr(app.state, "logging_service_lock"):
+            logging_actor = await run_in_thread_pool(
+                _get_application_logging_service, app
+            )
+            if not await run_in_thread_pool(logging_actor.cleanup_old_logs):
+                logger.warning("Initial log cleanup incomplete")
 
         from app.services.migration.image_migration_service import (
             image_migration_service,
         )
 
         try:
-            if (
-                image_migration_service.old_images_dir.exists()
-                or image_migration_service.old_artwork_dir.exists()
+            migration_service = image_migration_service
+            if hasattr(app.state, "image_service_lock"):
+                migration_service = await run_in_thread_pool(
+                    _get_application_image_migration_service, app
+                )
+            if await run_in_thread_pool(
+                lambda: (
+                    migration_service.old_images_dir.exists()
+                    or migration_service.old_artwork_dir.exists()
+                )
             ):
-                await image_migration_service.migrate_all_images()
+                await migration_service.migrate_all_images()
         except Exception as error:
             logger.warning("Image migration skipped (%s)", type(error).__name__)
 
@@ -148,7 +294,12 @@ async def lifespan(app: FastAPI):
         )
 
         try:
-            await streamlink_config_service.update_config_from_settings()
+            config_actor = streamlink_config_service
+            if hasattr(app.state, "streamlink_config_service_lock"):
+                config_actor = await run_in_thread_pool(
+                    _get_application_streamlink_config_service, app
+                )
+            await config_actor.update_config_from_settings()
         except Exception as error:
             logger.warning(
                 "Streamlink config generation skipped (%s)", type(error).__name__
@@ -156,12 +307,19 @@ async def lifespan(app: FastAPI):
 
         from app.services.images.image_refresh_service import image_refresh_service
 
+        refresh_service = image_refresh_service
+        if hasattr(app.state, "image_service_lock"):
+            refresh_service = await run_in_thread_pool(
+                _get_application_image_refresh_service, app
+            )
         supervisor.create_task(
-            "image-refresh", image_refresh_service.check_and_refresh_missing_images()
+            "image-refresh", refresh_service.check_and_refresh_missing_images()
         )
         phase("optional-preparation")
 
-        recording_manager = get_lifespan_service(app, get_recording_manager)()
+        recording_manager = await run_in_thread_pool(
+            get_lifespan_service(app, get_recording_manager)
+        )
         app.state.recording_manager = recording_manager
         reconciled_leases = await recording_manager.reconcile_leases()
         logger.info("Reconciled %s stale Twitch upstream leases", reconciled_leases)
@@ -173,46 +331,140 @@ async def lifespan(app: FastAPI):
         from app.services.system.logging_service import logging_service
 
         supervisor.create_task(
-            "log-cleanup", logging_service._schedule_cleanup(interval_hours=24)
+            "log-cleanup",
+            logging_actor._schedule_cleanup(interval_hours=24)
+            if logging_actor is not None
+            else logging_service._schedule_cleanup(interval_hours=24),
         )
-        supervisor.create_task("recording-cleanup", _run_recording_cleanup())
-        supervisor.create_task("session-cleanup", _run_session_cleanup())
-        supervisor.create_task("catalog-reconciliation", _run_catalog_reconciliation())
+        supervisor.create_task(
+            "recording-cleanup",
+            _run_recording_cleanup(
+                SessionLocal
+                if legacy_context
+                else runtime_database.sync_session_factory,
+                runtime_settings,
+                logging_actor,
+            ),
+        )
+        supervisor.create_task(
+            "session-cleanup",
+            _run_session_cleanup(
+                SessionLocal
+                if legacy_context
+                else runtime_database.sync_session_factory,
+                runtime_settings,
+            ),
+        )
+        supervisor.create_task(
+            "catalog-reconciliation",
+            _run_catalog_reconciliation(
+                lambda: runtime_database.sync_session_factory()
+            ),
+        )
 
         from app.services.init.startup_init import initialize_background_services
 
-        await initialize_background_services(supervisor=supervisor)
+        if not legacy_context:
+            queue_manager = app.state.background_queue_manager
+        runtime_twitch = None
+        if hasattr(app.state, "twitch_api_lock"):
+            runtime_twitch = await run_in_thread_pool(_get_application_twitch_api, app)
+        background_initializer = partial(
+            initialize_background_services,
+            recording_manager=recording_manager,
+            twitch_api=runtime_twitch,
+        )
+        if hasattr(app.state, "auto_image_sync_service_lock"):
+            auto_image_sync_actor = await run_in_thread_pool(
+                _get_application_auto_image_sync_service, app
+            )
+            background_initializer = partial(
+                background_initializer, image_sync_service=auto_image_sync_actor
+            )
+        if queue_manager is not None:
+            background_initializer = partial(
+                background_initializer,
+                queue_manager=queue_manager,
+                capture_checker=recording_manager.is_capture_running,
+            )
+        await background_initializer(
+            supervisor=supervisor,
+            session_factory=SessionLocal
+            if legacy_context
+            else runtime_database.sync_session_factory,
+            settings=runtime_settings,
+        )
         background_services_started = True
 
-        await image_sync_service.start_sync_worker()
+        if hasattr(app.state, "image_sync_service_lock"):
+            image_sync_actor = await run_in_thread_pool(
+                _get_application_image_sync_service, app
+            )
+        await image_sync_actor.start_sync_worker()
         image_sync_started = True
-        await websocket_broadcast_task.start()
+        await broadcast_task.start()
         websocket_started = True
 
         from app.services.proxy.proxy_health_service import proxy_health_service
 
-        await proxy_health_service.start()
-        proxy_started = True
+        proxy_actor = proxy_health_service
+        if hasattr(app.state, "proxy_health_service_lock"):
+            proxy_provider: Callable[[], "ProxyHealthService"] = (
+                app.dependency_overrides.get(
+                    get_proxy_health_service,
+                    partial(_get_application_proxy_health_service, app),
+                )
+            )
+            proxy_actor = await run_in_thread_pool(proxy_provider)
+        await proxy_actor.start()
         phase("background-services")
         phase("ready")
+        app.state.startup_complete = True
         logger.info("Application startup complete")
 
         yield
+    except BaseException as error:
+        app.state.startup_failure = type(error).__name__
+        raise
     finally:
+        app.state.startup_complete = False
         logger.info("Starting application shutdown")
 
-        if proxy_started:
-            from app.services.proxy.proxy_health_service import proxy_health_service
+        recovery_state = getattr(app.state, "automated_recovery_state", None)
+        if recovery_state is not None:
+            await _shutdown_step("automated-recovery", recovery_state.cancel_task)
 
-            await _shutdown_step("proxy-health", proxy_health_service.stop)
+        if proxy_actor is not None:
+            await _shutdown_step("proxy-health", proxy_actor.stop)
+        await _shutdown_step(
+            "proxy-health-owner", lambda: _close_application_proxy(app)
+        )
         if websocket_started:
-            await _shutdown_step("websocket-broadcast", websocket_broadcast_task.stop)
+            await _shutdown_step("websocket-broadcast", broadcast_task.stop)
         if image_sync_started:
-            await _shutdown_step("image-sync", image_sync_service.stop_sync_worker)
+            await _shutdown_step("image-sync", image_sync_actor.stop_sync_worker)
+            if getattr(app.state, "image_sync_service", None) is image_sync_actor:
+                app.state.image_sync_service = None
         if background_services_started:
             from app.services.init.startup_init import shutdown_background_services
 
-            await _shutdown_step("background-services", shutdown_background_services)
+            background_shutdown = partial(
+                shutdown_background_services, supervisor=supervisor
+            )
+            if auto_image_sync_actor is not None:
+                background_shutdown = partial(
+                    background_shutdown, image_sync_service=auto_image_sync_actor
+                )
+            if queue_manager is not None:
+                background_shutdown = partial(
+                    background_shutdown, queue_manager=queue_manager
+                )
+            await _shutdown_step(
+                "background-services",
+                background_shutdown,
+            )
+        elif queue_manager is not None:
+            await _shutdown_step("background-queue", queue_manager.shutdown)
 
         await supervisor.shutdown(process_timeout=TIMEOUTS.GRACEFUL_SHUTDOWN)
 
@@ -221,13 +473,23 @@ async def lifespan(app: FastAPI):
                 "eventsub", lambda: _stop_event_registry(event_registry)
             )
 
-        from app.services.live_streaming_service import live_streaming_service
+        live_actor = getattr(app.state, "live_streaming_service", None)
+        if live_actor is None and legacy_context:
+            from app.services.live_streaming_service import live_streaming_service
 
-        await _shutdown_step("live-streaming", live_streaming_service.stop)
+            live_actor = live_streaming_service
+        if live_actor is not None:
+            await _shutdown_step("live-streaming", live_actor.stop)
         if recording_manager is not None:
             await _shutdown_step(
                 "recording-manager",
                 lambda: recording_manager.shutdown(timeout=TIMEOUTS.GRACEFUL_SHUTDOWN),
             )
-        await _shutdown_step("database", database_lifecycle.adispose)
+        connection_manager = getattr(app.state, "websocket_manager", None)
+        if connection_manager is not None:
+            await _shutdown_step("websocket-connections", connection_manager.close_all)
+        await _shutdown_step("image-http", lambda: _close_application_images(app))
+        await _shutdown_step("twitch-http", lambda: _close_application_twitch(app))
+        await _shutdown_step("logging", lambda: _close_application_logging(app))
+        await _shutdown_step("database", runtime_database.adispose)
         logger.info("Application shutdown complete")

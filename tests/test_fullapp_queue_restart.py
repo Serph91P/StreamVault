@@ -86,7 +86,14 @@ def test_full_app_sigkill_pg_restart_preserves_real_processing_and_live_capture(
         servers.append(server)
         def ready():
             assert server.poll() is None, f'App exit {server.returncode}; inspect {handle.name}'
-            try: return httpx.get(base+'/api/health/ready',timeout=1).status_code==200
+            try:
+                response=httpx.get(base+'/api/health/ready',timeout=1)
+                if response.status_code != 200: return False
+                assert {'database','startup','migrations','critical_services','recordings_path','persistent_keys'} <= response.json()['checks'].keys()
+                assert all(value=='ready' for value in response.json()['checks'].values())
+                startup=httpx.get(base+'/api/health/startup',timeout=1)
+                assert startup.status_code==200 and startup.json()=={'status':'startup_complete'}
+                return True
             except httpx.TransportError: return False
         wait_for(ready)
         return server

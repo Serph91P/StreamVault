@@ -6,10 +6,13 @@ This module is responsible for sending various notifications about recording sta
 
 import logging
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, TYPE_CHECKING
 from cachetools import TTLCache
 from app.config.constants import CACHE_CONFIG
 from app.models import Stream
+
+if TYPE_CHECKING:
+    from .config_manager import ConfigManager
 
 # Try to import notification utilities
 logger = logging.getLogger("streamvault")
@@ -31,7 +34,7 @@ except ImportError as e:
 class NotificationManager:
     """Manager for sending notifications about recordings"""
 
-    def __init__(self, config_manager=None):
+    def __init__(self, config_manager: "ConfigManager | None" = None) -> None:
         """Initialize the notification manager
 
         Args:
@@ -40,7 +43,7 @@ class NotificationManager:
         self.config_manager = config_manager
         self.notifications_enabled = self._get_notifications_enabled()
         # TTLCache automatically evicts old entries (prevents memory leaks)
-        self.notification_debounce = TTLCache(
+        self.notification_debounce: TTLCache[str, float] = TTLCache(
             maxsize=CACHE_CONFIG.DEFAULT_CACHE_SIZE,
             ttl=CACHE_CONFIG.NOTIFICATION_DEBOUNCE_TTL,
         )

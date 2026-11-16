@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
 import logging
 
-from app.dependencies import websocket_manager, require_admin_user
+from app.dependencies import get_websocket_manager, require_admin_user
+from app.services.communication.websocket_manager import ConnectionManager
 
 logger = logging.getLogger("streamvault")
 
@@ -14,7 +15,10 @@ async def health_check():
 
 
 @router.get("/admin/websocket-connections")
-async def get_websocket_connections(current_user=Depends(require_admin_user)):
+async def get_websocket_connections(
+    current_user=Depends(require_admin_user),
+    websocket_manager: ConnectionManager = Depends(get_websocket_manager),
+):
     """Admin endpoint to monitor WebSocket connections"""
     connections = []
     async with websocket_manager._lock:

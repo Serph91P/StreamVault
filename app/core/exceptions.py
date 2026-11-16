@@ -37,7 +37,8 @@ def _error_payload(
     return {"error": error}
 
 
-async def domain_error_handler(_: Request, exc: DomainError) -> JSONResponse:
+async def domain_error_handler(_: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, DomainError)  # Starlette dispatches the registered subclass.
     return JSONResponse(
         status_code=exc.status_code,
         content=_error_payload(

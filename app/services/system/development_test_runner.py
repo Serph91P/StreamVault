@@ -29,10 +29,10 @@ class DevelopmentTestRunner:
         self.failed_tests: List[str] = []
         self.passed_tests: List[str] = []
         self.test_log_file = None
-        self._setup_test_logging()
 
     async def run_all_tests(self) -> bool:
         """Run all development tests and return True if all pass"""
+        self._setup_test_logging()
         logger.info("🧪 STARTING DEVELOPMENT TESTS")
         logger.info("=" * 60)
 

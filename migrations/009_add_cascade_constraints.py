@@ -3,6 +3,7 @@
 Migration 009: Update foreign key constraints with CASCADE
 Updates foreign key constraints to add ON DELETE CASCADE where missing
 """
+
 import os
 import sys
 import logging
@@ -13,24 +14,31 @@ from sqlalchemy.orm import sessionmaker
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config.settings import settings
+from sqlalchemy.engine import Engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migration():
+def run_migration(target_engine: Engine | None = None):
     """Update foreign key constraints to add CASCADE where needed"""
     session = None
     try:
         # Connect to the database
-        engine = create_engine(settings.DATABASE_URL)
+        engine = (
+            target_engine
+            if target_engine is not None
+            else create_engine(settings.DATABASE_URL)
+        )
         Session = sessionmaker(bind=engine)
         session = Session()
 
         logger.info("🔄 Updating foreign key constraints...")
 
         # Helper function to update constraint
-        def update_constraint(table_name, constraint_name, column_name, ref_table, ref_column="id"):
+        def update_constraint(
+            table_name, constraint_name, column_name, ref_table, ref_column="id"
+        ):
             try:
                 # Drop existing constraint
                 session.execute(
@@ -59,10 +67,18 @@ def run_migration():
                 logger.warning(f"Could not update {constraint_name}: {e}")
 
         # Update active_recordings_state constraints
-        update_constraint("active_recordings_state", "active_recordings_state_stream_id_fkey", "stream_id", "streams")
+        update_constraint(
+            "active_recordings_state",
+            "active_recordings_state_stream_id_fkey",
+            "stream_id",
+            "streams",
+        )
 
         update_constraint(
-            "active_recordings_state", "active_recordings_state_recording_id_fkey", "recording_id", "recordings"
+            "active_recordings_state",
+            "active_recordings_state_recording_id_fkey",
+            "recording_id",
+            "recordings",
         )
 
         session.commit()

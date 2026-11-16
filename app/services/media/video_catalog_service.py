@@ -152,7 +152,7 @@ class VideoCatalogService:
             else value
         )
 
-    def reconcile_next_batch(self, cursor=0):
+    def reconcile_next_batch(self, cursor: int = 0) -> tuple[int, int]:
         pending = (
             self.db.query(VideoCatalogEntry.stream_id)
             .join(Stream, Stream.id == VideoCatalogEntry.stream_id)
@@ -171,7 +171,13 @@ class VideoCatalogService:
             return cursor, count
         return self.reconcile_batch(after_id=cursor)
 
-    def reconcile_batch(self, *, after_id=0, limit=200, stream_ids=None):
+    def reconcile_batch(
+        self,
+        *,
+        after_id: int = 0,
+        limit: int = 200,
+        stream_ids: list[int] | None = None,
+    ) -> tuple[int, int]:
         """Bounded worker-only filesystem snapshot; never repair authoritative paths."""
         if not 1 <= limit <= 1000:
             raise ValueError("catalog reconciliation batch must be between 1 and 1000")

@@ -24,8 +24,13 @@ from app.services.recording.process_manager import ProcessManager
 
 @pytest.fixture
 def completion_state(monkeypatch, tmp_path):
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'completion.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    with engine.begin() as connection:
+        connection.exec_driver_sql("BEGIN")
+        Base.metadata.create_all(connection)
     sessions = sessionmaker(bind=engine)
     with sessions() as db:
         streamer = Streamer(username="synthetic963", twitch_id="synthetic963")
@@ -52,11 +57,11 @@ def completion_state(monkeypatch, tmp_path):
     delivered = []
     details = []
 
-    async def transport(self, **payload):
+    def transport(self, **payload):
         delivered.append(payload)
         return True
 
-    monkeypatch.setattr(apprise.Apprise, "async_notify", transport)
+    monkeypatch.setattr(apprise.Apprise, "notify", transport)
     real_send = ExternalNotificationService.send_recording_notification
 
     async def observe_details(self, **payload):
@@ -77,27 +82,58 @@ def completion_state(monkeypatch, tmp_path):
     engine.dispose()
 
 
+def make_orchestrator(state):
+    from app.config.settings import Settings
+    from app.services.background_queue_service import BackgroundQueueService
+    from app.services.communication.websocket_manager import ConnectionManager
+    from app.services.recording.recording_orchestrator import RecordingOrchestrator
+
+    manager = ConnectionManager()
+    return RecordingOrchestrator(
+        settings=Settings(
+            ENVIRONMENT="test", RECORDING_DIRECTORY=str(state.root), _env_file=None
+        ),
+        session_factory=state.sessions,
+        connection_manager=manager,
+        queue_service=BackgroundQueueService.for_application(manager),
+    )
+
+
 @pytest.mark.asyncio
-async def test_orchestrator_callback_uses_real_recording_start_time(completion_state, monkeypatch):
+async def test_orchestrator_callback_uses_real_recording_start_time(
+    completion_state, monkeypatch
+):
     from app.models import Recording
     from app.services.recording.recording_orchestrator import RecordingOrchestrator
-    state=completion_state
-    started=datetime(2026,1,1,12,0)
+
+    state = completion_state
+    started = datetime(2026, 1, 1, 12, 0)
     with state.sessions() as db:
-        recording=Recording(stream_id=state.stream_id,status='recording',start_time=started)
-        db.add(recording); db.commit(); identifier=recording.id
-        orchestrator=RecordingOrchestrator(db)
-        enqueued=[]
+        recording = Recording(
+            stream_id=state.stream_id, status="recording", start_time=started
+        )
+        db.add(recording)
+        db.commit()
+        identifier = recording.id
+        db.close()
+        orchestrator = make_orchestrator(state)
+        enqueued = []
+
         async def enqueue(*args):
             enqueued.append(args)
             return True
-        monkeypatch.setattr(orchestrator.post_processing_coordinator,'enqueue_post_processing',enqueue)
-        await orchestrator.process_manager.post_processing_callback(identifier,str(state.root/'complete.ts'))
-        assert len(enqueued)==1
-        assert enqueued[0][0]==identifier
-        assert enqueued[0][2]['started_at']==started.isoformat()
-        assert enqueued[0][2]['stream_id']==state.stream_id
-        assert db.get(Recording,identifier).status=='completed'
+
+        monkeypatch.setattr(
+            orchestrator.post_processing_coordinator, "enqueue_post_processing", enqueue
+        )
+        await orchestrator.process_manager.post_processing_callback(
+            identifier, str(state.root / "complete.ts")
+        )
+        assert len(enqueued) == 1
+        assert enqueued[0][0] == identifier
+        assert enqueued[0][2]["started_at"] == started.isoformat()
+        assert enqueued[0][2]["stream_id"] == state.stream_id
+        assert db.get(Recording, identifier).status == "completed"
         assert identifier in orchestrator.lifecycle_manager._postprocessing_scheduled
 
 

@@ -5,9 +5,11 @@ DEPRECATED: Use ModernWebPushService directly instead
 
 import json
 import logging
+from threading import Lock
 from typing import Dict, Any, Optional, Union
-from app.config.settings import settings
+from app.config.settings import Settings, settings as default_settings
 from .webpush_service import ModernWebPushService, WebPushException
+from app.utils.async_db_utils import run_in_thread_pool
 
 logger = logging.getLogger("streamvault")
 
@@ -15,14 +17,19 @@ logger = logging.getLogger("streamvault")
 
 
 class EnhancedPushService:
-    def __init__(self):
-        self.settings = settings
+    def __init__(self, *, settings: Settings | None = None):
+        self.settings = settings or default_settings
+        self._initialization_lock = Lock()
         # Lazy initialization - web_push_service will be created on first use
         self._web_push_service: Optional[ModernWebPushService] = None
         self._initialization_attempted = False
 
     @property
     def web_push_service(self) -> Optional[ModernWebPushService]:
+        with self._initialization_lock:
+            return self._initialize_web_push_service()
+
+    def _initialize_web_push_service(self) -> Optional[ModernWebPushService]:
         """Lazy initialization of web push service - loads VAPID keys on first use"""
         if self._web_push_service is not None:
             return self._web_push_service
@@ -44,9 +51,10 @@ class EnhancedPushService:
             return None
 
         # VAPID claims for the sender
-        vapid_claims = {
-            "sub": vapid_keys.get("claims_sub", "mailto:admin@streamvault.local")
-        }
+        subject = vapid_keys.get("claims_sub", "mailto:admin@streamvault.local")
+        if subject is None:
+            return None
+        vapid_claims = {"sub": subject}
 
         try:
             self._web_push_service = ModernWebPushService(
@@ -66,11 +74,12 @@ class EnhancedPushService:
 
     def reset_initialization(self):
         """Reset initialization state to allow retry after VAPID keys become available"""
-        self._web_push_service = None
-        self._initialization_attempted = False
+        with self._initialization_lock:
+            self._web_push_service = None
+            self._initialization_attempted = False
         logger.info("EnhancedPushService initialization state reset")
 
-    async def send_notification(
+    def _send_notification(
         self,
         subscription: Union[Dict[str, Any], str],
         notification_data: Dict[str, Any],
@@ -82,12 +91,23 @@ class EnhancedPushService:
                 return False
             if isinstance(subscription, str):
                 subscription = json.loads(subscription)
+            if not isinstance(subscription, dict):
+                return False
             return service.send_notification(subscription, notification_data, ttl=43200)
         except WebPushException:
             raise
         except Exception:
             logger.warning("Push notification could not be sent")
             return False
+
+    async def send_notification(
+        self,
+        subscription: Union[Dict[str, Any], str],
+        notification_data: Dict[str, Any],
+    ) -> bool:
+        return await run_in_thread_pool(
+            self._send_notification, subscription, notification_data
+        )
 
     # Die folgenden Methoden bleiben unverändert, nur kopiere ich die erste als Beispiel:
 

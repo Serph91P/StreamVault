@@ -5,14 +5,19 @@ Provides real-time status endpoints that work independently of WebSocket connect
 This ensures the frontend can always get current state, regardless of WebSocket connectivity.
 """
 
-from fastapi import APIRouter, HTTPException
-from sqlalchemy.orm import joinedload
+from collections.abc import Callable
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, text
 from typing import Dict, Any
 import logging
 from datetime import datetime, timezone
 
-from app.database import SessionLocal
+from app.dependencies import (
+    get_application_session_factory,
+    get_background_queue_service,
+    get_image_service,
+)
 from app.models import (
     Recording,
     Stream,
@@ -22,15 +27,17 @@ from app.models import (
     GlobalSettings,
     StreamEvent,
 )
-from app.services.background_queue_service import background_queue_service
-from app.services.unified_image_service import unified_image_service
+from app.services.background_queue_service import BackgroundQueueService
+from app.services.unified_image_service import UnifiedImageService
 
 router = APIRouter(prefix="/status", tags=["status"])
 logger = logging.getLogger("streamvault")
 
 
 @router.get("/recordings-active")
-async def check_recordings_active() -> Dict[str, Any]:
+def check_recordings_active(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+) -> Dict[str, Any]:
     """
     Check if any recordings are currently active.
 
@@ -47,7 +54,7 @@ async def check_recordings_active() -> Dict[str, Any]:
         }
     """
     try:
-        with SessionLocal() as db:
+        with session_factory() as db:
             # Get active recordings with streamer info
             # PERF: Use eager loading to prevent N+1 queries
             active_recordings = (
@@ -88,10 +95,13 @@ async def check_recordings_active() -> Dict[str, Any]:
 
 
 @router.get("/system")
-async def get_system_status() -> Dict[str, Any]:
+def get_system_status(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    queue_service: BackgroundQueueService = Depends(get_background_queue_service),
+) -> Dict[str, Any]:
     """Get comprehensive system status"""
     try:
-        with SessionLocal() as db:
+        with session_factory() as db:
             # Get active recordings count
             active_recordings_count = (
                 db.query(Recording).filter(Recording.status == "recording").count()
@@ -111,9 +121,9 @@ async def get_system_status() -> Dict[str, Any]:
 
             # Get queue status
             queue_stats = {}
-            if background_queue_service:
+            if queue_service:
                 try:
-                    queue_stats = background_queue_service.get_queue_statistics()
+                    queue_stats = queue_service.get_queue_statistics()
                 except Exception as e:
                     logger.warning(f"Could not get queue statistics: {e}")
                     queue_stats = {"error": "Queue service unavailable"}
@@ -134,10 +144,12 @@ async def get_system_status() -> Dict[str, Any]:
 
 
 @router.get("/active-recordings")
-async def get_active_recordings_status() -> Dict[str, Any]:
+def get_active_recordings_status(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+) -> Dict[str, Any]:
     """Get current active recordings status (REST endpoint)"""
     try:
-        with SessionLocal() as db:
+        with session_factory() as db:
             # Get active recordings with full details
             # PERF: Use eager loading to prevent N+1 queries
             active_recordings = (
@@ -155,9 +167,12 @@ async def get_active_recordings_status() -> Dict[str, Any]:
                         # Calculate duration
                         duration = 0
                         if recording.start_time:
+                            start_time = recording.start_time
+                            if start_time.tzinfo is None:
+                                start_time = start_time.replace(tzinfo=timezone.utc)
                             duration = int(
                                 (
-                                    datetime.now(timezone.utc) - recording.start_time
+                                    datetime.now(timezone.utc) - start_time
                                 ).total_seconds()
                             )
 
@@ -194,19 +209,21 @@ async def get_active_recordings_status() -> Dict[str, Any]:
 
 
 @router.get("/background-queue")
-async def get_background_queue_status() -> Dict[str, Any]:
+def get_background_queue_status(
+    queue_service: BackgroundQueueService = Depends(get_background_queue_service),
+) -> Dict[str, Any]:
     """Get current background queue status"""
     try:
-        if not background_queue_service:
+        if not queue_service:
             return {
                 "error": "Background queue service not available",
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
         # Get queue statistics
-        stats = background_queue_service.get_queue_statistics()
-        active_tasks = background_queue_service.get_active_tasks()
-        recent_tasks = background_queue_service.get_completed_tasks()
+        stats = queue_service.get_queue_statistics()
+        active_tasks = queue_service.get_active_tasks()
+        recent_tasks = queue_service.get_completed_tasks()
 
         # Convert tasks to serializable format
         active_tasks_data = []
@@ -264,11 +281,15 @@ async def get_background_queue_status() -> Dict[str, Any]:
 
 
 @router.get("/health")
-async def get_health_status() -> Dict[str, Any]:
+def get_health_status(
+    request: Request,
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    queue_service: BackgroundQueueService = Depends(get_background_queue_service),
+) -> Dict[str, Any]:
     """Get basic health status for monitoring"""
     try:
         # Basic database connectivity test
-        with SessionLocal() as db:
+        with session_factory() as db:
             db.execute(text("SELECT 1"))
 
         db_status = "healthy"
@@ -277,22 +298,37 @@ async def get_health_status() -> Dict[str, Any]:
         db_status = "unhealthy"
 
     # Check background queue service
-    queue_status = "healthy" if background_queue_service else "unavailable"
+    queue_status = "healthy" if queue_service else "unavailable"
 
     overall_status = "healthy" if db_status == "healthy" else "degraded"
+    phases = getattr(request.app.state, "startup_phases", None)
+    failure = getattr(request.app.state, "startup_failure", None)
 
     return {
         "status": overall_status,
         "components": {"database": db_status, "background_queue": queue_status},
+        "lifecycle": {
+            "startup_complete": getattr(request.app.state, "startup_complete", False)
+            is True,
+            "startup_failure": failure[:64] if isinstance(failure, str) else None,
+            "completed_phases": [
+                phase[:64] for phase in phases[:16] if isinstance(phase, str)
+            ]
+            if isinstance(phases, list)
+            else [],
+        },
         "timestamp": datetime.utcnow().isoformat(),
     }
 
 
 @router.get("/streamers")
-async def get_streamers_status() -> Dict[str, Any]:
+def get_streamers_status(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+    image_service: UnifiedImageService = Depends(get_image_service),
+) -> Dict[str, Any]:
     """Get current streamers status (online/offline/recording states)"""
     try:
-        with SessionLocal() as db:
+        with session_factory() as db:
             # Get streamers with their current status
             # PERF: Eager load streams to avoid N+1 when checking latest_stream
             streamers = db.query(Streamer).options(joinedload(Streamer.streams)).all()
@@ -341,9 +377,9 @@ async def get_streamers_status() -> Dict[str, Any]:
 
                 # Get profile image URL safely
                 profile_image_url = None
-                if unified_image_service:
+                if image_service:
                     try:
-                        profile_image_url = unified_image_service.get_profile_image_url(
+                        profile_image_url = image_service.get_profile_image_url(
                             streamer.id, streamer.profile_image_url
                         )
                     except Exception as e:
@@ -373,7 +409,7 @@ async def get_streamers_status() -> Dict[str, Any]:
                         "is_favorite": streamer.is_favorite,
                         "auto_record": streamer.auto_record,
                         "last_seen": latest_stream.created_at.isoformat()
-                        if latest_stream
+                        if latest_stream and latest_stream.created_at is not None
                         else None,
                         "current_title": latest_stream.title
                         if latest_stream and is_live
@@ -404,10 +440,12 @@ async def get_streamers_status() -> Dict[str, Any]:
 
 
 @router.get("/streams")
-async def get_streams_status() -> Dict[str, Any]:
+def get_streams_status(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+) -> Dict[str, Any]:
     """Get current streams status and recent activity"""
     try:
-        with SessionLocal() as db:
+        with session_factory() as db:
             # Get recent streams (last 24 hours)
             from datetime import timedelta, timezone
 
@@ -480,10 +518,12 @@ async def get_streams_status() -> Dict[str, Any]:
 
 
 @router.get("/notifications")
-async def get_notifications_status() -> Dict[str, Any]:
+def get_notifications_status(
+    session_factory: Callable[[], Session] = Depends(get_application_session_factory),
+) -> Dict[str, Any]:
     """Get notification system status and recent notifications"""
     try:
-        with SessionLocal() as db:
+        with session_factory() as db:
             # Get notification settings
             notification_settings = db.query(NotificationSettings).all()
 
@@ -515,6 +555,9 @@ async def get_notifications_status() -> Dict[str, Any]:
                 )
 
                 for event in events:
+                    assert (
+                        event.timestamp is not None
+                    )  # Excluded by the SQL cutoff predicate.
                     recent_events.append(
                         {
                             "id": event.id,

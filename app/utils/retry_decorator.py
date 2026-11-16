@@ -182,7 +182,7 @@ def twitch_api_retry(func: Callable) -> Callable:
     )(func)
 
 
-def database_retry(func: Callable) -> Callable:
+def database_retry[**P, R](func: Callable[P, R]) -> Callable[P, R]:
     """Retry configuration specifically for database operations."""
     return with_retry(
         max_attempts=5,

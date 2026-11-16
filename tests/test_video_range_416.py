@@ -51,15 +51,16 @@ def stored_media_client(monkeypatch, tmp_path):
 
     monkeypatch.setattr(videos.AuthService, "resolve_legacy_session", valid_session)
     monkeypatch.setattr(videos, "SessionLocal", lambda: nullcontext(database))
-    monkeypatch.setattr(videos, "validate_path_security", lambda path, _mode: path)
+    monkeypatch.setattr(videos, "validate_path_security", lambda path, _mode, *, recording_directory: path)
     monkeypatch.setattr(videos, "validate_file_type", lambda *_args: None)
     monkeypatch.setattr(
-        videos, "validate_share_token", lambda token: 1 if token == "valid" else None
+        videos, "validate_share_token", lambda token, *, db: 1 if token == "valid" else None
     )
     application = FastAPI()
     application.state.media_path = media_file
     application.include_router(videos.router)
     application.dependency_overrides[dependencies.get_db] = lambda: database
+    application.dependency_overrides[dependencies.get_application_session_factory] = lambda: (lambda: nullcontext(database))
 
     def authenticated_media_identity(request: Request):
         if request.cookies.get("session") != "test-session":
@@ -119,7 +120,7 @@ def test_public_share_token_seek_and_expiry_keep_media_contract_fail_closed(
 
     client, file_size = stored_media_client
     monkeypatch.setattr(
-        videos, "validate_share_token", lambda token: 1 if token == "valid" else None
+        videos, "validate_share_token", lambda token, *, db: 1 if token == "valid" else None
     )
 
     def invalid_legacy_session(_self, _token):

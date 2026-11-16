@@ -51,7 +51,7 @@ def main():
         from app.models import GlobalSettings, PushSubscription
         from app.routes import push
 
-        push.settings = SimpleNamespace(
+        push_settings = SimpleNamespace(
             has_push_notifications_configured=True,
             VAPID_PRIVATE_KEY=private_key,
             VAPID_PUBLIC_KEY=public_key,
@@ -73,6 +73,7 @@ def main():
                 yield db
 
         app = FastAPI()
+        app.state.settings = push_settings
         app.dependency_overrides[get_db] = isolated_db
 
         @app.get("/probe.html")

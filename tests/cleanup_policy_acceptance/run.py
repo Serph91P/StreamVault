@@ -41,6 +41,7 @@ with tempfile.TemporaryDirectory(prefix="policy-947-", dir=os.environ["TMPDIR"])
         {
             "PYTHONPATH": os.pathsep.join([str(here), str(repo)]),
             "DATABASE_URL": f"sqlite:///{scratch / 'acceptance.sqlite'}",
+            "ENVIRONMENT": "test",
             "BASE_URL": f"http://127.0.0.1:{port}",
             "LOG_DIR": str(scratch / "logs"),
             "RECORDING_DIRECTORY": str(scratch / "recordings"),

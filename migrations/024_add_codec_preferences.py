@@ -27,9 +27,13 @@ from sqlalchemy import text
 from app.database import SessionLocal
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def upgrade(target_engine: Engine | None = None):
     """Add codec preference columns to global_settings"""
-    with SessionLocal() as db:
+    with migration_session(target_engine, SessionLocal) as db:
         try:
             # Add supported_codecs column (default: h264,h265 for best compatibility/quality balance)
             db.execute(
@@ -70,9 +74,13 @@ def upgrade():
             )
 
             db.commit()
-            print("✅ Migration 024: Added codec preference columns (supported_codecs, prefer_higher_quality)")
+            print(
+                "✅ Migration 024: Added codec preference columns (supported_codecs, prefer_higher_quality)"
+            )
             print("   Default: h264,h265 (H.264 with H.265 fallback)")
-            print("   Note: Requires Streamlink 8.0.0+ for --twitch-supported-codecs support")
+            print(
+                "   Note: Requires Streamlink 8.0.0+ for --twitch-supported-codecs support"
+            )
 
         except Exception as e:
             db.rollback()
@@ -84,8 +92,16 @@ def downgrade():
     """Remove codec preference columns from global_settings"""
     with SessionLocal() as db:
         try:
-            db.execute(text("ALTER TABLE global_settings DROP COLUMN IF EXISTS prefer_higher_quality;"))
-            db.execute(text("ALTER TABLE global_settings DROP COLUMN IF EXISTS supported_codecs;"))
+            db.execute(
+                text(
+                    "ALTER TABLE global_settings DROP COLUMN IF EXISTS prefer_higher_quality;"
+                )
+            )
+            db.execute(
+                text(
+                    "ALTER TABLE global_settings DROP COLUMN IF EXISTS supported_codecs;"
+                )
+            )
 
             db.commit()
             print("✅ Migration 024 (downgrade): Removed codec preference columns")

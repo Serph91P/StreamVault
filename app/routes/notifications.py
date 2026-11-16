@@ -10,7 +10,7 @@ from typing import Optional
 from datetime import datetime, timezone
 import logging
 
-from app.database import get_db
+from app.dependencies import get_db
 from app.models import NotificationState
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class NotificationClearRequest(BaseModel):
 
 
 @router.post("/mark-read")
-async def mark_notifications_read(
+def mark_notifications_read(
     request: NotificationMarkReadRequest, db: Session = Depends(get_db)
 ):
     """
@@ -85,7 +85,7 @@ async def mark_notifications_read(
 
 
 @router.post("/clear")
-async def clear_notifications(
+def clear_notifications(
     request: NotificationClearRequest, db: Session = Depends(get_db)
 ):
     """
@@ -126,7 +126,7 @@ async def clear_notifications(
 
 
 @router.get("/state")
-async def get_notification_state(db: Session = Depends(get_db)):
+def get_notification_state(db: Session = Depends(get_db)):
     """
     Get the current notification state (last read/cleared timestamps).
     Used by frontend to filter out already-read notifications.

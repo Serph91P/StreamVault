@@ -95,19 +95,16 @@ async def _fake_failed_revalidate(_service, _global_settings):
 
 
 async def _call_connection_status(monkeypatch, stored, env_token, revalidate):
-    import app.config.settings as settings_module
-    import app.database as database_module
-    from app.services.system.twitch_token_service import TwitchTokenService
+    class TokenService:
+        settings = SimpleNamespace(TWITCH_OAUTH_TOKEN=env_token)
 
-    monkeypatch.setattr(settings_module.settings, "TWITCH_OAUTH_TOKEN", env_token)
-    monkeypatch.setattr(
-        database_module, "SessionLocal", lambda: _SessionContext(_Db(stored))
-    )
-    monkeypatch.setattr(
-        TwitchTokenService, "revalidate_stored_manual_token", revalidate
-    )
+        async def get_state(self):
+            return stored
 
-    return await get_connection_status()
+        async def revalidate_stored_manual_token(self, state):
+            return await revalidate(self, state)
+
+    return await get_connection_status(token_service=TokenService())
 
 
 @pytest.mark.asyncio

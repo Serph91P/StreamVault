@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 import logging
 
-from app.database import get_db, SessionLocal
+from app.database import SessionLocal
+from app.dependencies import get_db
 from app.models import Recording, Streamer, Stream
 from app.dependencies import get_recording_manager
 from app.services.system.logging_service import logging_service
@@ -25,7 +26,7 @@ def get_recording_service():
 
 
 @router.get("/latest")
-async def get_latest_recording(db: Session = Depends(get_db)):
+def get_latest_recording(db: Session = Depends(get_db)):
     """Get the most recent completed recording for performance optimization"""
     try:
         latest_recording = (
@@ -69,7 +70,7 @@ async def get_latest_recording(db: Session = Depends(get_db)):
 
 
 @router.get("/recent")
-async def get_recent_recordings(
+def get_recent_recordings(
     limit: int = Query(default=10, ge=1, le=50), db: Session = Depends(get_db)
 ):
     """Get recent recordings for performance optimization"""

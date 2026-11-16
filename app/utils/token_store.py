@@ -6,6 +6,7 @@ Uses database storage for persistence and scalability.
 """
 
 import logging
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -30,11 +31,13 @@ class ShareTokenModel(Base):
     )
 
 
-def store_share_token(token: str, stream_id: int, expiration_seconds: int) -> None:
+def store_share_token(
+    token: str, stream_id: int, expiration_seconds: int, *, db: Session | None = None
+) -> None:
     """Store a share token with expiration in database"""
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=expiration_seconds)
 
-    with SessionLocal() as db:
+    with SessionLocal() if db is None else nullcontext(db) as db:
         try:
             # Remove any existing token for this stream (optional cleanup)
             existing = db.query(ShareTokenModel).filter_by(stream_id=stream_id).first()
@@ -58,9 +61,9 @@ def store_share_token(token: str, stream_id: int, expiration_seconds: int) -> No
             raise
 
 
-def validate_share_token(token: str) -> Optional[int]:
+def validate_share_token(token: str, *, db: Session | None = None) -> Optional[int]:
     """Validate a share token and return the stream_id if valid"""
-    with SessionLocal() as db:
+    with SessionLocal() if db is None else nullcontext(db) as db:
         try:
             # Find the token
             share_token = db.query(ShareTokenModel).filter_by(token=token).first()
@@ -87,9 +90,9 @@ def validate_share_token(token: str) -> Optional[int]:
             return None
 
 
-def cleanup_expired_tokens() -> int:
+def cleanup_expired_tokens(*, db: Session | None = None) -> int:
     """Clean up expired tokens and return count of removed tokens"""
-    with SessionLocal() as db:
+    with SessionLocal() if db is None else nullcontext(db) as db:
         try:
             now = datetime.now(timezone.utc)
 
@@ -104,7 +107,7 @@ def cleanup_expired_tokens() -> int:
                 # Delete expired tokens
                 db.query(ShareTokenModel).filter(
                     ShareTokenModel.expires_at < now
-                ).delete()
+                ).delete(synchronize_session="fetch")
 
                 db.commit()
                 logger.info(f"Cleaned up {expired_count} expired share tokens")

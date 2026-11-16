@@ -4,12 +4,22 @@ Sets up the background queue service with task handlers and dependency managemen
 """
 
 import logging
-from typing import Any, Optional
+import asyncio
+from collections.abc import Callable, Mapping
+from functools import partial
+from sqlalchemy.orm import Session
+from app.config.settings import Settings
+from typing import Optional
 
-from app.services.background_queue_service import background_queue_service
+from app.services.background_queue_service import (
+    BackgroundQueueService,
+    background_queue_service,
+)
 from app.services.processing.post_processing_task_handlers import (
+    PostProcessingTaskHandlers,
     post_processing_task_handlers,
 )
+from app.services.automatic_queue_recovery_service import AutomaticQueueRecoveryService
 
 logger = logging.getLogger("streamvault")
 
@@ -20,12 +30,32 @@ BackgroundQueueInit = None
 class BackgroundQueueManager:
     """Manager for background queue initialization and lifecycle"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        queue_service: BackgroundQueueService | None = None,
+        task_handlers: PostProcessingTaskHandlers | None = None,
+    ) -> None:
+        if (queue_service is None) != (task_handlers is None):
+            raise ValueError(
+                "Application queue and task handlers must be supplied together"
+            )
         self.is_initialized = False
-        self.queue_service = background_queue_service
-        self.task_handlers = post_processing_task_handlers
+        self.queue_service = (
+            queue_service if queue_service is not None else background_queue_service
+        )
+        self.task_handlers = (
+            task_handlers
+            if task_handlers is not None
+            else post_processing_task_handlers
+        )
+        self.recovery_service = (
+            AutomaticQueueRecoveryService(queue_service)
+            if queue_service is not None
+            else None
+        )
 
-    async def initialize(self, enable_streamer_isolation: bool = True):
+    async def initialize(self, enable_streamer_isolation: bool = True) -> None:
         """Initialize the background queue service with task handlers and production fixes"""
         if self.is_initialized:
             logger.debug("Background queue already initialized, skipping...")
@@ -41,6 +71,13 @@ class BackgroundQueueManager:
             self.queue_service.queue_manager.enable_streamer_isolation = (
                 enable_streamer_isolation
             )
+            if not enable_streamer_isolation and not hasattr(
+                self.queue_service.queue_manager, "task_queue"
+            ):
+                self.queue_service.queue_manager.task_queue = asyncio.PriorityQueue()
+                self.queue_service.task_queue = (
+                    self.queue_service.queue_manager.task_queue
+                )
             if enable_streamer_isolation:
                 logger.info(
                     "✅ Enabled streamer isolation for production concurrency fix"
@@ -80,7 +117,17 @@ class BackgroundQueueManager:
         )
 
         self.queue_service.register_task_handler(
-            "orphaned_recovery_check", handle_orphaned_recovery_check
+            "orphaned_recovery_check",
+            partial(
+                handle_orphaned_recovery_check,
+                queue_service=self.queue_service,
+                recovery_service_factory=self.task_handlers._recovery_service_factory,
+                connection_manager=(
+                    self.task_handlers.connection_manager
+                    if self.task_handlers._recovery_service_factory is not None
+                    else None
+                ),
+            ),
         )
 
         # Register segment concatenation handler
@@ -114,8 +161,9 @@ class BackgroundQueueManager:
                 get_recovery_service,
             )
 
-            recovery_service = get_recovery_service()
-            await recovery_service.start()
+            if self.recovery_service is None:
+                self.recovery_service = get_recovery_service()
+            await self.recovery_service.start()
             logger.info(
                 "✅ Automatic queue recovery service started for production reliability"
             )
@@ -127,7 +175,7 @@ class BackgroundQueueManager:
             "✅ Background queue service initialized successfully with production fixes"
         )
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown the background queue service"""
         if not self.is_initialized:
             return
@@ -136,12 +184,8 @@ class BackgroundQueueManager:
 
         # Stop automatic recovery service first
         try:
-            from app.services.automatic_queue_recovery_service import (
-                get_recovery_service,
-            )
-
-            recovery_service = get_recovery_service()
-            await recovery_service.stop()
+            if self.recovery_service is not None:
+                await self.recovery_service.stop()
             logger.info("✅ Automatic queue recovery service stopped")
         except Exception as e:
             logger.error(f"Error stopping automatic recovery service: {e}")
@@ -155,7 +199,7 @@ class BackgroundQueueManager:
         self.is_initialized = False
         logger.info("Background queue service shut down successfully")
 
-    def get_queue_service(self):
+    def get_queue_service(self) -> BackgroundQueueService:
         """Get the background queue service instance"""
         return self.queue_service
 
@@ -170,19 +214,19 @@ background_queue_manager = BackgroundQueueManager()
 # Convenience functions
 
 
-async def initialize_background_queue(enable_streamer_isolation: bool = True):
+async def initialize_background_queue(enable_streamer_isolation: bool = True) -> None:
     """Initialize the background queue service with production fixes"""
     await background_queue_manager.initialize(
         enable_streamer_isolation=enable_streamer_isolation
     )
 
 
-async def shutdown_background_queue():
+async def shutdown_background_queue() -> None:
     """Shutdown the background queue service"""
     await background_queue_manager.shutdown()
 
 
-def get_background_queue_service():
+def get_background_queue_service() -> BackgroundQueueService:
     """Get the background queue service instance"""
     return background_queue_manager.get_queue_service()
 
@@ -191,20 +235,25 @@ def get_background_queue_service():
 
 
 async def enqueue_recording_post_processing(
-    stream_id: Any,
+    stream_id: int | str | Mapping[str, object],
     recording_id: Optional[int] = None,
     ts_file_path: Optional[str] = None,
     output_dir: Optional[str] = None,
     streamer_name: Optional[str] = None,
     started_at: Optional[str] = None,
     cleanup_ts_file: bool = True,
-):
+    *,
+    queue_service: BackgroundQueueService | None = None,
+    settings: Settings | None = None,
+    session_factory: Callable[[], Session] | None = None,
+) -> list[str]:
     """Enqueue a complete post-processing chain for a recording.
 
     Backward-compatible wrapper: accepts either a payload dict as first arg
     or the original individual parameters.
     """
-    queue_service = get_background_queue_service()
+    if queue_service is None:
+        queue_service = get_background_queue_service()
 
     # Backward compatibility: support being called with a single payload dict
     if isinstance(stream_id, dict) and recording_id is None:
@@ -218,6 +267,8 @@ async def enqueue_recording_post_processing(
                 streamer_name=payload.get("streamer_name"),
                 started_at=payload.get("started_at"),
                 cleanup_ts_file=payload.get("cleanup_ts_file", True),
+                settings=settings,
+                session_factory=session_factory,
             )
         except Exception as e:
             # Log and fall through to raise with clearer context below
@@ -235,6 +286,8 @@ async def enqueue_recording_post_processing(
         streamer_name=streamer_name,
         started_at=started_at,
         cleanup_ts_file=cleanup_ts_file,
+        settings=settings,
+        session_factory=session_factory,
     )
 
 
@@ -245,7 +298,7 @@ async def enqueue_metadata_generation(
     output_dir: str,
     streamer_name: str,
     started_at: str,
-):
+) -> list[str]:
     """Enqueue metadata generation for an existing MP4 file"""
     queue_service = get_background_queue_service()
     try:
@@ -284,7 +337,7 @@ async def enqueue_thumbnail_generation(
     output_dir: str,
     streamer_name: str,
     started_at: str,
-):
+) -> str:
     """Enqueue thumbnail generation"""
     queue_service = get_background_queue_service()
     try:
@@ -311,11 +364,15 @@ async def enqueue_thumbnail_generation(
         raise
 
 
-async def get_stream_task_status(stream_id: int):
+async def get_stream_task_status(stream_id: int) -> dict[str, list[dict[str, object]]]:
     """Get the status of all tasks for a stream"""
     queue_service = get_background_queue_service()
     # Aggregate tasks for the stream across active, completed, and external
-    stream_tasks = {"active": [], "completed": [], "external": []}
+    stream_tasks: dict[str, list[dict[str, object]]] = {
+        "active": [],
+        "completed": [],
+        "external": [],
+    }
 
     for task in queue_service.active_tasks.values():
         if task.payload.get("stream_id") == stream_id:
@@ -332,7 +389,7 @@ async def get_stream_task_status(stream_id: int):
     return stream_tasks
 
 
-async def cancel_stream_tasks(stream_id: int):
+async def cancel_stream_tasks(stream_id: int) -> dict[str, int | bool]:
     """Cancel all tasks for a stream"""
     queue_service = get_background_queue_service()
     cancelled_count = 0

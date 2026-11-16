@@ -4,10 +4,19 @@ Startup initialization for background services
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 from sqlalchemy.orm import Session
+from app.config.settings import Settings
+from app.database import SessionLocal
+from app.services.core.session_maintenance import cleanup_expired_sessions
 from app.utils.async_db_utils import run_in_thread_pool
-from app.services.init.background_queue_init import shutdown_background_queue
+from app.services.init.background_queue_init import (
+    BackgroundQueueManager,
+    shutdown_background_queue,
+)
+from app.services.background_queue_service import BackgroundQueueService
+
 from app.config.constants import ASYNC_DELAYS
 from app.services.system.supervisor import TaskSupervisor
 
@@ -16,18 +25,32 @@ _background_supervisor: TaskSupervisor | None = None
 if TYPE_CHECKING:
     from app.services.recording.recording_manager import RecordingManager
 
+if TYPE_CHECKING:
+    from app.services.recording.recording_manager import RecordingManager
+    from app.services.api.twitch_api import TwitchAPIService
+    from app.services.images.auto_image_sync_service import AutoImageSyncService
 
-def get_recording_manager():
+
+def get_recording_manager() -> "RecordingManager":
     from app.dependencies import get_recording_manager as resolve_recording_manager
 
     return resolve_recording_manager()
 
 
-async def initialize_background_queue_with_fixes():
+async def initialize_background_queue_with_fixes(
+    *,
+    queue_manager: BackgroundQueueManager | None = None,
+    capture_checker: Callable[[int], Awaitable[bool | None]] | None = None,
+) -> None:
     """Initialize background queue with production concurrency and auth fixes"""
     try:
         # Check if already initialized to prevent double initialization
         from app.services.init.background_queue_init import background_queue_manager
+
+        if queue_manager is not None:
+            if capture_checker is None:
+                raise ValueError("An application queue requires its capture checker")
+            background_queue_manager = queue_manager
 
         if background_queue_manager.is_initialized:
             logger.info(
@@ -48,9 +71,16 @@ async def initialize_background_queue_with_fixes():
         from app.services.init.background_queue_init import initialize_background_queue
 
         background_queue_manager.queue_service.capture_checker = (
-            get_recording_manager().is_capture_running
+            capture_checker
+            if capture_checker is not None
+            else get_recording_manager().is_capture_running
         )
-        await initialize_background_queue(enable_streamer_isolation=enable_isolation)
+        if queue_manager is None:
+            await initialize_background_queue(
+                enable_streamer_isolation=enable_isolation
+            )
+        else:
+            await queue_manager.initialize(enable_streamer_isolation=enable_isolation)
 
         logger.info(
             f"✅ Background queue initialized with streamer isolation: {enable_isolation}"
@@ -61,41 +91,36 @@ async def initialize_background_queue_with_fixes():
         raise
 
 
-async def start_session_cleanup_service(supervisor: TaskSupervisor):
+async def start_session_cleanup_service(
+    supervisor: TaskSupervisor,
+    session_factory: Callable[[], Session] = SessionLocal,
+    settings: Settings | None = None,
+) -> None:
     """Start session cleanup service for production authentication reliability"""
     try:
         logger.info("Starting session cleanup service...")
 
         # Run initial cleanup
-        from app.database import SessionLocal
-        from app.services.core.auth_service import AuthService
-
-        db = SessionLocal()
-        try:
-            auth_service = AuthService(db)
-            cleaned_count = await auth_service.cleanup_expired_sessions()
-            logger.info(
-                f"✅ Session cleanup service started, cleaned {cleaned_count} expired sessions"
-            )
-        finally:
-            db.close()
+        cleaned_count = await run_in_thread_pool(
+            cleanup_expired_sessions, session_factory, settings
+        )
+        logger.info(
+            f"✅ Session cleanup service started, cleaned {cleaned_count} expired sessions"
+        )
 
         # Schedule periodic cleanup (every 6 hours)
-        async def periodic_session_cleanup():
+        async def periodic_session_cleanup() -> None:
             while True:
                 try:
                     await asyncio.sleep(ASYNC_DELAYS.SESSION_CLEANUP_INTERVAL)
 
-                    db = SessionLocal()
-                    try:
-                        auth_service = AuthService(db)
-                        cleaned_count = await auth_service.cleanup_expired_sessions()
-                        if cleaned_count > 0:
-                            logger.info(
-                                f"Periodic session cleanup: removed {cleaned_count} expired sessions"
-                            )
-                    finally:
-                        db.close()
+                    cleaned_count = await run_in_thread_pool(
+                        cleanup_expired_sessions, session_factory, settings
+                    )
+                    if cleaned_count > 0:
+                        logger.info(
+                            f"Periodic session cleanup: removed {cleaned_count} expired sessions"
+                        )
 
                 except asyncio.CancelledError:
                     break
@@ -111,23 +136,24 @@ async def start_session_cleanup_service(supervisor: TaskSupervisor):
         )
 
 
-async def start_zombie_recording_cleanup_service(supervisor: TaskSupervisor):
-    """Start periodic zombie recording cleanup service.
-
-    This service runs every 5 minutes to detect and clean up recordings that are
-    stuck in 'recording' status but have no active Streamlink process.
-
-    This is essential for production reliability after app restarts/updates.
-
-    Detection Logic:
-    1. If recording has no active Streamlink process AND is older than 30 minutes → Zombie
-    2. If recording has no active process AND streamer is offline → Zombie (regardless of age)
-    """
+async def start_zombie_recording_cleanup_service(
+    supervisor: TaskSupervisor,
+    *,
+    recording_manager: "RecordingManager | None" = None,
+) -> None:
+    """Run guarded physical-death cleanup initially and every five minutes."""
     try:
         logger.info("Starting zombie recording cleanup service...")
 
+        async def cleanup() -> int:
+            if recording_manager is None:
+                return await _cleanup_zombie_recordings_now()
+            return await _cleanup_zombie_recordings_now(
+                recording_manager=recording_manager
+            )
+
         # Run initial cleanup immediately at startup
-        cleaned_count = await _cleanup_zombie_recordings_now()
+        cleaned_count = await cleanup()
         logger.info(
             f"✅ Zombie recording cleanup service started, cleaned {cleaned_count} zombie recordings"
         )
@@ -135,12 +161,12 @@ async def start_zombie_recording_cleanup_service(supervisor: TaskSupervisor):
         # Schedule periodic cleanup every 5 minutes for fast detection
         ZOMBIE_CLEANUP_INTERVAL = 5 * 60  # 5 minutes in seconds
 
-        async def periodic_zombie_cleanup():
+        async def periodic_zombie_cleanup() -> None:
             while True:
                 try:
                     await asyncio.sleep(ZOMBIE_CLEANUP_INTERVAL)
 
-                    cleaned_count = await _cleanup_zombie_recordings_now()
+                    cleaned_count = await cleanup()
                     if cleaned_count > 0:
                         logger.info(
                             f"🧹 Periodic zombie cleanup: cleaned {cleaned_count} zombie recordings"
@@ -225,15 +251,15 @@ async def _cleanup_zombie_recordings_now(
     return total
 
 
-async def initialize_vapid_keys():
+async def initialize_vapid_keys(settings: Settings | None = None) -> None:
     """Initialize VAPID keys for push notifications at startup"""
     try:
         logger.info("Initializing VAPID keys for push notifications...")
 
-        from app.config.settings import settings
+        from app.config.settings import get_settings
 
-        # Force VAPID key loading/generation by accessing them
-        vapid_keys = settings.get_vapid_keys()
+        runtime_settings = settings if settings is not None else get_settings()
+        vapid_keys = runtime_settings.get_vapid_keys()
 
         if vapid_keys and vapid_keys["public_key"] and vapid_keys["private_key"]:
             logger.info("VAPID keys initialized successfully")
@@ -250,23 +276,37 @@ async def initialize_vapid_keys():
 
 async def initialize_background_services(
     supervisor: TaskSupervisor | None = None,
-):
+    *,
+    session_factory: Callable[[], Session] = SessionLocal,
+    settings: Settings | None = None,
+    queue_manager: BackgroundQueueManager | None = None,
+    capture_checker: Callable[[int], Awaitable[bool | None]] | None = None,
+    recording_manager: "RecordingManager | None" = None,
+    twitch_api: "TwitchAPIService | None" = None,
+    image_sync_service: "AutoImageSyncService | None" = None,
+) -> None:
     """Initialize all background services at startup with production fixes"""
     global _background_supervisor
     if supervisor is None:
         supervisor = TaskSupervisor("background-services")
-    _background_supervisor = supervisor
+        _background_supervisor = supervisor
     try:
         logger.info("Initializing background services with production fixes...")
 
         # Initialize VAPID keys for push notifications
-        await initialize_vapid_keys()
+        await initialize_vapid_keys(settings)
 
         # Initialize background queue with production fixes
-        await initialize_background_queue_with_fixes()
-
-        # Verify queue readiness directly; do not hide startup ordering behind a delay.
-        queue_ready = await verify_queue_readiness()
+        if queue_manager is None:
+            await initialize_background_queue_with_fixes()
+            queue_ready = await verify_queue_readiness()
+        else:
+            await initialize_background_queue_with_fixes(
+                queue_manager=queue_manager, capture_checker=capture_checker
+            )
+            queue_ready = await verify_queue_readiness(
+                queue_service=queue_manager.queue_service
+            )
         if not queue_ready:
             logger.warning("⚠️ Background queue not ready - skipping recovery for now")
             # Don't run recovery immediately, let it run later via API
@@ -275,20 +315,38 @@ async def initialize_background_services(
 
             # CRITICAL: Recover active recordings FIRST (resume live streams)
             # This prevents unified recovery from processing recordings that are still live
-            await recover_active_recordings()
+            if recording_manager is None:
+                await recover_active_recordings()
+            else:
+                await recover_active_recordings(
+                    session_factory=session_factory,
+                    recording_manager=recording_manager,
+                    twitch_api=twitch_api,
+                )
 
             # UNIFIED RECOVERY: Only run AFTER active recordings are resumed
             # This ensures we only post-process recordings that are actually offline
-            await unified_recovery_scan()
+            if queue_manager is None:
+                await unified_recovery_scan()
+            else:
+                await unified_recovery_scan(queue_service=queue_manager.queue_service)
 
         # Initialize image sync service for automatic image downloads
-        await initialize_image_sync_service()
+        if image_sync_service is None:
+            await initialize_image_sync_service()
+        else:
+            await initialize_image_sync_service(sync_service=image_sync_service)
 
         # Start session cleanup service for production auth reliability
-        await start_session_cleanup_service(supervisor)
+        await start_session_cleanup_service(supervisor, session_factory, settings)
 
         # Start periodic zombie recording cleanup service
-        await start_zombie_recording_cleanup_service(supervisor)
+        if recording_manager is None:
+            await start_zombie_recording_cleanup_service(supervisor)
+        else:
+            await start_zombie_recording_cleanup_service(
+                supervisor, recording_manager=recording_manager
+            )
 
         logger.info("Background services initialized successfully")
 
@@ -297,17 +355,24 @@ async def initialize_background_services(
         raise
 
 
-async def verify_queue_readiness() -> bool:
+async def verify_queue_readiness(
+    *, queue_service: BackgroundQueueService | None = None
+) -> bool:
     """Verify that the background queue is fully ready to accept tasks"""
     try:
         # Direct access to the queue manager through background queue service
         from app.services.init.background_queue_init import get_background_queue_service
 
         max_attempts = 3
+        application_queue_service = queue_service
         for attempt in range(max_attempts):
             try:
                 # Get the background queue service and check its status
-                queue_service = get_background_queue_service()
+                queue_service = (
+                    application_queue_service
+                    if application_queue_service is not None
+                    else get_background_queue_service()
+                )
 
                 if not queue_service:
                     logger.debug(f"⚠️ Queue service not found on attempt {attempt + 1}")
@@ -376,7 +441,9 @@ async def verify_queue_readiness() -> bool:
         return False
 
 
-async def unified_recovery_scan():
+async def unified_recovery_scan(
+    *, queue_service: BackgroundQueueService | None = None
+) -> None:
     """Unified recovery scan - enqueued to background queue to prevent frontend blocking"""
     try:
         logger.info("🔄 Scheduling unified recovery scan in background queue...")
@@ -384,7 +451,8 @@ async def unified_recovery_scan():
         from app.services.init.background_queue_init import get_background_queue_service
 
         # Get background queue service
-        queue_service = get_background_queue_service()
+        if queue_service is None:
+            queue_service = get_background_queue_service()
 
         if not queue_service or not queue_service.is_running:
             logger.warning("⚠️ Background queue not running - skipping unified recovery")
@@ -392,7 +460,7 @@ async def unified_recovery_scan():
 
         # Enqueue recovery task instead of running synchronously
         # This prevents blocking the frontend during FFmpeg concatenation
-        from app.services.background_queue_service import TaskPriority
+        from app.services.queues.task_progress_tracker import TaskPriority
 
         task_id = await queue_service.enqueue_task(
             task_type="unified_recovery",
@@ -413,32 +481,52 @@ async def unified_recovery_scan():
         # Don't raise - this is not critical for startup
 
 
-async def cleanup_zombie_recordings():
-    """Recover only physically dead captures using short, fenced transactions."""
+async def cleanup_zombie_recordings(
+    *,
+    session_factory: Callable[[], Session] | None = None,
+    recording_manager: "RecordingManager | None" = None,
+    twitch_api: "TwitchAPIService | None" = None,
+) -> None:
+    """Recover through closed app-owned catalog snapshots and guarded admission."""
+    from app.services.recording.startup_recovery import recover_startup_recordings
+    from app.database import SessionLocal as default_sessions
+    from app.services.api.twitch_api import twitch_api as default_api
+
     try:
-        from app.database import SessionLocal
-        from app.services.api.twitch_api import twitch_api
-        from app.services.recording.startup_recovery import recover_startup_recordings
-
-        await recover_startup_recordings(
-            session_factory=SessionLocal,
-            recording_manager=get_recording_manager(),
-            twitch_service=twitch_api,
+        manager = (
+            recording_manager
+            if recording_manager is not None
+            else await run_in_thread_pool(get_recording_manager)
         )
-    except Exception as e:
-        logger.error(f"❌ Failed to cleanup zombie recordings: {e}", exc_info=True)
-        # Don't raise - this is not critical for startup
+        await recover_startup_recordings(
+            session_factory if session_factory is not None else default_sessions,
+            manager,
+            twitch_api if twitch_api is not None else default_api,
+        )
+    except Exception as error:
+        logger.error("Startup recording recovery failed (%s)", type(error).__name__)
 
 
-async def recover_active_recordings():
+async def recover_active_recordings(
+    *,
+    session_factory: Callable[[], Session] | None = None,
+    recording_manager: "RecordingManager | None" = None,
+    twitch_api: "TwitchAPIService | None" = None,
+) -> None:
     """Recover active recordings from persistent state"""
     try:
         logger.info("Recovering active recordings from persistent state...")
 
         # First, clean up zombie recordings from previous session
-        await cleanup_zombie_recordings()
-
-        recording_manager = get_recording_manager()
+        if recording_manager is None:
+            await cleanup_zombie_recordings()
+            recording_manager = await run_in_thread_pool(get_recording_manager)
+        else:
+            await cleanup_zombie_recordings(
+                session_factory=session_factory,
+                recording_manager=recording_manager,
+                twitch_api=twitch_api,
+            )
 
         await recording_manager.startup_reconcile()
 
@@ -449,13 +537,19 @@ async def recover_active_recordings():
         # Don't raise - this is not critical for startup
 
 
-async def initialize_image_sync_service():
+async def initialize_image_sync_service(
+    *, sync_service: "AutoImageSyncService | None" = None
+) -> None:
     """Initialize automatic image sync service"""
     try:
         logger.info("Initializing automatic image sync service...")
 
         from app.services.images.auto_image_sync_service import auto_image_sync_service
         from app.services.unified_image_service import unified_image_service
+
+        if sync_service is not None:
+            auto_image_sync_service = sync_service
+            unified_image_service = sync_service._images
 
         # Start the background sync worker
         await auto_image_sync_service.start_sync_worker()
@@ -478,23 +572,33 @@ async def initialize_image_sync_service():
         # Don't raise - this is not critical for startup
 
 
-async def shutdown_background_services():
+async def shutdown_background_services(
+    supervisor: TaskSupervisor | None = None,
+    *,
+    queue_manager: BackgroundQueueManager | None = None,
+    image_sync_service: "AutoImageSyncService | None" = None,
+) -> None:
     """Shutdown all background services"""
     try:
         logger.info("Shutting down background services...")
 
         global _background_supervisor
-        if _background_supervisor is not None:
-            await _background_supervisor.shutdown()
-            _background_supervisor = None
+        target = supervisor if supervisor is not None else _background_supervisor
+        if target is not None:
+            await target.shutdown()
+            if target is _background_supervisor:
+                _background_supervisor = None
 
         # Shutdown image sync service
         from app.services.images.auto_image_sync_service import auto_image_sync_service
 
-        await auto_image_sync_service.stop_sync_worker()
+        await (image_sync_service or auto_image_sync_service).stop_sync_worker()
 
         # Shutdown background queue
-        await shutdown_background_queue()
+        if queue_manager is None:
+            await shutdown_background_queue()
+        else:
+            await queue_manager.shutdown()
 
         logger.info("Background services shut down successfully")
 

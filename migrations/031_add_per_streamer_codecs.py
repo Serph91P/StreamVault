@@ -17,12 +17,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+
+
+def upgrade(target_engine: Engine | None = None):
     """Add supported_codecs column to streamer_recording_settings"""
 
     logger.info("🔄 Migration 031: Adding per-streamer codec preferences...")
 
-    with engine.begin() as connection:
+    with (target_engine if target_engine is not None else engine).begin() as connection:
         # Check if column already exists
         result = connection.execute(
             text(
@@ -45,7 +48,9 @@ def upgrade():
             """
                 )
             )
-            logger.info("✅ Added supported_codecs column to streamer_recording_settings")
+            logger.info(
+                "✅ Added supported_codecs column to streamer_recording_settings"
+            )
         else:
             logger.info("ℹ️ Column supported_codecs already exists, skipping")
 
@@ -89,7 +94,9 @@ def downgrade():
             """
                 )
             )
-            logger.info("✅ Removed supported_codecs column from streamer_recording_settings")
+            logger.info(
+                "✅ Removed supported_codecs column from streamer_recording_settings"
+            )
         else:
             logger.info("ℹ️ Column supported_codecs does not exist, skipping")
 

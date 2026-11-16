@@ -12,9 +12,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def upgrade():
+from sqlalchemy.engine import Engine
+
+
+def upgrade(target_engine: Engine | None = None):
     """Create notification_state table"""
-    with engine.begin() as connection:
+    active_engine = target_engine if target_engine is not None else engine
+    with active_engine.begin() as connection:
         # Create notification_state table
         connection.execute(
             text(

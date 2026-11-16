@@ -4,6 +4,7 @@ import asyncio
 import importlib
 import subprocess
 import sys
+from time import monotonic
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -13,13 +14,24 @@ from fastapi import FastAPI
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, get_db
+from app.database import Base
+from app.dependencies import (
+    get_db,
+    get_application_session_factory,
+    get_logging_service,
+    get_image_service,
+)
+from app.config.settings import Settings
+from app.services.core.state_persistence_service import StatePersistenceService
+from app.services.twitch_upstream_coordinator import TwitchUpstreamCoordinator
 from app.models import RecordingSettings, Stream, Streamer, StreamerRecordingSettings
 from app.services.recording.config_manager import ConfigManager
 from app.services.recording.process_manager import ProcessManager
 from app.services.recording.recording_database_service import RecordingDatabaseService
 from app.services.recording.recording_lifecycle_manager import RecordingLifecycleManager
 from app.services.recording.recording_state_manager import RecordingStateManager
+from app.services.system.logging_service import LoggingService
+from app.services.unified_image_service import UnifiedImageService
 
 
 @pytest.fixture
@@ -31,7 +43,9 @@ async def recording_policy(tmp_path, monkeypatch):
         "app.services.recording.recording_lifecycle_manager"
     )
     engine = create_engine(f"sqlite:///{tmp_path / 'quality.db'}")
-    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("BEGIN")
+        Base.metadata.create_all(connection)
     sessions = sessionmaker(bind=engine, expire_on_commit=False)
     monkeypatch.setattr(routes, "SessionLocal", sessions)
     monkeypatch.setattr(config_module, "SessionLocal", sessions)
@@ -47,20 +61,34 @@ async def recording_policy(tmp_path, monkeypatch):
             yield db
 
     app = FastAPI()
+    runtime_settings = Settings(
+        ENVIRONMENT="test", RECORDING_DIRECTORY=str(tmp_path), _env_file=None
+    )
+    app.state.settings = runtime_settings
     app.include_router(routes.router)
     app.include_router(importlib.import_module("app.routes.streamers").router)
     app.dependency_overrides[get_db] = get_test_db
-    config = ConfigManager()
-    # Separate instance dictionaries, without mutating the production singletons.
-    state = object.__new__(RecordingStateManager)
-    state.active_recordings = {}
-    state.recording_tasks = {}
-    process = object.__new__(ProcessManager)
-    monkeypatch.setattr(ProcessManager, "_initialized", False)
-    ProcessManager.__init__(process, config_manager=config)
+    app.dependency_overrides[get_application_session_factory] = lambda: sessions
+    logs = LoggingService(str(tmp_path / "logs"), isolated=True)
+    images = UnifiedImageService(settings=runtime_settings, session_factory=sessions)
+    app.dependency_overrides[get_logging_service] = lambda: logs
+    app.dependency_overrides[get_image_service] = lambda: images
+    config = ConfigManager(session_factory=sessions, settings=runtime_settings)
+    state = RecordingStateManager.for_application(
+        config, StatePersistenceService(session_factory=sessions)
+    )
+    process = ProcessManager.for_application(
+        config_manager=config,
+        post_processing_callback=AsyncMock(),
+        upstream_coordinator=TwitchUpstreamCoordinator(
+            sessions, monotonic_clock=monotonic
+        ),
+    )
+    monkeypatch.setattr(
+        process.upstream_coordinator, "reserve", AsyncMock(return_value=None)
+    )
 
     process.logging_service = None
-    process.upstream_coordinator = SimpleNamespace(reserve=AsyncMock(return_value=None))
     monkeypatch.setattr(
         process, "_resolve_recording_token", AsyncMock(return_value=None)
     )
@@ -75,7 +103,7 @@ async def recording_policy(tmp_path, monkeypatch):
     monkeypatch.setattr(lifecycle_module, "background_queue_service", None)
     monkeypatch.setattr(
         "app.services.notifications.external_notification_service.ExternalNotificationService",
-        lambda: SimpleNamespace(send_recording_notification=AsyncMock()),
+        lambda **_context: SimpleNamespace(send_recording_notification=AsyncMock()),
     )
     commands = []
 
@@ -86,10 +114,9 @@ async def recording_policy(tmp_path, monkeypatch):
         return child
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
-    db = sessions()
     lifecycle = RecordingLifecycleManager(
         config_manager=config,
-        database_service=RecordingDatabaseService(db),
+        database_service=RecordingDatabaseService(session_factory=sessions),
         state_manager=state,
         process_manager=process,
         recording_logger=Mock(),
@@ -118,8 +145,30 @@ async def recording_policy(tmp_path, monkeypatch):
     await asyncio.gather(*state.recording_tasks.values(), return_exceptions=True)
     if hasattr(process, "_task_supervisor"):
         await process._task_supervisor.shutdown()
-    db.close()
+    assert process.proxy_health_service is not None
+    await process.proxy_health_service.stop()
+    await images.close()
+    logs.close()
     engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_actual_recording_start_selects_its_notification_catalog(
+    recording_policy, monkeypatch
+):
+    env = recording_policy
+    owners = []
+
+    def notifier(*, session_factory=None, settings=None):
+        owners.append((session_factory, settings))
+        return SimpleNamespace(send_recording_notification=AsyncMock())
+
+    monkeypatch.setattr(
+        "app.services.notifications.external_notification_service.ExternalNotificationService",
+        notifier,
+    )
+    assert await env.lifecycle.start_recording(1, 1) is not None
+    assert owners == [(env.sessions, env.config._settings)]
 
 
 @pytest.mark.asyncio

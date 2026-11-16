@@ -122,7 +122,7 @@ def _install_start_environment(
     invalidations = []
 
     class _TokenService:
-        def __init__(self, _db):
+        def __init__(self, *, session_factory=None, settings=None):
             pass
 
         async def resolve_recording_token(self):
@@ -133,9 +133,12 @@ def _install_start_environment(
                 stored_version=stored_version,
             )
 
-        def invalidate_recording_token(self, version):
+        async def invalidate_recording_token(self, version):
             invalidations.append(version)
             return True
+
+        async def close(self):
+            pass
 
     commands = []
 

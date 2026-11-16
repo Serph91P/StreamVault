@@ -1,4 +1,5 @@
 import os
+import asyncio
 from pathlib import Path
 
 from app.utils.media_process import media_process
@@ -7,11 +8,13 @@ import time
 from PIL import Image
 import io
 from typing import Optional
+from collections.abc import Callable
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import SessionLocal
 from app.models import Stream, StreamMetadata
+from app.utils.async_db_utils import run_in_thread_pool
 
 # unified_image_service imported lazily to avoid directory creation at import time
 
@@ -19,21 +22,43 @@ logger = logging.getLogger("streamvault")
 
 
 class ThumbnailService:
-    def __init__(self):
-        pass
+    def __init__(self, *, session_factory: Callable[[], Session] | None = None):
+        self._session_factory = session_factory
 
-    async def close(self):
+    def _sessions(self) -> Session:
+        return (self._session_factory or SessionLocal)()
+
+    def _persist_thumbnail(self, stream_id: int, thumbnail_path: str) -> None:
+        with self._sessions() as db:
+            metadata: StreamMetadata | None = (
+                db.query(StreamMetadata)
+                .filter(StreamMetadata.stream_id == stream_id)
+                .first()
+            )
+            if metadata is None:
+                metadata = StreamMetadata(stream_id=stream_id)
+                db.add(metadata)
+            metadata.thumbnail_path = thumbnail_path
+            db.commit()
+
+    @staticmethod
+    def _valid_thumbnail(path: str, minimum_size: int = 1000) -> bool:
+        return os.path.exists(path) and os.path.getsize(path) > minimum_size
+
+    async def close(self) -> None:
         """Close resources (now handled by unified_image_service)"""
 
     async def get_stream_thumbnail(
         self, username: str, width: int = 1280, height: int = 720
-    ):
+    ) -> str:
         """Generiert Twitch-Vorschaubild-URL für einen laufenden Stream"""
         # Füge einen Timestamp-Parameter hinzu, um Caching zu vermeiden
         timestamp = int(time.time())
         return f"https://static-cdn.jtvnw.net/previews-ttv/live_user_{username}-{width}x{height}.jpg?t={timestamp}"
 
-    async def download_thumbnail(self, stream_id: int, output_dir: str):
+    async def download_thumbnail(
+        self, stream_id: int, output_dir: str
+    ) -> str | Path | None:
         """Lädt das Stream-Thumbnail herunter und erstellt nur das korrekte Format"""
         with SessionLocal() as db:
             stream = (
@@ -81,11 +106,15 @@ class ThumbnailService:
 
                 # Use unified_image_service for download
                 session = await unified_image_service._get_session()
-                async with session.get(url) as response:
-                    if response.status == 200:
+                async with session.stream(
+                    "GET", url, follow_redirects=True
+                ) as response:
+                    if response.status_code == 200:
                         content_type = response.headers.get("content-type", "")
                         if "image" in content_type:
-                            image_data = await response.read()
+                            image_data = b"".join(
+                                [chunk async for chunk in response.chunks]
+                            )
 
                             # Prüfen, ob es ein Platzhalter-Bild ist
                             if await self._is_placeholder_image(image_data):
@@ -103,7 +132,7 @@ class ThumbnailService:
                                 metadata = StreamMetadata(stream_id=stream_id)
                                 db.add(metadata)
 
-                            metadata.thumbnail_path = thumbnail_path
+                            metadata.thumbnail_path = str(thumbnail_path)
                             metadata.thumbnail_url = url
                             db.commit()
                         else:
@@ -115,7 +144,7 @@ class ThumbnailService:
                         # Auch in das Verzeichnis mit dem Video kopieren, falls es schon existiert
                         try:
                             if metadata.json_path:
-                                video_dir = os.path.dirname(metadata.json_path)
+                                metadata_video_dir = os.path.dirname(metadata.json_path)
                                 base_filename = os.path.splitext(
                                     os.path.basename(metadata.json_path)
                                 )[0]
@@ -127,9 +156,11 @@ class ThumbnailService:
                                 import shutil
 
                                 plex_thumbnail_path = os.path.join(
-                                    video_dir, f"{base_filename}-thumb.jpg"
+                                    metadata_video_dir, f"{base_filename}-thumb.jpg"
                                 )
-                                poster_path = os.path.join(video_dir, "poster.jpg")
+                                poster_path = os.path.join(
+                                    metadata_video_dir, "poster.jpg"
+                                )
 
                                 shutil.copy2(thumbnail_path, plex_thumbnail_path)
                                 shutil.copy2(thumbnail_path, poster_path)
@@ -148,18 +179,18 @@ class ThumbnailService:
                         return thumbnail_path
                     else:
                         logger.warning(
-                            f"Failed to download thumbnail, status: {response.status}"
+                            f"Failed to download thumbnail, status: {response.status_code}"
                         )
             except Exception as e:
                 logger.error(f"Error downloading thumbnail: {e}")
 
             return None
 
-    async def _is_placeholder_image(self, image_data):
+    async def _is_placeholder_image(self, image_data: bytes) -> bool:
         """Prüft, ob das Bild ein Platzhalter (graue Kamera) ist"""
         try:
             # Öffne das Bild mit PIL
-            img = Image.open(io.BytesIO(image_data))
+            img: Image.Image = Image.open(io.BytesIO(image_data))
 
             # Konvertiere zu RGB falls notwendig
             if img.mode != "RGB":
@@ -215,7 +246,7 @@ class ThumbnailService:
             # Bei Fehlern nehmen wir an, dass es kein Placeholder ist
             return False
 
-    def _get_average_color(self, img):
+    def _get_average_color(self, img: Image.Image) -> tuple[float, float, float]:
         """Berechnet die durchschnittliche Farbe eines Bildes"""
         # Verkleinere das Bild für schnellere Berechnung
         img = img.resize((50, 50))
@@ -236,7 +267,9 @@ class ThumbnailService:
         pixel_count = len(pixels)
         return (r_total // pixel_count, g_total // pixel_count, b_total // pixel_count)
 
-    async def ensure_thumbnail(self, stream_id: int, output_dir: str):
+    async def ensure_thumbnail(
+        self, stream_id: int, output_dir: str
+    ) -> str | Path | None:
         """Stellt sicher, dass ein Thumbnail existiert - versucht zuerst Twitch, dann Video-Extraktion"""
         with SessionLocal() as db:
             stream = (
@@ -279,7 +312,7 @@ class ThumbnailService:
                 )
 
                 # Suche nach der MP4-Datei
-                metadata = (
+                metadata: StreamMetadata | None = (
                     db.query(StreamMetadata)
                     .filter(StreamMetadata.stream_id == stream_id)
                     .first()
@@ -450,6 +483,9 @@ class ThumbnailService:
         self, video_path: str, output_path: str, timestamp: str = "00:05:00"
     ) -> bool:
         """Extrahiert ein Thumbnail aus der Video-Datei an einer bestimmten Zeitstelle"""
+        process: asyncio.subprocess.Process | None = None
+        communicated = False
+        cancelled = False
         try:
             # Verwende FFmpeg, um ein Frame aus der Mitte des Videos zu extrahieren
             cmd = [
@@ -468,11 +504,9 @@ class ThumbnailService:
 
             async with media_process(*cmd) as (process, output):
                 stdout, stderr = await output.wait()
-
-            if (
-                process.returncode == 0
-                and os.path.exists(output_path)
-                and os.path.getsize(output_path) > 1000
+            communicated = True
+            if process.returncode == 0 and await run_in_thread_pool(
+                self._valid_thumbnail, output_path
             ):
                 logger.info(
                     f"Successfully extracted thumbnail from video at {timestamp}: {output_path}"
@@ -488,13 +522,44 @@ class ThumbnailService:
                     )
                 return False
 
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
         except Exception as e:
             logger.error(f"Error extracting thumbnail from video: {e}", exc_info=True)
             return False
+        finally:
+
+            async def cleanup() -> None:
+                try:
+                    if process is not None and not communicated:
+                        if process.returncode is None:
+                            try:
+                                process.kill()
+                            except ProcessLookupError:
+                                pass
+                        await process.communicate()
+                finally:
+                    if cancelled and process is not None:
+                        await run_in_thread_pool(
+                            Path(output_path).unlink, missing_ok=True
+                        )
+
+            drain = asyncio.create_task(cleanup())
+            interrupted = False
+            while not drain.done():
+                try:
+                    await asyncio.shield(drain)
+                except asyncio.CancelledError:
+                    cancelled = True
+                    interrupted = True
+            drain.result()
+            if interrupted:
+                raise asyncio.CancelledError
 
     async def ensure_thumbnail_with_fallback(
-        self, stream_id: int, output_dir: str, video_path: str = None
-    ) -> str:
+        self, stream_id: int, output_dir: str, video_path: str | None = None
+    ) -> str | Path | None:
         """Stellt sicher, dass ein hochwertiges Thumbnail existiert - mit Video-Fallback bei Placeholder"""
         with SessionLocal() as db:
             stream = (
@@ -537,7 +602,7 @@ class ThumbnailService:
                 )
 
                 # Suche nach der MP4-Datei
-                metadata = (
+                metadata: StreamMetadata | None = (
                     db.query(StreamMetadata)
                     .filter(StreamMetadata.stream_id == stream_id)
                     .first()
@@ -671,7 +736,7 @@ class ThumbnailService:
         """
         try:
             mp4_path_obj = Path(mp4_path)
-            if not mp4_path_obj.exists():
+            if not await run_in_thread_pool(mp4_path_obj.exists):
                 logger.error(f"MP4 file not found: {mp4_path}")
                 return None
 
@@ -683,9 +748,9 @@ class ThumbnailService:
             logger.info(f"Creating unified thumbnail: {mp4_path} -> {thumbnail_path}")
 
             # Check if thumbnail already exists and is valid
-            if (
-                thumbnail_path.exists() and thumbnail_path.stat().st_size > 1024
-            ):  # At least 1KB
+            if await run_in_thread_pool(
+                self._valid_thumbnail, str(thumbnail_path), 1024
+            ):
                 logger.debug(f"Valid thumbnail already exists: {thumbnail_path}")
                 return str(thumbnail_path)
 
@@ -694,20 +759,11 @@ class ThumbnailService:
                 str(mp4_path), str(thumbnail_path), "00:00:05"
             )
 
-            if success and thumbnail_path.exists():
+            if success and await run_in_thread_pool(thumbnail_path.exists):
                 # Update database metadata
-                with SessionLocal() as db:
-                    metadata = (
-                        db.query(StreamMetadata)
-                        .filter(StreamMetadata.stream_id == stream_id)
-                        .first()
-                    )
-                    if not metadata:
-                        metadata = StreamMetadata(stream_id=stream_id)
-                        db.add(metadata)
-
-                    metadata.thumbnail_path = str(thumbnail_path)
-                    db.commit()
+                await run_in_thread_pool(
+                    self._persist_thumbnail, stream_id, str(thumbnail_path)
+                )
 
                 logger.info(f"Successfully created unified thumbnail: {thumbnail_path}")
                 return str(thumbnail_path)
@@ -721,7 +777,7 @@ class ThumbnailService:
 
     async def generate_thumbnail_from_mp4(
         self, stream_id: int, mp4_path: str
-    ) -> Optional[str]:
+    ) -> str | Path | None:
         """Generate thumbnail from MP4 file with all Plex/Emby compatibility features
 
         Args:
@@ -785,7 +841,7 @@ class ThumbnailService:
 
                     # Update database with thumbnail path
                     with SessionLocal() as db:
-                        metadata = (
+                        metadata: StreamMetadata | None = (
                             db.query(StreamMetadata)
                             .filter(StreamMetadata.stream_id == stream_id)
                             .first()
@@ -832,8 +888,8 @@ class ThumbnailService:
             return None
 
     async def _create_plex_compatible_thumbnails(
-        self, mp4_path: str, source_thumbnail_path: str
-    ):
+        self, mp4_path: str, source_thumbnail_path: str | Path
+    ) -> None:
         """Create Plex/Emby-compatible thumbnail files in multiple formats"""
         try:
             if not os.path.exists(source_thumbnail_path):

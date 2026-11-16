@@ -176,12 +176,8 @@ async def test_manager_health_resolves_recording_to_actual_stream_and_fence(
 async def test_monitor_emits_heartbeat_without_percentage_or_progress_result(
     monkeypatch,
 ):
-    from app.services.recording import recording_lifecycle_manager as module
-
     async with capture_queue(monkeypatch) as (queue, task, child, lease, manager, pm):
-        monkeypatch.setattr(module, "background_queue_service", queue)
-        lifecycle = RecordingLifecycleManager.__new__(RecordingLifecycleManager)
-        lifecycle.process_manager = pm
+        lifecycle = RecordingLifecycleManager(process_manager=pm, queue_service=queue)
         before = datetime.now(timezone.utc)
         # Recording ID7 differs from stream42; legacy percentage lookup returns None.
         assert await pm.get_recording_progress(7) is None

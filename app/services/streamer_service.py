@@ -1,321 +1,278 @@
-"""
-StreamerService - Backward compatibility wrapper
+"""Streamer decisions use borrowed app adapters and complete closed DB workers."""
 
-This is a lightweight wrapper around the refactored streamer services
-to maintain backward compatibility while the codebase migrates to the new structure.
-
-Original God Class (347 lines) split into:
-- StreamerRepository: Database operations for streamers, streams, settings
-- TwitchIntegrationService: Twitch API calls and EventSub management
-- StreamerImageService: Profile image downloading and caching
-"""
+from __future__ import annotations
 
 import logging
-from typing import Dict, Any, Optional, List
-from sqlalchemy.orm import Session
-from app.models import Streamer
-from app.schemas.streamers import StreamerResponse
-from app.services.communication.websocket_manager import ConnectionManager
-from app.events.handler_registry import EventHandlerRegistry
-from app.services.streamers import StreamerRepository, TwitchIntegrationService
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-# unified_image_service imported lazily to avoid directory creation at import time
+from sqlalchemy.orm import Session
+
+
+from app.schemas.streamers import StreamerResponse
+from app.services.api.twitch_api import TwitchAPIService
+from app.services.communication.websocket_manager import ConnectionManager
+from app.services.streamers.streamer_repository import StreamerRepository
+from app.services.streamers.twitch_integration_service import TwitchIntegrationService
+from app.services.streamers.values import StreamerSnapshot, snapshot_streamer
+from app.services.unified_image_service import UnifiedImageService
+from app.utils.async_db_utils import run_in_thread_pool
+
+if TYPE_CHECKING:
+    from app.events.handler_registry import EventHandlerRegistry
 
 logger = logging.getLogger("streamvault")
 
 
 class StreamerService:
-    """Backward compatibility wrapper for the refactored streamer services"""
+    """Coordinate provider, image, persistence and notification operations."""
 
     def __init__(
         self,
-        db: Session,
+        *,
+        session_factory: Callable[[], Session],
         websocket_manager: ConnectionManager,
         event_registry: EventHandlerRegistry,
-    ):
-        self.db = db
+        twitch_api: TwitchAPIService,
+        image_service: UnifiedImageService,
+    ) -> None:
+        self._session_factory = session_factory
         self.manager = websocket_manager
         self.event_registry = event_registry
-
-        # Initialize the refactored services
-        self.repository = StreamerRepository(db)
-        self.twitch_service = TwitchIntegrationService(event_registry)
-        # Lazy import to avoid directory creation at module load time
-        from app.services.unified_image_service import unified_image_service
-
-        self.image_service = unified_image_service
-
-        # Legacy properties for compatibility
+        self.twitch_service = TwitchIntegrationService(
+            event_registry, twitch_api=twitch_api
+        )
         self.twitch_api = self.twitch_service.twitch_api
+        self.image_service = image_service
 
-    async def notify(self, message: Dict[str, Any]):
-        """Send WebSocket notification"""
+    async def _in_repository[T](
+        self, operation: Callable[[StreamerRepository], T]
+    ) -> T:
+        def run() -> T:
+            with self._session_factory() as db:
+                return operation(StreamerRepository(db))
+
+        return await run_in_thread_pool(run)
+
+    async def _by_id(self, streamer_id: int) -> StreamerSnapshot | None:
+        def read(repository: StreamerRepository) -> StreamerSnapshot | None:
+            row = repository.get_streamer_by_id(streamer_id)
+            return snapshot_streamer(row) if row is not None else None
+
+        return await self._in_repository(read)
+
+    async def notify(self, message: dict[str, object]) -> None:
         try:
             await self.manager.send_notification(message)
-        except Exception as e:
-            logger.error(f"Notification failed: {e}")
+        except Exception:
+            logger.warning("Streamer notification failed")
             raise
 
-    # Delegate methods to TwitchIntegrationService
-    async def get_users_by_login(self, usernames: List[str]) -> List[Dict[str, Any]]:
-        """Get users by login names"""
+    async def get_users_by_login(self, usernames: list[str]) -> list[dict[str, object]]:
         return await self.twitch_service.get_users_by_login(usernames)
 
-    async def get_streamer_info(self, streamer_id: str) -> Optional[Dict[str, Any]]:
-        """Get streamer info by Twitch ID"""
+    async def get_streamer_info(self, streamer_id: str) -> dict[str, object] | None:
         return await self.twitch_service.get_streamer_info(streamer_id)
 
-    async def get_user_data(self, username: str) -> Optional[Dict[str, Any]]:
-        """Fetch user data from Twitch API"""
+    async def get_user_data(self, username: str) -> dict[str, object] | None:
         return await self.twitch_service.get_user_data(username)
 
-    async def get_stream_info(self, twitch_id: str) -> Optional[Dict[str, Any]]:
-        """Get current stream information"""
+    async def get_stream_info(self, twitch_id: str) -> dict[str, object] | None:
         return await self.twitch_service.get_stream_info(twitch_id)
 
     async def check_streamer_live_status(self, twitch_id: str) -> bool:
-        """Check if a specific streamer is currently live via Twitch API"""
         try:
-            stream_info = await self.twitch_service.get_stream_info(twitch_id)
-            return stream_info is not None
-        except Exception as e:
-            logger.error(f"Error checking live status for {twitch_id}: {e}")
+            return await self.twitch_service.get_stream_info(twitch_id) is not None
+        except Exception:
+            logger.warning("Could not check streamer live status")
             return False
 
-    async def get_game_data(self, game_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch game data from Twitch API"""
+    async def get_game_data(self, game_id: str) -> dict[str, object] | None:
         return await self.twitch_service.get_game_data(game_id)
 
-    async def subscribe_to_events(self, twitch_id: str):
-        """Subscribe to EventSub events"""
+    async def subscribe_to_events(self, twitch_id: str) -> None:
         await self.twitch_service.subscribe_to_events(twitch_id)
 
-    # Delegate methods to StreamerRepository
-    async def get_streamers(self) -> List[StreamerResponse]:
-        """Get all streamers with their current status"""
-        return self.repository.get_all_streamers()
+    async def get_streamers(self) -> list[StreamerResponse]:
+        return await self._in_repository(
+            lambda repository: repository.get_all_streamers()
+        )
 
-    async def get_streamer_by_username(self, username: str) -> Optional[Streamer]:
-        """Get streamer by username"""
-        return self.repository.get_streamer_by_username(username)
+    async def get_streamer_by_username(self, username: str) -> StreamerSnapshot | None:
+        def read(repository: StreamerRepository) -> StreamerSnapshot | None:
+            row = repository.get_streamer_by_username(username)
+            return snapshot_streamer(row) if row is not None else None
 
-    # Delegate methods to UnifiedImageService
+        return await self._in_repository(read)
+
     async def download_profile_image(self, url: str, streamer_id: str) -> str:
-        """Download and cache profile image"""
         result = await self.image_service.download_profile_image(int(streamer_id), url)
         return result or url
 
-    # Combined methods that use multiple services
-    async def add_streamer(
-        self, username: str, display_name: str = None
-    ) -> Optional[Streamer]:
-        """Add a new streamer with full setup"""
-        try:
-            logger.debug(f"Adding streamer: {username}")
+    @staticmethod
+    def _user_text(user_data: dict[str, object], key: str) -> str:
+        value = user_data[key]
+        if not isinstance(value, str):
+            raise ValueError("Invalid Twitch user data")
+        return value
 
-            # Get user data from Twitch
+    async def add_streamer(
+        self, username: str, display_name: str | None = None
+    ) -> StreamerSnapshot | None:
+        try:
             user_data = await self.twitch_service.get_user_data(username)
             if not user_data:
-                logger.error(f"Could not fetch user data for {username}")
+                logger.warning("Could not fetch streamer identity")
                 return None
+            twitch_id = self._user_text(user_data, "id")
 
-            logger.debug(f"User data retrieved: {user_data}")
+            def existing(repository: StreamerRepository) -> StreamerSnapshot | None:
+                row = repository.get_streamer_by_twitch_id(twitch_id)
+                return snapshot_streamer(row) if row is not None else None
 
-            # Check if streamer already exists
-            existing = self.repository.get_streamer_by_twitch_id(user_data["id"])
-            if existing:
-                logger.debug(f"Streamer already exists: {username}")
-                return existing
-
-            # Cache profile image
+            found = await self._in_repository(existing)
+            if found is not None:
+                return found
+            profile_url = self._user_text(user_data, "profile_image_url")
             cached_image_path = await self.image_service.download_profile_image(
-                int(user_data["id"]), user_data["profile_image_url"]
+                int(twitch_id), profile_url
             )
-
-            # Cache banner image (if available)
             cached_banner_path = None
-            if user_data.get("offline_image_url"):
+            banner_url = user_data.get("offline_image_url")
+            if banner_url:
                 try:
+                    if not isinstance(banner_url, str):
+                        raise ValueError("Invalid Twitch banner URL")
                     cached_banner_path = await self.image_service.download_banner_image(
-                        int(user_data["id"]), user_data["offline_image_url"]
+                        int(twitch_id), banner_url
                     )
-                    logger.debug(
-                        f"Cached banner image for {username}: {cached_banner_path}"
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to cache banner image for {username}: {e}")
-
-            # Check if streamer is currently live
+                except Exception:
+                    logger.warning("Could not cache streamer banner")
             stream_info = None
             try:
-                stream_info = await self.twitch_service.get_stream_info(user_data["id"])
-                if stream_info:
-                    logger.info(
-                        f"Streamer {username} is currently live: {stream_info.get('title', '')}"
+                stream_info = await self.twitch_service.get_stream_info(twitch_id)
+            except Exception:
+                logger.warning("Could not check new streamer live status")
+
+            def create(repository: StreamerRepository) -> StreamerSnapshot:
+                return snapshot_streamer(
+                    repository.create_streamer(
+                        user_data=user_data,
+                        display_name=display_name,
+                        cached_image_path=cached_image_path or profile_url,
+                        cached_banner_path=cached_banner_path,
+                        stream_info=stream_info,
                     )
-                else:
-                    logger.debug(f"Streamer {username} is currently offline")
-            except Exception as e:
-                logger.warning(f"Could not check live status for {username}: {e}")
-
-            # Create new streamer using repository
-            new_streamer = self.repository.create_streamer(
-                user_data=user_data,
-                display_name=display_name,
-                cached_image_path=cached_image_path or user_data["profile_image_url"],
-                cached_banner_path=cached_banner_path,  # NEW: Pass cached banner
-                stream_info=stream_info,
-            )
-
-            # Subscribe to EventSub events
-            try:
-                await self.twitch_service.subscribe_to_events(user_data["id"])
-            except Exception as e:
-                logger.error(f"Failed to subscribe to EventSub events: {e}")
-                # Don't fail the whole operation if EventSub subscription fails
-
-            # Send notification about new streamer
-            await self.notify(
-                {
-                    "type": "success",
-                    "message": f"Added streamer {new_streamer.username}",
-                }
-            )
-
-            return new_streamer
-
-        except Exception as e:
-            logger.error(f"Error adding streamer: {e}", exc_info=True)
-            raise
-
-    async def delete_streamer(self, streamer_id: int) -> Optional[Dict[str, Any]]:
-        """Delete a streamer and cleanup"""
-        try:
-            # Get streamer data before deletion for EventSub cleanup
-            streamer = self.repository.get_streamer_by_id(streamer_id)
-            if not streamer:
-                return None
-
-            # Unsubscribe from EventSub events
-            try:
-                await self.twitch_service.unsubscribe_from_events(streamer.twitch_id)
-            except Exception as e:
-                logger.warning(f"Could not unsubscribe from EventSub events: {e}")
-
-            # Delete from database
-            streamer_data = self.repository.delete_streamer(streamer_id)
-
-            if streamer_data:
-                await self.notify(
-                    {
-                        "type": "success",
-                        "message": f"Removed streamer {streamer_data['username']}",
-                    }
                 )
 
-            return streamer_data
-
-        except Exception as e:
-            logger.error(f"Error deleting streamer: {e}", exc_info=True)
+            created = await self._in_repository(create)
+            try:
+                await self.twitch_service.subscribe_to_events(twitch_id)
+            except Exception:
+                logger.warning("Could not subscribe new streamer to EventSub")
+            await self.notify(
+                {"type": "success", "message": f"Added streamer {created.username}"}
+            )
+            return created
+        except Exception:
+            logger.warning("Could not add streamer")
             raise
 
-    # Additional convenience methods
-    async def refresh_streamer_data(self, streamer_id: int) -> bool:
-        """Refresh streamer data from Twitch API"""
+    async def delete_streamer(self, streamer_id: int) -> dict[str, object] | None:
+        row = await self._by_id(streamer_id)
+        if row is None:
+            return None
         try:
-            streamer = self.repository.get_streamer_by_id(streamer_id)
-            if not streamer:
-                return False
+            await self.twitch_service.unsubscribe_from_events(row.twitch_id)
+        except Exception:
+            logger.warning("Could not unsubscribe removed streamer")
+        result = await self._in_repository(
+            lambda repository: repository.delete_streamer(streamer_id)
+        )
+        if result:
+            await self.notify(
+                {"type": "success", "message": f"Removed streamer {result['username']}"}
+            )
+        return result
 
-            # Get fresh data from Twitch
-            user_data = await self.twitch_service.refresh_user_data(streamer.twitch_id)
+    async def refresh_streamer_data(self, streamer_id: int) -> bool:
+        try:
+            row = await self._by_id(streamer_id)
+            if row is None:
+                return False
+            user_data = await self.twitch_service.refresh_user_data(row.twitch_id)
             if not user_data:
                 return False
-
-            # Update profile image if changed
-            if (
-                user_data.get("profile_image_url")
-                != streamer.original_profile_image_url
-            ):
+            profile_url = user_data.get("profile_image_url")
+            if profile_url != row.original_profile_image_url:
+                if not isinstance(profile_url, str):
+                    raise ValueError("Invalid Twitch profile URL")
                 cached_path = await self.image_service.update_streamer_profile_image(
-                    streamer.id, user_data["profile_image_url"]
+                    row.id, profile_url
                 )
                 if cached_path:
-                    user_data["cached_profile_image"] = (
-                        self.image_service.get_cached_profile_image(streamer.id)
+                    user_data["cached_profile_image"] = await run_in_thread_pool(
+                        self.image_service.get_cached_profile_image, row.id
                     )
-
-            # Update streamer in database
-            update_fields = {
-                "username": user_data.get("display_name", streamer.username),
-                "profile_image_url": user_data.get(
-                    "cached_profile_image", user_data.get("profile_image_url")
-                ),
-                "original_profile_image_url": user_data.get("profile_image_url"),
+            updates = {
+                "username": user_data.get("display_name", row.username),
+                "profile_image_url": user_data.get("cached_profile_image", profile_url),
+                "original_profile_image_url": profile_url,
             }
-            # Only update description if Twitch returned a non-empty value
-            twitch_description = user_data.get("description")
-            if twitch_description:
-                update_fields["description"] = twitch_description
+            description = user_data.get("description")
+            if description:
+                updates["description"] = description
 
-            self.repository.update_streamer(streamer, **update_fields)
+            def update(repository: StreamerRepository) -> bool:
+                current = repository.get_streamer_by_id(streamer_id)
+                if current is None:
+                    return False
+                repository.update_streamer(current, **updates)
+                return True
 
-            return True
-
-        except Exception as e:
-            logger.error(f"Error refreshing streamer data for {streamer_id}: {e}")
+            return await self._in_repository(update)
+        except Exception:
+            logger.warning("Could not refresh streamer data")
             return False
 
     async def bulk_check_live_status(
-        self, streamer_ids: List[int] = None
-    ) -> Dict[int, bool]:
-        """Check live status for multiple streamers efficiently"""
+        self, streamer_ids: list[int] | None = None
+    ) -> dict[int, bool]:
         try:
-            if streamer_ids:
-                streamers = [
-                    self.repository.get_streamer_by_id(sid) for sid in streamer_ids
-                ]
-                streamers = [s for s in streamers if s]  # Filter out None values
-            else:
-                # Get all streamers
-                streamer_responses = self.repository.get_all_streamers()
-                streamers = [
-                    self.repository.get_streamer_by_id(sr.id)
-                    for sr in streamer_responses
-                ]
-                streamers = [s for s in streamers if s]
 
-            if not streamers:
+            def read(repository: StreamerRepository) -> list[tuple[int, str]]:
+                ids = (
+                    streamer_ids
+                    if streamer_ids
+                    else [row.id for row in repository.get_all_streamers()]
+                )
+                rows = [repository.get_streamer_by_id(identifier) for identifier in ids]
+                return [(row.id, row.twitch_id) for row in rows if row is not None]
+
+            rows = await self._in_repository(read)
+            if not rows:
                 return {}
-
-            # Get Twitch IDs
-            twitch_ids = [s.twitch_id for s in streamers]
-
-            # Check status in bulk
-            live_status = await self.twitch_service.check_stream_status_bulk(twitch_ids)
-
-            # Map back to streamer IDs
-            result = {}
-            for streamer in streamers:
-                result[streamer.id] = live_status.get(streamer.twitch_id, False)
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Error checking bulk live status: {e}")
+            statuses = await self.twitch_service.check_stream_status_bulk(
+                [twitch_id for _, twitch_id in rows]
+            )
+            return {
+                identifier: statuses.get(twitch_id, False)
+                for identifier, twitch_id in rows
+            }
+        except Exception:
+            logger.warning("Could not check bulk streamer status")
             return {}
 
-    async def get_all_streamers(self) -> List[Streamer]:
-        """Get all streamers from the database"""
+    async def get_all_streamers(self) -> list[StreamerSnapshot]:
         try:
-            return self.repository.get_all_streamers_raw()
-        except Exception as e:
-            logger.error(f"Error getting all streamers: {e}")
+            return await self._in_repository(
+                lambda repository: [
+                    snapshot_streamer(row) for row in repository.get_all_streamers_raw()
+                ]
+            )
+        except Exception:
+            logger.warning("Could not read streamer identities")
             return []
 
-    async def close(self):
-        """Close all services"""
-        try:
-            await self.image_service.close()
-        except Exception as e:
-            logger.error(f"Error closing streamer service: {e}")
+    async def close(self) -> None:
+        """Borrowed API/image/socket resources close with their application owner."""

@@ -30,7 +30,11 @@ from app.database import SessionLocal
 logger = logging.getLogger("streamvault")
 
 
-def run_migration():
+from sqlalchemy.engine import Engine
+from app.services.system.migration_service import migration_session
+
+
+def run_migration(target_engine: Engine | None = None):
     """
     Add Twitch OAuth access token column to global_settings.
 
@@ -38,7 +42,7 @@ def run_migration():
     because they were only stored in the environment variable.
     """
 
-    with SessionLocal() as session:
+    with migration_session(target_engine, SessionLocal) as session:
         try:
             logger.info("🔄 Running Migration 034: Add Twitch Access Token")
 
@@ -55,7 +59,9 @@ def run_migration():
             )
 
             if check_result.fetchone():
-                logger.info("✅ Migration 034: Column 'twitch_access_token' already exists - skipping")
+                logger.info(
+                    "✅ Migration 034: Column 'twitch_access_token' already exists - skipping"
+                )
                 return
 
             # === STEP 2: Add twitch_access_token column ===
@@ -71,10 +77,14 @@ def run_migration():
             )
 
             session.commit()
-            logger.info("✅ Migration 034: Successfully added twitch_access_token column")
+            logger.info(
+                "✅ Migration 034: Successfully added twitch_access_token column"
+            )
 
             logger.info("💡 Access tokens will now persist across requests")
-            logger.info("💡 Token refresh will update database instead of environment variable")
+            logger.info(
+                "💡 Token refresh will update database instead of environment variable"
+            )
 
         except Exception as e:
             session.rollback()
