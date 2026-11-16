@@ -186,6 +186,23 @@ async function completeUpgrade(context, page, row, input, documents, requests, t
   await page.unroute('**/auth/login')
   row.discoveryDuringLogin = { before: beforeInFlight, after: documents.length, target: page.url() }
 
+  // The router-oriented return helper is unchanged. Browser navigation must
+  // additionally reject backslash normalization into an external authority.
+  expect((await context.request.post(origin + '/auth/logout')).status()).toBe(200)
+  await page.goto(origin + '/auth/login?returnTo=' + encodeURIComponent('/\\\\outside.invalid'))
+  await expect(username).toBeVisible()
+  await username.fill('synthetic-pwa-admin')
+  await password.fill(process.env.PWA_TEST_PASSWORD)
+  await selectBuild(process.env.PWA_TEST_OLD)
+  await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update() })
+  await expect.poll(() => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()).waiting)).toBe(true)
+  const beforeOriginGuard = documents.length
+  await signIn.click()
+  await expect(page).toHaveURL(origin + '/')
+  await expect.poll(() => documents.length).toBe(beforeOriginGuard + 1)
+  expect(requests.every(url => new URL(url).origin === origin)).toBe(true)
+  row.originGuardRecovery = { before: beforeOriginGuard, after: documents.length, target: page.url(), externalDocumentRequests: 0 }
+
   const persistent = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }))
   expect(JSON.stringify(persistent)).not.toContain('synthetic-unsaved-pwa-name')
   expect(JSON.stringify(persistent)).not.toContain(process.env.PWA_TEST_PASSWORD)
