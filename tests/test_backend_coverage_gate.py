@@ -1,5 +1,6 @@
 """The coverage gate must use executable statement+branch counts, not rounding."""
 
+import ast
 import json
 from pathlib import Path
 import subprocess
@@ -34,6 +35,43 @@ def assert_inventory_is_strict(config):
 def test_complete_rewrite_inventory_is_in_the_strict_ci_gate():
     config = tomllib.loads((SCRIPT.parent.parent / "pyproject.toml").read_text())
     assert_inventory_is_strict(config["tool"]["mypy"])
+
+
+@pytest.mark.parametrize(
+    "path,name",
+    [
+        ("app/routes/auth.py", "_setup_admin_in_worker"),
+        ("app/routes/auth.py", "_login_in_worker"),
+        ("app/utils/path_utils.py", "_update_recording_path"),
+        ("app/utils/path_utils.py", "_update_episode_number"),
+        (
+            "app/services/twitch_upstream_coordinator.py",
+            "_assert_local_process_cleanup_authorized",
+        ),
+    ],
+)
+def test_new_worker_boundaries_have_complete_annotations(path, name):
+    tree = ast.parse((SCRIPT.parent.parent / path).read_text())
+    function = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == name
+    )
+    assert function.returns is not None, f"Missing return annotation: {path}:{name}"
+    arguments = (
+        function.args.posonlyargs + function.args.args + function.args.kwonlyargs
+    )
+    arguments += [
+        argument
+        for argument in (function.args.vararg, function.args.kwarg)
+        if argument is not None
+    ]
+    for argument in arguments:
+        if argument.arg != "self":
+            assert argument.annotation is not None, (
+                f"Missing parameter annotation: {path}:{name}/{argument.arg}"
+            )
 
 
 def summary(covered, total):

@@ -134,6 +134,34 @@ async def test_relative_artwork_and_public_containment_fallbacks(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("nested_levels", [0, 9])
+async def test_artwork_search_depth_uses_controlled_library_root(
+    metadata_catalog, nested_levels
+):
+    service, _, directory, _, _ = metadata_catalog
+    root = directory.parent.parent
+    artwork = root / ".media" / "artwork" / "alice" / "poster.jpg"
+    artwork.parent.mkdir(parents=True)
+    artwork.write_bytes(b"owned library artwork")
+    nfo_directory = root.joinpath(
+        *(f"nested-{level}" for level in range(nested_levels)), "show"
+    )
+    nfo_directory.mkdir(parents=True)
+
+    relative = service._relative_artwork_path(nfo_directory, "alice", "poster.jpg")
+    if nested_levels:
+        # Deliberately exhaust the six-step search inside this owned tree,
+        # independently of pytest's temporary-root depth or external .media.
+        assert relative == ".media/artwork/alice/poster.jpg"
+        resolved = root / relative
+    else:
+        assert relative == "../.media/artwork/alice/poster.jpg"
+        resolved = nfo_directory / relative
+    assert resolved.resolve() == artwork
+    assert resolved.read_bytes() == b"owned library artwork"
+
+
+@pytest.mark.asyncio
 async def test_missing_central_artwork_does_not_create_fake_local_files(
     metadata_catalog,
 ):

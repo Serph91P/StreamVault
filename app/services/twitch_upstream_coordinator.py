@@ -317,14 +317,14 @@ class TwitchUpstreamCoordinator:
 
     def _assert_local_process_cleanup_authorized(
         self,
-        channel_key,
-        generation,
-        process_pid,
-        process_group_id,
-        process_start_fingerprint,
-        expected_purpose,
-        requesting_owner_user_id,
-        expected_live_session_id,
+        channel_key: str | None,
+        generation: int,
+        process_pid: int,
+        process_group_id: int | None,
+        process_start_fingerprint: str | None,
+        expected_purpose: str,
+        requesting_owner_user_id: int | None,
+        expected_live_session_id: str,
     ) -> None:
         with self._session_factory() as db:
             lease = db.execute(

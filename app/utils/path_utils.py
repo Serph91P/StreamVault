@@ -313,7 +313,7 @@ async def update_recording_path(stream_id: int, new_path: str):
     await run_in_thread_pool(_update_recording_path, stream_id, new_path)
 
 
-def _update_recording_path(stream_id: int, new_path: str):
+def _update_recording_path(stream_id: int, new_path: str) -> None:
     """
     Update the recording path for a stream after media server structure creation.
 
@@ -358,7 +358,7 @@ def _update_episode_number(
     stream_id: int,
     episode_number: int,
     session_factory: Callable[[], Session] | None,
-):
+) -> None:
     """
     Update the episode number for a stream.
 

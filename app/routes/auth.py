@@ -135,7 +135,9 @@ def setup_admin(
         return _setup_admin_in_worker(request, auth_service)
 
 
-def _setup_admin_in_worker(request: UserCreate, auth_service: AuthService):
+def _setup_admin_in_worker(
+    request: UserCreate, auth_service: AuthService
+) -> JSONResponse:
     if auth_service.admin_exists_sync():
         raise HTTPException(status_code=400, detail="Admin already exists")
 
@@ -177,7 +179,7 @@ def _login_in_worker(
     http_request: Request | None,
     auth_service: AuthService,
     attempts: dict[str, list[float]],
-):
+) -> JSONResponse:
     try:
         # SECURITY: Only trust X-Forwarded-For behind a reverse proxy.
         # Use request.client.host as primary; X-Forwarded-For only supplements.
