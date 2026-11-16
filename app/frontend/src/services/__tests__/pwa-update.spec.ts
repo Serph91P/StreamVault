@@ -63,6 +63,22 @@ describe('page-owned PWA update lifecycle', () => {
     expect(boundary.update).not.toHaveBeenCalled()
   })
 
+  it('consumes native waiting state when login wins the Workbox prompt notification race', async () => {
+    const waiting = {} as ServiceWorker
+    const registration = { waiting } as ServiceWorkerRegistration
+    const container = new EventTarget()
+    vi.stubGlobal('navigator', { serviceWorker: container })
+    const state = await import('../pwa-update')
+    state.initializePWAUpdates(register)
+    boundary.options.onRegisteredSW?.('/sw.js', registration)
+    // The worker is already waiting, but Workbox's delayed onNeedRefresh has not fired.
+    expect(await state.applyPWAUpdate('/settings?section=pwa#install')).toBe(true)
+    expect(boundary.update).toHaveBeenCalledOnce()
+    container.dispatchEvent(new Event('controllerchange'))
+    boundary.options.onNeedReload?.()
+    expect(location.assign).toHaveBeenCalledExactlyOnceWith('/settings?section=pwa#install')
+  })
+
   it('retains pending state and allows deliberate retry when activation fails', async () => {
     const state = await import('../pwa-update')
     state.initializePWAUpdates(register)

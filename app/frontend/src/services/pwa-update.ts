@@ -8,6 +8,7 @@ let updateWorker: ((reload?: boolean) => Promise<void>) | undefined
 let activated = false
 let destination: string | undefined
 let navigating = false
+let registration: ServiceWorkerRegistration | undefined
 
 function finishUpdate() {
   if (!activated || destination === undefined || navigating) return
@@ -21,6 +22,7 @@ function finishUpdate() {
 export function initializePWAUpdates(register: (options: RegisterSWOptions) => (reload?: boolean) => Promise<void>) {
   if (updateWorker) return
   updateWorker = register({
+    onRegisteredSW(_url, value) { registration = value },
     onNeedRefresh() { pending.value = true },
     onNeedReload() {
       // Foreign activation is not consent to discard this tab's form/playback.
@@ -37,12 +39,25 @@ export function initializePWAUpdates(register: (options: RegisterSWOptions) => (
 // Only an explicit Update now or a successful login supplies this boundary.
 export async function applyPWAUpdate(target = window.location.href): Promise<boolean> {
   if (destination !== undefined) return true
-  if (!pending.value || !updateWorker) return false
+  if ((!pending.value && !registration?.waiting) || !updateWorker) return false
+  // Native waiting precedes Workbox's delayed prompt event. A successful login
+  // may win that race; consume the real waiting worker, not stale callback state.
+  pending.value = true
   destination = target
+  const controllerChanged = () => {
+    activated = true
+    finishUpdate()
+  }
   try {
     if (activated) finishUpdate()
-    else await updateWorker(true)
+    else {
+      // Workbox installs its controlling listener only after prompting. Observe
+      // native control too when deliberate activation precedes that notification.
+      navigator.serviceWorker?.addEventListener('controllerchange', controllerChanged, { once: true })
+      await updateWorker(true)
+    }
   } catch (error) {
+    navigator.serviceWorker?.removeEventListener('controllerchange', controllerChanged)
     destination = undefined
     throw error
   }
