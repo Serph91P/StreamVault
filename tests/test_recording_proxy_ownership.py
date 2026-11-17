@@ -1,5 +1,6 @@
 """Recording child admission reads proxy policy only from its application."""
 
+import asyncio
 import importlib
 import sys
 from threading import get_ident
@@ -94,6 +95,10 @@ async def test_recording_segment_uses_owned_proxy_policy_before_real_child_start
                 assert arguments["output_path"] == path
                 assert "--twitch-supported-codecs=h264" in argv
                 await actor.process_manager.cleanup_all()
+                # Child exit does not finish its owned database completion task.
+                await asyncio.gather(
+                    *actor.process_manager._segment_completion_tasks.values()
+                )
                 assert child.returncode is not None
             relevant = [thread for thread, sql in queries if "settings" in sql]
             assert relevant and get_ident() not in relevant
