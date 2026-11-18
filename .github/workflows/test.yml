@@ -269,6 +269,10 @@ jobs:
     name: Frontend Browser Regressions
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    # Keep in sync with the Playwright lock; the image avoids downloading apt packages at job time.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-resolute@sha256:916c9fb63a8340822589dd5c821dae82e8012106bb8515a72f278d97f277446a
+      options: --user 1001 --ipc=host
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Node.js 24
@@ -280,9 +284,6 @@ jobs:
       - name: Install dependencies
         working-directory: app/frontend
         run: npm ci --prefer-offline
-      - name: Install Playwright browsers
-        working-directory: app/frontend
-        run: npx playwright install --with-deps
       - name: Build verified mock frontend
         working-directory: app/frontend
         run: node scripts/build-artifact-provenance.mjs build --mode mock
@@ -338,6 +339,9 @@ jobs:
     name: Notification Scroll Regressions
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-resolute@sha256:916c9fb63a8340822589dd5c821dae82e8012106bb8515a72f278d97f277446a
+      options: --user 1001 --ipc=host
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Node.js 24
@@ -346,11 +350,9 @@ jobs:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: app/frontend/package-lock.json
-      - name: Install dependencies and Chromium
+      - name: Install dependencies
         working-directory: app/frontend
-        run: |
-          npm ci --prefer-offline
-          npx playwright install --with-deps chromium
+        run: npm ci --prefer-offline
       - name: Verify real-build notification scrolling
         working-directory: app/frontend
         run: npx playwright test --config tests/fixtures/issue904-notifications.config.ts
