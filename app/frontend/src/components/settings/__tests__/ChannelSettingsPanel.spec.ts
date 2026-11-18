@@ -21,6 +21,7 @@ vi.mock('@/composables/useNotificationSettings', () => ({ useNotificationSetting
   updateStreamerSettings: api.updateNotifications
 }) }))
 vi.mock('@/composables/useToast', () => ({ useToast: () => ({ success: api.success, error: api.error }) }))
+vi.mock('@/stores/realtime', () => ({ useRealtimeStore: () => ({ snapshotRevision: 0 }) }))
 import ChannelSettingsPanel from '../ChannelSettingsPanel.vue'
 
 const global = { stubs: { RecordingSettingsPanel: true, NotificationSettingsPanel: true, RouterLink: true } }

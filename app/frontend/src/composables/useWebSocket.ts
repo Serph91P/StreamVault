@@ -44,6 +44,8 @@ export class WebSocketManager {
   // Reactive state shared across all components
   public messages: Ref<RealtimeEvent<string>[]> = ref([])
   public connectionStatus = ref<ConnectionStatus>('disconnected')
+  // A lost replay prefix invalidates projections, not the local event history.
+  public snapshotRevision = ref(0)
   public isBrowserOnline = ref(typeof navigator === 'undefined' ? true : navigator.onLine)
   public reconnectAttempt = ref(0)
   public maxReconnectAttemptCount = this.maxReconnectAttempts
@@ -355,8 +357,9 @@ export class WebSocketManager {
         return
       }
 
-      if (replay.reset || replay.latest_event_id < since
-        || (this.generation && replay.generation && this.generation !== replay.generation)) {
+      const reset = replay.reset || replay.latest_event_id < since
+        || (this.generation && replay.generation && this.generation !== replay.generation)
+      if (reset) {
         this.lastEventId = 0
         this.recentEventKeys.clear()
       }
@@ -368,6 +371,8 @@ export class WebSocketManager {
       replay.events.forEach((message) => this.dispatchMessage(message))
       finishReplay()
       queuedLiveEvents.forEach((message) => this.dispatchMessage(message))
+      // Retained snapshots are not proof of current state after a missing prefix.
+      if (reset || replay.gap) this.snapshotRevision.value++
       this.connectionStatus.value = 'connected'
     } catch (error) {
       if (this.ws !== socket) {
@@ -412,6 +417,7 @@ export class WebSocketManager {
         if (this.generation && this.generation !== generation) {
           this.lastEventId = 0
           this.recentEventKeys.clear()
+          this.snapshotRevision.value++
         }
         this.generation = generation
       }
