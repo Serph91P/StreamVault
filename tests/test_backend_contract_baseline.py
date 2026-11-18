@@ -121,7 +121,32 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
     readiness["description"] = expected["openapi"]["paths"]["/api/health/ready"]["get"][
         "description"
     ]
-    assert schema == expected["openapi"]
+    # #1028 intentionally tightens only these retention fields. Keep the frozen
+    # baseline and compare every other property and route without exceptions.
+    expected_openapi = copy.deepcopy(expected["openapi"])
+    policy_schemas = expected_openapi["components"]["schemas"]
+    policy = policy_schemas["CleanupPolicySchema"]
+    policy["additionalProperties"] = False
+    policy["required"] = ["type", "threshold"]
+    policy["properties"]["type"].pop("default")
+    threshold = policy["properties"]["threshold"]
+    threshold.pop("default")
+    threshold.update(
+        minimum=1,
+        description="Positive integer: recordings, GiB or days, depending on type",
+    )
+    timeframe = policy_schemas["PreserveTimeframeSchema"]
+    timeframe["additionalProperties"] = False
+    timeframe["properties"]["weekdays"]["anyOf"][0]["items"].update(
+        minimum=0, maximum=6
+    )
+    policy_schemas["RecordingSettingsSchema"]["properties"][
+        "max_streams_per_streamer"
+    ].update(minimum=0, maximum=2147483647)
+    policy_schemas["StreamerRecordingSettingsSchema"]["properties"]["max_streams"][
+        "anyOf"
+    ][0].update(minimum=0, maximum=2147483647)
+    assert schema == expected_openapi
 
     # Handler modules may move; registration order, route kind and methods may not.
     def signatures(routes):
