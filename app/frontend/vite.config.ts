@@ -168,7 +168,9 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // The app targets modern browsers; use Workbox Window's modern build instead of its ES5 entry.
+      'workbox-window': 'workbox-window/build/workbox-window.prod.mjs'
     },
   },
   build: {
