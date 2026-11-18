@@ -4,12 +4,16 @@ Background Queue API Routes
 Provides endpoints for monitoring and managing the background queue.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from contextlib import contextmanager
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 import logging
 
 from app.services.background_queue_service import BackgroundQueueService, TaskPriority
-from app.dependencies import get_background_queue_service, require_admin_user
+from app.bootstrap.settings import resolve_app_settings
+from app.dependencies import get_background_queue_service, get_db, require_admin_user
+from app.services.recording.recording_cleanup import CleanupRef, admit_cleanup
 from app.utils.async_db_utils import run_in_thread_pool
 
 router = APIRouter(prefix="/background-queue", tags=["background-queue"])
@@ -93,6 +97,7 @@ async def get_task_status(
 
 @router.post("/tasks/enqueue", dependencies=[Depends(require_admin_user)])
 async def enqueue_task(
+    request: Request,
     task_type: str,
     payload: Dict[str, Any],
     priority: str = "normal",
@@ -102,6 +107,23 @@ async def enqueue_task(
     ),
 ):
     """Manually enqueue a background task"""
+    if not 0 <= max_retries <= 3:
+        raise HTTPException(status_code=422, detail="Invalid retry count")
+    if task_type != "cleanup":
+        raise HTTPException(status_code=422, detail="Unsupported manual task type")
+
+    def prepare():
+        ref = CleanupRef.model_validate(payload)
+        with contextmanager(get_db)(request) as db:
+            root = Path(resolve_app_settings(request.app).RECORDING_DIRECTORY)
+            return admit_cleanup(db, root, ref)
+
+    try:
+        prepared = await run_in_thread_pool(prepare)
+    except (ValueError, OSError) as error:
+        raise HTTPException(
+            status_code=422, detail="Invalid recording cleanup request"
+        ) from error
     try:
         # Convert priority string to enum
         priority_map = {
@@ -116,7 +138,7 @@ async def enqueue_task(
         # Enqueue task
         task_id = await background_queue_service.enqueue_task(
             task_type=task_type,
-            payload=payload,
+            payload=prepared,
             priority=task_priority,
             max_retries=max_retries,
         )

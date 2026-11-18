@@ -68,6 +68,16 @@ async def test_factory_cleanup_handler_writes_only_its_injected_owner_log(
     )
     file.write_bytes(b"owned disposable cleanup fixture")
 
+    output = file.with_suffix(".mp4")
+    output.write_bytes(b"f" * (1024 * 1024))
+    with image_applications[1][0].sync_session_factory() as db:
+        from app.models import Streamer
+
+        db.add(Streamer(id=70, username="own-fixture", twitch_id="70"))
+        db.flush()
+        db.add(Stream(id=70, streamer_id=70, recording_path=str(output)))
+        db.commit()
+
     def snapshot(root):
         return {str(path): path.read_bytes() for path in root.rglob("*.log")}
 
@@ -85,7 +95,7 @@ async def test_factory_cleanup_handler_writes_only_its_injected_owner_log(
             "App A handler wrote the default/peer B log"
         )
         assert any(
-            b"DELETION_CLEANUP_START" in data for data in snapshot(own_root).values()
+            b"ARTIFACT_CLEANUP_COMPLETE" in data for data in snapshot(own_root).values()
         )
         assert creation_threads and loop_thread not in creation_threads
     finally:

@@ -1,7 +1,8 @@
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 import os
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Request
+from app.routes.streams import delete_catalog_stream
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
 from app.services.communication.websocket_manager import (
@@ -1283,96 +1284,11 @@ def get_streams_by_streamer_id(
     "/{streamer_id}/streams/{stream_id}",
     dependencies=[Depends(require_scopes("recording:write"))],
 )
-async def delete_stream(
-    streamer_id: int, stream_id: int, db: Session = Depends(get_db)
+def delete_stream(
+    request: Request, streamer_id: int, stream_id: int, db: Session = Depends(get_db)
 ):
-    """Delete a stream and all associated metadata files for a streamer"""
-    try:
-        # Check if the streamer exists
-        streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
-        if not streamer:
-            raise HTTPException(
-                status_code=404, detail=f"Streamer with ID {streamer_id} not found"
-            )
-
-        # Check if the stream exists and belongs to the streamer
-        stream = (
-            db.query(Stream)
-            .filter(Stream.id == stream_id, Stream.streamer_id == streamer_id)
-            .first()
-        )
-
-        if not stream:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Stream with ID {stream_id} not found for this streamer",
-            )
-
-        # Get metadata to find associated files
-        metadata = (
-            db.query(StreamMetadata)
-            .filter(StreamMetadata.stream_id == stream_id)
-            .first()
-        )
-
-        # Use safe deletion logic (same as cleanup_service)
-        # - tvshow.nfo is NEVER deleted (belongs to streamer)
-        # - season.nfo is only deleted if this is the LAST stream in that season
-        files_to_delete, directories_to_check = collect_stream_files_for_deletion(
-            stream, metadata, db
-        )
-
-        if metadata:
-            # Delete metadata record first (foreign key constraint)
-            db.delete(metadata)
-
-        # Check for recordings associated with this stream and collect their paths
-        recordings = db.query(Recording).filter(Recording.stream_id == stream_id).all()
-        for recording in recordings:
-            if recording.path:
-                files_to_delete.append(recording.path)
-            # Delete recording record
-            db.delete(recording)
-
-        # Delete all stream events
-        db.query(StreamEvent).filter(StreamEvent.stream_id == stream_id).delete()
-
-        # Delete any active recording state entries for this stream
-        db.query(ActiveRecordingState).filter(
-            ActiveRecordingState.stream_id == stream_id
-        ).delete()
-
-        # Delete the stream record itself
-        db.delete(stream)
-        db.commit()
-
-        # Now delete all the files
-        deleted_files, deleted_count = await delete_files_async(files_to_delete)
-
-        # Clean up empty directories
-        for dir_path in directories_to_check:
-            try:
-                if os.path.exists(dir_path) and os.path.isdir(dir_path):
-                    if not os.listdir(dir_path):
-                        os.rmdir(dir_path)
-                        logger.info(f"Removed empty directory: {dir_path}")
-            except Exception as e:
-                logger.warning(f"Failed to remove directory {dir_path}: {e}")
-
-        return {
-            "success": True,
-            "message": f"Stream {stream_id} deleted successfully",
-            "deleted_files": deleted_files,
-            "deleted_files_count": deleted_count,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error deleting stream {stream_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="Failed to delete stream. Please try again."
-        )
+    """Permanently delete a stream belonging to this streamer."""
+    return delete_catalog_stream(request, db, stream_id, streamer_id=streamer_id)
 
 
 @router.get("/validate/{username}")
