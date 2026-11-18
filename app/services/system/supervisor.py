@@ -109,9 +109,24 @@ class TaskSupervisor:
         if self._processes.get(name) is tracked:
             self._processes.pop(name, None)
 
-    async def cancel_task(self, name: str) -> None:
+    def get_process(self, name: str) -> _TrackedProcess | None:
+        """Capture a supervisor record, not just a potentially adopted PID."""
+        return self._processes.get(name)
+
+    def detach_process(self, name: str, *, expected: _TrackedProcess) -> None:
+        """Drop only the captured reference, without signaling or awaiting a new owner."""
+        if self._processes.get(name) is expected:
+            self._processes.pop(name)
+
+    def get_task(self, name: str) -> asyncio.Task[Any] | None:
+        """Capture a task identity before asynchronous owner cleanup."""
+        return self._tasks.get(name)
+
+    async def cancel_task(
+        self, name: str, *, expected_task: asyncio.Task[Any] | None = None
+    ) -> None:
         """Drain one owner's task without affecting sibling sessions."""
-        task = self._tasks.get(name)
+        task = expected_task if expected_task is not None else self._tasks.get(name)
         if task is None or task is asyncio.current_task():
             return
         if not task.done():
