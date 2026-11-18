@@ -94,7 +94,12 @@ SECRETS = {
 
 
 @pytest.fixture
-def stack(tmp_path, monkeypatch):
+def capability_database_url():
+    return "sqlite://"
+
+
+@pytest.fixture
+def stack(tmp_path, monkeypatch, capability_database_url):
     import socket
 
     def no_network(*args, **kwargs):
@@ -121,7 +126,7 @@ def stack(tmp_path, monkeypatch):
         ENVIRONMENT="test",
         ARTWORK_BASE_PATH=str(tmp_path / "artwork"),
     )
-    database = DatabaseLifecycle("sqlite://")
+    database = DatabaseLifecycle(capability_database_url)
     Base.metadata.create_all(database.sync_engine)
     with database.sync_session_factory() as db:
         db.add_all(

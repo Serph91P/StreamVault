@@ -13,6 +13,12 @@ URL = "/api/background-queue/tasks/enqueue"
 
 
 @pytest.fixture
+def capability_database_url(tmp_path):
+    # Background workers and their startup recovery use separate transactions.
+    return f"sqlite:///{tmp_path / 'cleanup.db'}"
+
+
+@pytest.fixture
 def media(stack):
     _, database, settings, _, _ = stack
     root = Path(settings.RECORDING_DIRECTORY)
