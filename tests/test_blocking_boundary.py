@@ -76,3 +76,57 @@ async def test_repeated_cancellation_waits_for_actual_worker_cleanup() -> None:
         release.set()
         await asyncio.gather(task, return_exceptions=True)
         await asyncio.wait_for(closed.wait(), 1)
+
+
+@pytest.mark.asyncio
+async def test_worker_cancellation_propagates_after_owned_file_scope_closes(tmp_path):
+    event_loop_thread = threading.get_ident()
+    handles = []
+
+    def operation() -> None:
+        assert threading.get_ident() != event_loop_thread
+        with (tmp_path / "owned-worker.txt").open("w") as handle:
+            handles.append(handle)
+            raise asyncio.CancelledError("worker cancellation")
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_in_thread_pool(operation)
+
+    assert len(handles) == 1
+    assert handles[0].closed
+
+
+@pytest.mark.asyncio
+async def test_prestarted_worker_cancellation_preserves_caller_cancellation(
+    monkeypatch,
+):
+    native_create_task = asyncio.create_task
+    scheduled = asyncio.Event()
+    entered = threading.Event()
+    workers = []
+
+    def observe_worker(coroutine, **kwargs):
+        # Wake this caller before the real inner task gets its first loop turn.
+        scheduled.set()
+        worker = native_create_task(coroutine, **kwargs)
+        workers.append(worker)
+        return worker
+
+    monkeypatch.setattr(asyncio, "create_task", observe_worker)
+    caller = native_create_task(run_in_thread_pool(entered.set))
+    try:
+        await asyncio.wait_for(scheduled.wait(), 1)
+        worker = workers[0]
+        assert not entered.is_set()
+        caller.cancel("caller cancellation")
+        worker.cancel("worker cancellation")
+        with pytest.raises(asyncio.CancelledError) as cancelled:
+            await caller
+        assert str(cancelled.value) == "caller cancellation"
+        assert worker.cancelled()
+        assert not entered.is_set()
+    finally:
+        caller.cancel()
+        for worker in workers:
+            worker.cancel()
+        await asyncio.gather(caller, *workers, return_exceptions=True)

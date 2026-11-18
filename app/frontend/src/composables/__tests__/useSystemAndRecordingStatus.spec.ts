@@ -15,9 +15,11 @@ vi.mock('@/services/api', () => ({ systemApi: api }))
 vi.mock('@/utils/logger', () => ({ logDebug: vi.fn(), logError: vi.fn() }))
 const authenticated = ref(true)
 const connection = ref('connected')
+const snapshotRevision = ref(0)
 const handlers = new Map<string, Set<(event: any) => void>>()
 vi.mock('@/stores/realtime', () => ({ useRealtimeStore: () => ({
   get connectionStatus() { return connection.value },
+  get snapshotRevision() { return snapshotRevision.value },
   onEvent(type: string, callback: (event: any) => void) {
     if (!handlers.has(type)) handlers.set(type, new Set())
     handlers.get(type)!.add(callback)
@@ -64,6 +66,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   authenticated.value = true
   connection.value = 'connected'
+  snapshotRevision.value = 0
   handlers.clear()
   pending = methods.map(() => [])
   methods.forEach((method, i) => {
@@ -81,6 +84,23 @@ afterEach(() => {
 })
 
 describe('shared system status lifecycle', () => {
+  it('renews all five resources after lost history without duplicating owners or overwriting newer live data', async () => {
+    const { status } = mount()
+    mount()
+    settle(); await flush()
+    snapshotRevision.value++
+    await flush()
+    counts(2)
+    expect(status.snapshotsStale.value).toBe(true)
+    handlers.get('active_recordings_update')!.forEach(fn => fn({ data: [{ id: 987 }] }))
+    settle(1); await flush()
+    expect(status.activeRecordings.value.map(rec => rec.id)).toEqual([987])
+    expect(status.snapshotsStale.value).toBe(true)
+    const retry = status.forceRefresh()
+    settle(2); await retry; await flush()
+    expect(status.snapshotsStale.value).toBe(false)
+  })
+
   it.each([1, 2, 3])('hydrates %i consumers with one initial read per resource', async (number) => {
     const consumers = Array.from({ length: number }, () => mount().status)
     counts(1)
