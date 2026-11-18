@@ -578,5 +578,8 @@ def test_admin_manual_connection_is_encrypted_and_proxy_config_persists(
     with database.sync_session_factory() as db:
         assert db.query(RecordingSettings).one().enable_proxy is False
     url = client.get("/api/twitch/auth-url", headers=credential)
-    assert url.status_code == 200, url.text
-    assert "id.twitch.tv/oauth2/authorize" in url.text
+    if mode.endswith("cookie"):
+        assert url.status_code == 200, url.text
+        assert "id.twitch.tv/oauth2/authorize" in url.text
+    else:
+        assert url.status_code == 403, url.text

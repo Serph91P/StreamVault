@@ -1,10 +1,14 @@
 """Real callback/router/token-store flow against synthetic loopback grants."""
 
 import asyncio
+import socket
 from datetime import datetime, timedelta, timezone
 from threading import get_ident
+from urllib.parse import parse_qs, urlsplit
 
+import httpx
 import pytest
+import uvicorn
 from starlette.requests import HTTPConnection
 
 from app.dependencies import (
@@ -59,15 +63,25 @@ async def test_callback_exchanges_once_and_persists_only_its_owner(
                     return await _request(method, url, **kwargs)
 
                 monkeypatch.setattr(actor._http, "request", local)
+                initiation = await clients[index].get(
+                    "/api/twitch/auth-url",
+                    params={
+                        "state": "/add-streamer"
+                        if index == 0
+                        else "https://foreign.invalid"
+                    },
+                )
+                assert initiation.status_code == 200
+                nonce = parse_qs(urlsplit(initiation.json()["auth_url"]).query)[
+                    "state"
+                ][0]
                 queries.clear()
                 before = datetime.now(timezone.utc).replace(tzinfo=None)
                 callback = await clients[index].get(
                     "/api/twitch/callback",
                     params={
                         "code": "fixture-code",
-                        "state": "/add-streamer"
-                        if index == 0
-                        else "https://foreign.invalid",
+                        "state": nonce,
                     },
                 )
                 assert callback.status_code == 307
@@ -125,6 +139,58 @@ async def test_callback_exchanges_once_and_persists_only_its_owner(
         finally:
             for app in applications:
                 await _close_application_twitch(app)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("protocol", ["h11", "httptools"])
+async def test_callback_grant_is_not_in_server_access_log(
+    image_applications, caplog, protocol
+):
+    applications, _, clients, _ = image_applications
+    app, browser = applications[0], clients[0]
+    initiation = await browser.get("/api/twitch/auth-url")
+    assert initiation.status_code == 200
+    nonce = parse_qs(urlsplit(initiation.json()["auth_url"]).query)["state"][0]
+    caplog.set_level("INFO", logger="uvicorn.access")
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        server = uvicorn.Server(
+            uvicorn.Config(app, lifespan="off", log_config=None, http=protocol)
+        )
+        running = asyncio.create_task(server.serve(sockets=[listener]))
+        try:
+            async with asyncio.timeout(5):
+                while not server.started:
+                    assert not running.done()
+                    await asyncio.sleep(0.01)
+            async with httpx.AsyncClient(trust_env=False) as local:
+                # Cancellation exercises parsing of the real nonce without any provider call.
+                response = await local.get(
+                    f"http://127.0.0.1:{listener.getsockname()[1]}/api/twitch/callback",
+                    headers={
+                        "Cookie": f"access_token={browser.cookies['access_token']}"
+                    },
+                    params={
+                        "state": nonce,
+                        "error": "access_denied",
+                        "code": "logging-fixture",
+                    },
+                )
+            assert response.headers["location"] == "/settings?error=auth_failed"
+        finally:
+            server.should_exit = True
+            await asyncio.wait_for(running, timeout=5)
+            await _close_application_twitch(app)
+    access = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "uvicorn.access"
+    ]
+    assert any("GET /api/twitch/callback HTTP/" in message for message in access)
+    assert all(
+        nonce not in message and "logging-fixture" not in message for message in access
+    )
 
 
 @pytest.mark.asyncio
