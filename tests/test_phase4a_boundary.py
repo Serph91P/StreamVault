@@ -173,6 +173,8 @@ def test_settings_update_persists_before_regenerating_streamlink_config(monkeypa
         http_proxy = ""
         https_proxy = ""
         supported_codecs = "h264"
+        notification_url = ""
+        notifications_enabled = True
 
     class SettingsServiceFake:
         def __init__(self):
@@ -186,7 +188,7 @@ def test_settings_update_persists_before_regenerating_streamlink_config(monkeypa
         def validate_proxy_url(url):
             return True
 
-        def get_global_settings_row(self):
+        def find_global_settings_row(self):
             return self.row
 
         def update_global_settings(self, data):
