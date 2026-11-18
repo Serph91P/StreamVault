@@ -1,5 +1,6 @@
 <template>
   <div class="channel-settings-panel">
+    <RealtimeSnapshotNotice />
     <p v-if="loading" role="status">Kanaleinstellungen werden geladen...</p>
     <div v-else-if="loadError" role="alert" class="error-message">
       <p>{{ loadError }}</p>
@@ -43,6 +44,7 @@ import { RouterLink } from 'vue-router'
 import RecordingSettingsPanel from './RecordingSettingsPanel.vue'
 import NotificationSettingsPanel from './NotificationSettingsPanel.vue'
 import { useRecordingSettings } from '@/composables/useRecordingSettings'
+import RealtimeSnapshotNotice from '@/components/RealtimeSnapshotNotice.vue'
 import { useNotificationSettings } from '@/composables/useNotificationSettings'
 import { useToast } from '@/composables/useToast'
 import type { StreamerRecordingSettings } from '@/types/recording'

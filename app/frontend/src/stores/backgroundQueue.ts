@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRealtimeStore } from '@/stores/realtime'
 import { backgroundQueueApi } from '@/services/api'
 import { logError } from '@/utils/logger'
@@ -64,8 +64,26 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
 
   let realtimeBindingCount = 0
   let realtimeUnsubs: Array<() => void> = []
+  const realtime = useRealtimeStore()
+  let revision = 0
+  let pending: Promise<void> | undefined
+  let disposed = false
+
+  watch(() => realtime.snapshotRevision, async () => {
+    revision++
+    dataAvailable.value = false
+    if (pending) await pending
+    if (!disposed && realtimeBindingCount && !dataAvailable.value) void forceRefreshFromAPI()
+  }, { flush: 'sync' })
+
+  onScopeDispose(() => {
+    disposed = true
+    revision++
+    realtimeUnsubs.splice(0).forEach(fn => fn())
+  })
 
   function setQueueStats(stats: Partial<BackgroundQueueStats>): void {
+    revision++
     queueStats.value = {
       ...queueStats.value,
       ...stats
@@ -73,14 +91,17 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
   }
 
   function setActiveTasks(tasks: BackgroundQueueTask[]): void {
+    revision++
     activeTasks.value = Array.isArray(tasks) ? tasks : []
   }
 
   function setRecentTasks(tasks: BackgroundQueueTask[]): void {
+    revision++
     recentTasks.value = Array.isArray(tasks) ? tasks : []
   }
 
   function applyTaskStatusUpdate(taskData: BackgroundQueueTask): void {
+    revision++
     if (import.meta.env.DEV) console.debug('useBackgroundQueue', `Task status update for ${taskData.id}: ${taskData.status}`)
     const existingIndex = activeTasks.value.findIndex((task) => task.id === taskData.id)
     if (existingIndex >= 0) {
@@ -100,6 +121,7 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
   }
 
   function applyTaskProgressUpdate(taskId: string, progress: number): void {
+    revision++
     if (import.meta.env.DEV) console.debug('useBackgroundQueue', `Progress update for ${taskId}: ${progress}%`)
     const task = activeTasks.value.find((task) => task.id === taskId)
     if (task) {
@@ -110,7 +132,6 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
   function bindRealtime(): () => void {
     realtimeBindingCount += 1
     if (realtimeBindingCount === 1) {
-      const realtime = useRealtimeStore()
       realtimeUnsubs = [
         realtime.onEvent('background_queue_update', (event) => {
           if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'Updating background queue from WebSocket data')
@@ -124,7 +145,9 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
             setRecentTasks(event.data.recent_tasks)
           }
           error.value = null
-          dataAvailable.value = true
+          if (event.data.stats && Array.isArray(event.data.active_tasks) && Array.isArray(event.data.recent_tasks)) {
+            dataAvailable.value = true
+          }
         }),
         realtime.onEvent('queue_stats_update', (event) => {
           setQueueStats(event.data)
@@ -140,38 +163,52 @@ export const useBackgroundQueueStore = defineStore('backgroundQueue', () => {
       ]
     }
 
+    let bound = true
     return () => {
+      if (!bound) return
+      bound = false
       realtimeBindingCount = Math.max(0, realtimeBindingCount - 1)
       if (realtimeBindingCount === 0) {
+        revision++
+        dataAvailable.value = false
         realtimeUnsubs.forEach((fn) => fn())
         realtimeUnsubs = []
       }
     }
   }
 
-  async function forceRefreshFromAPI(): Promise<void> {
+  function forceRefreshFromAPI(): Promise<void> {
+    if (disposed) return Promise.resolve()
+    if (pending) return pending
+    const started = revision
     if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'FORCE REFRESH: Using API as fallback')
     isLoading.value = true
     error.value = null
 
-    try {
-      const [stats, active, recent] = await Promise.all([
-        backgroundQueueApi.getStats(),
-        backgroundQueueApi.getActiveTasks(),
-        backgroundQueueApi.getRecentTasks()
-      ])
+    pending = (async () => {
+      try {
+        const [stats, active, recent] = await Promise.all([
+          backgroundQueueApi.getStats(),
+          backgroundQueueApi.getActiveTasks(),
+          backgroundQueueApi.getRecentTasks()
+        ])
 
-      setQueueStats(stats)
-      setActiveTasks(active)
-      setRecentTasks(recent)
-      dataAvailable.value = true
-      if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'FORCE REFRESH: API data loaded as fallback')
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err)
-      logError('useBackgroundQueue', 'FORCE REFRESH: API fallback failed', err)
-    } finally {
-      isLoading.value = false
-    }
+        if (disposed || started !== revision) return
+        setQueueStats(stats)
+        setActiveTasks(active)
+        setRecentTasks(recent)
+        dataAvailable.value = true
+        if (import.meta.env.DEV) console.debug('useBackgroundQueue', 'FORCE REFRESH: API data loaded as fallback')
+      } catch (err) {
+        if (disposed || started !== revision) return
+        error.value = err instanceof Error ? err.message : String(err)
+        logError('useBackgroundQueue', 'FORCE REFRESH: API fallback failed', err)
+      } finally {
+        isLoading.value = false
+        pending = undefined
+      }
+    })()
+    return pending
   }
 
   async function cancelStreamTasks(streamId: number): Promise<void> {

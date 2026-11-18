@@ -14,6 +14,7 @@ export const useRealtimeStore = defineStore('realtime', () => {
   manager.subscribe(() => {})
 
   const connectionStatus = computed(() => manager.connectionStatus.value)
+  const snapshotRevision = computed(() => manager.snapshotRevision.value)
   const recentEvents = computed(() => manager.messages.value)
   const isBrowserOnline = computed(() => manager.isBrowserOnline.value)
   const reconnectAttempt = computed(() => manager.reconnectAttempt.value)
@@ -50,6 +51,7 @@ export const useRealtimeStore = defineStore('realtime', () => {
 
   return {
     connectionStatus,
+    snapshotRevision,
     recentEvents,
     isBrowserOnline,
     reconnectAttempt,
