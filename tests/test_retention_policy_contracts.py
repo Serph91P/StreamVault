@@ -10,7 +10,7 @@ import pytest
 from app.config.settings import Settings
 from app.database import Base, DatabaseLifecycle
 from app.models import RecordingSettings, Stream, Streamer, StreamerRecordingSettings
-from app.services.system.cleanup_service import CleanupService
+from app.services.system.cleanup_service import CleanupService, InvalidRetentionPolicy
 
 
 @pytest.fixture
@@ -155,7 +155,12 @@ async def test_retention_legacy_fallbacks_keep_explicit_unlimited_meaning(
                 )
             )
         db.commit()
-    count, _ = await service.cleanup_old_recordings(1)
+    if configuration.startswith("invalid-"):
+        with pytest.raises(InvalidRetentionPolicy, match=configuration.split("-")[1]):
+            await service.cleanup_old_recordings(1)
+        count = 0
+    else:
+        count, _ = await service.cleanup_old_recordings(1)
     expected = 2 if configuration.startswith("max-streams") else 0
     assert count == expected
     assert sum(path.exists() for path in paths) == 3 - expected
@@ -187,7 +192,7 @@ async def test_truthy_nonobject_json_policy_never_falls_through_to_deletion(
 ):
     service, database, paths = retention_catalog
     serialized = json.dumps(value)
-    assert service._parse_cleanup_policy(serialized) == value
+
     with database.sync_session_factory() as db:
         settings = db.get(RecordingSettings, 1)
         settings.max_streams_per_streamer = 1
@@ -202,9 +207,10 @@ async def test_truthy_nonobject_json_policy_never_falls_through_to_deletion(
                 )
             )
         db.commit()
-    assert await service.cleanup_old_recordings(1) == (0, [])
-    count, _ = await service.simulate_cleanup(1)
-    assert count == 0
+    with pytest.raises(InvalidRetentionPolicy, match=source):
+        await service.cleanup_old_recordings(1)
+    with pytest.raises(InvalidRetentionPolicy, match=source):
+        await service.simulate_cleanup(1)
     await service.run_scheduled_cleanup()
     assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)
     with database.sync_session_factory() as db:
@@ -225,13 +231,13 @@ async def test_truthy_nonobject_json_policy_never_falls_through_to_deletion(
         ({"timeOfDay": {"start": "09:00", "end": "11:00"}}, {1}),
         ({"timeOfDay": {"start": "22:00", "end": "06:00"}}, {3}),
         ({"timeOfDay": {"start": "17:00", "end": "19:00"}}, set()),
-        ({"timeOfDay": {"start": "invalid", "end": "99:99"}}, {1, 2, 3}),
+        ({"timeOfDay": {"start": "invalid", "end": "99:99"}}, None),
     ],
 )
 async def test_existing_preview_timeframe_filters_are_pure(
     retention_catalog, policy_type, timeframe, kept
 ):
-    # Existing SDK preview only, not the separate #993 execution/parity feature.
+    # Service preview only; the UI contract belongs to #993.
     service, database, paths = retention_catalog
     with database.sync_session_factory() as db:
         for identifier, hour in ((1, 10), (2, 14), (3, 23)):
@@ -239,21 +245,29 @@ async def test_existing_preview_timeframe_filters_are_pure(
             row.started_at = datetime(2020, 1, 5 + identifier, hour)
             row.ended_at = row.started_at + timedelta(minutes=15)
         db.commit()
+    policy = {
+        "type": policy_type,
+        "threshold": 7 if policy_type == "age" else 1,
+        "preserve_favorites": False,
+        "preserve_timeframe": timeframe,
+    }
+    if kept is None:
+        with pytest.raises(InvalidRetentionPolicy, match="timeOfDay"):
+            await service.simulate_cleanup(1, policy)
+        with pytest.raises(InvalidRetentionPolicy, match="timeOfDay"):
+            await service.cleanup_old_recordings(1, policy)
+        assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)
+        with database.sync_session_factory() as db:
+            assert db.query(Stream).count() == 3
+        assert database.sync_engine.pool.checkedout() == 0
+        return
     candidates = sorted({1, 2, 3} - kept)
     expected = {
         "count": candidates[:-1],
         "size": candidates[:1],
         "age": candidates,
     }[policy_type]
-    count, result = await service.simulate_cleanup(
-        1,
-        {
-            "type": policy_type,
-            "threshold": 7 if policy_type == "age" else 1,
-            "preserve_favorites": False,
-            "preserve_timeframe": timeframe,
-        },
-    )
+    count, result = await service.simulate_cleanup(1, policy)
     assert count == len(expected)
     assert sorted(row["id"] for row in result["streams"]) == expected
     assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)

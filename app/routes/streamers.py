@@ -32,6 +32,8 @@ from sqlalchemy.orm import Session, joinedload
 import logging
 from pathlib import Path
 import json
+from pydantic import TypeAdapter, ValidationError
+from app.schemas.recording import MaxStreams
 import re
 from app.utils import async_file
 from app.utils.async_db_utils import run_in_thread_pool
@@ -1067,9 +1069,9 @@ def update_streamer_settings(
             )
 
         if "maxStreams" in settings:
-            recording_settings.max_streams = (
-                int(settings["maxStreams"]) if settings["maxStreams"] else None
-            )
+            recording_settings.max_streams = TypeAdapter(
+                MaxStreams | None
+            ).validate_python(settings["maxStreams"])
             logger.info(
                 f"Updated max streams for {streamer.username}: {recording_settings.max_streams}"
             )
@@ -1126,6 +1128,12 @@ def update_streamer_settings(
             },
         }
 
+    except ValidationError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail="maxStreams must be a non-negative integer within the supported range, or null",
+        ) from error
     except HTTPException:
         raise
     except Exception as e:

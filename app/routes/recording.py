@@ -50,7 +50,8 @@ from typing import List, Dict
 from datetime import datetime, timezone
 
 from app.services.recording.recording_manager import RecordingManager
-from app.services.system.cleanup_service import CleanupService
+from app.services.system.cleanup_service import CleanupService, InvalidRetentionPolicy
+from pydantic import ValidationError
 
 # Cache constants
 FALLBACK_SUFFIX = "_fallback"
@@ -899,6 +900,8 @@ async def cleanup_old_recordings(
             "deleted_count": deleted_count,
             "deleted_paths": deleted_paths,
         }
+    except InvalidRetentionPolicy as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     except Exception as e:
         await run_in_thread_pool(
             logging_service.log_recording_error,
@@ -924,7 +927,7 @@ async def run_custom_cleanup(
     """Run a custom cleanup with specified policy"""
     try:
         # Convert pydantic model to dict
-        policy_dict = policy.dict(exclude_unset=True)
+        policy_dict = policy.model_dump(mode="json", exclude_unset=True)
 
         deleted_count, deleted_paths = await retention_service.cleanup_old_recordings(
             streamer_id, custom_policy=policy_dict
@@ -964,6 +967,12 @@ def update_streamer_cleanup_policy(
 ) -> dict[str, str]:
     """Update cleanup policy for a specific streamer"""
     try:
+        raw_policy = request_data.get("cleanup_policy")
+        policy = (
+            CleanupPolicySchema.model_validate(raw_policy)
+            if raw_policy is not None
+            else None
+        )
         # Check if the streamer exists
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if not streamer:
@@ -990,19 +999,19 @@ def update_streamer_cleanup_policy(
         if use_global:
             # Clear custom policy when using global
             streamer_settings.cleanup_policy = None
-        else:
-            # Set custom policy
-            cleanup_policy = request_data.get("cleanup_policy")
-            if cleanup_policy:
-                import json
-
-                # Validate policy using schema
-                policy_schema = CleanupPolicySchema.parse_obj(cleanup_policy)
-                streamer_settings.cleanup_policy = json.dumps(policy_schema.dict())
+        elif policy is not None:
+            streamer_settings.cleanup_policy = policy.model_dump_json()
 
         db.commit()
 
         return {"status": "success", "message": "Cleanup policy updated successfully"}
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=error.errors(
+                include_context=False, include_url=False, include_input=False
+            ),
+        ) from error
     except HTTPException:
         raise
     except Exception as e:
