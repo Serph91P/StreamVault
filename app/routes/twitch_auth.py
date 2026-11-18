@@ -159,7 +159,40 @@ def _link_redirect(location: str) -> RedirectResponse:
     )
 
 
-@router.get("/callback")
+@router.get(
+    "/callback",
+    response_class=RedirectResponse,
+    status_code=307,
+    responses={
+        307: {"description": "Redirect to the application with the link outcome."}
+    },
+    # Describe the wire contract without moving validation ahead of the handler.
+    openapi_extra={
+        "parameters": [
+            {
+                "name": "state",
+                "in": "query",
+                "required": True,
+                "schema": {"type": "string"},
+                "description": "One-time state returned by Twitch.",
+            },
+            {
+                "name": "code",
+                "in": "query",
+                "required": False,
+                "schema": {"type": "string"},
+                "description": "Authorization code on successful consent.",
+            },
+            {
+                "name": "error",
+                "in": "query",
+                "required": False,
+                "schema": {"type": "string"},
+                "description": "Provider error on cancelled or failed consent.",
+            },
+        ]
+    },
+)
 async def twitch_callback(
     request: Request,
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
