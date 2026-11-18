@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 
 from app.config.settings import Settings
 from app.database import Base, DatabaseLifecycle
@@ -182,6 +183,80 @@ async def test_scheduled_retention_uses_same_policy_and_remains_idempotent(
     await service.run_scheduled_cleanup()
     assert paths[2].exists()
     assert database.sync_engine.pool.checkedout() == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("inherit", [True, False])
+async def test_unlimited_preview_and_scheduler_leave_catalog_untouched(
+    retention_catalog, inherit
+):
+    service, database, paths = retention_catalog
+    with database.sync_session_factory() as db:
+        assert db.get(RecordingSettings, 1).max_streams_per_streamer == 0
+        db.add(
+            StreamerRecordingSettings(
+                streamer_id=1, use_global_cleanup_policy=inherit, max_streams=0
+            )
+        )
+        db.commit()
+
+    assert await service.simulate_cleanup(1) == (0, [])
+    await service.run_scheduled_cleanup()
+
+    with database.sync_session_factory() as db:
+        assert set(db.scalars(select(Stream.id))) == {1, 2, 3}
+        config = db.get(StreamerRecordingSettings, 1)
+        assert config.use_global_cleanup_policy is inherit
+        assert config.max_streams == 0
+    assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)
+    assert database.sync_engine.pool.checkedout() == 0
+
+
+@pytest.mark.asyncio
+async def test_size_cleanup_ignores_missing_media_and_removes_oldest_available(
+    retention_catalog,
+):
+    service, database, paths = retention_catalog
+    paths[0].unlink()
+    with paths[1].open("wb") as file:
+        file.truncate(768 * 1024 * 1024)
+    policy = {"type": "size", "threshold": 1, "preserve_favorites": False}
+
+    count, preview = await service.simulate_cleanup(1, policy)
+    assert count == 1
+    assert {item["id"] for item in preview["streams"]} == {2}
+    assert paths[1].stat().st_size == 768 * 1024 * 1024
+    assert paths[2].stat().st_size == 512 * 1024 * 1024
+    with database.sync_session_factory() as db:
+        assert set(db.scalars(select(Stream.id))) == {1, 2, 3}
+
+    deleted, deleted_paths = await service.cleanup_old_recordings(1, policy)
+    assert deleted == 1
+    assert {Path(path) for path in deleted_paths} == {paths[1]}
+    with database.sync_session_factory() as db:
+        assert set(db.scalars(select(Stream.id))) == {1, 3}
+    assert not paths[0].exists() and not paths[1].exists()
+    assert paths[2].stat().st_size == 512 * 1024 * 1024
+
+
+@pytest.mark.asyncio
+async def test_age_preview_lists_history_without_media_as_zero_bytes(retention_catalog):
+    service, database, paths = retention_catalog
+    paths[0].unlink()
+    policy = {"type": "age", "threshold": 7, "preserve_favorites": False}
+
+    count, preview = await service.simulate_cleanup(1, policy)
+
+    assert count == 3
+    assert {item["id"]: item["size"] for item in preview["streams"]} == {
+        1: 0,
+        2: 512 * 1024 * 1024,
+        3: 512 * 1024 * 1024,
+    }
+    assert preview["total_size"] == 1024 * 1024 * 1024
+    with database.sync_session_factory() as db:
+        assert set(db.scalars(select(Stream.id))) == {1, 2, 3}
+    assert [path.exists() for path in paths] == [False, True, True]
 
 
 @pytest.mark.asyncio

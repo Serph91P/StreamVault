@@ -72,6 +72,33 @@ def request_policy(retention, entry, policy, **outer):
     )
 
 
+@pytest.mark.parametrize("entry", ["global", "channel", "policy-save", "custom"])
+@pytest.mark.parametrize(
+    "timeframe, error",
+    [
+        ({"start_date": "2026-02-30"}, "valid ISO dates"),
+        ({"end_date": "not-an-iso-date"}, "valid ISO dates"),
+        (
+            {
+                "start_date": "2020-01-08T00:00:00-05:00",
+                "end_date": "2020-01-08T03:00:00+01:00",
+            },
+            "start_date must not be after end_date",
+        ),
+    ],
+    ids=["invalid-start", "invalid-end", "reversed-in-utc"],
+)
+def test_timeframe_validation_retains_files_rows_and_tasks(
+    retention, entry, timeframe, error
+):
+    policy = {"type": "age", "threshold": 1, "preserve_timeframe": timeframe}
+    before = snapshot(retention)
+    response = request_policy(retention, entry, policy)
+    assert response.status_code == 422, response.text
+    assert error in response.text
+    assert snapshot(retention) == before
+
+
 MAX_DAYS = datetime.now(timezone.utc).toordinal() - 1
 BOUNDS = [("count", 2**31 - 1), ("size", 2**33 - 1), ("age", MAX_DAYS)]
 
