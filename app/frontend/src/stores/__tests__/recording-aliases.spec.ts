@@ -10,6 +10,7 @@ const transport = vi.hoisted(() => ({ deliver: (_event: RealtimeEvent<string>) =
 vi.mock('@/composables/useWebSocket', () => ({ WebSocketManager: { getInstance: () => ({
   subscribe: () => {}, onMessage: (callback: typeof transport.deliver) => { transport.deliver = callback },
   connectionStatus: ref('connected'), messages: ref([]), isBrowserOnline: ref(true),
+  snapshotRevision: ref(0),
   reconnectAttempt: ref(0), maxReconnectAttemptCount: 5, reconnectNow: () => {}
 }) } }))
 

@@ -11,6 +11,7 @@ from aiohttp.test_utils import TestServer
 from fastapi import FastAPI
 
 import app.services.api.twitch_api as api_module
+from tests.auth_helpers import admin_headers
 from app.services.api.twitch_api import TwitchAPIService
 
 
@@ -279,6 +280,7 @@ async def test_later_page_selection_imports_once_without_resetting_settings(
             from app.dependencies import get_streamer_service
 
             app.dependency_overrides[get_streamer_service] = lambda: streamers
+            credentials = admin_headers(app, lambda: Session(engine))
             pages = [
                 {"data": [follow(1)], "pagination": {"cursor": "next"}},
                 {"data": [follow(1), follow(2)], "pagination": {}},
@@ -286,7 +288,9 @@ async def test_later_page_selection_imports_once_without_resetting_settings(
             async with provider(pages) as (api, _):
                 monkeypatch.setattr(oauth_module, "twitch_api", api)
                 async with httpx.AsyncClient(
-                    transport=httpx.ASGITransport(app=app), base_url="http://test"
+                    transport=httpx.ASGITransport(app=app),
+                    base_url="http://test",
+                    headers=credentials,
                 ) as client:
                     response = await client.get(
                         "/api/twitch/followed-channels",

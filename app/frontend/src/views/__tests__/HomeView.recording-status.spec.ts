@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import routeResponse from '../../../tests/fixtures/recording-active-status-contract.json'
 
@@ -29,6 +30,7 @@ vi.mock('@/services/api', () => ({
 
 vi.mock('@/stores/realtime', () => ({
   useRealtimeStore: () => ({
+    get snapshotRevision() { return realtimeState.snapshotRevision },
     recentEvents: [],
     onEvent: mocks.onEvent,
     onEvents: mocks.onEvents,
@@ -45,6 +47,7 @@ vi.mock('@/composables/useForceRecording', () => ({
 }))
 
 import HomeView from '../HomeView.vue'
+const realtimeState = reactive({ snapshotRevision: 0 })
 
 function mountView(props: { embedded?: boolean } = {}) {
   return mount(HomeView, {
@@ -89,6 +92,17 @@ afterEach(() => {
 })
 
 describe('HomeView recording status consumer', () => {
+  it('labels its independent projections last-known after a replay gap without discarding local history', async () => {
+    mocks.onEvent.mockReturnValue(() => {})
+    mocks.onEvents.mockReturnValue(() => {})
+    const wrapper = mountView()
+    await flushPromises()
+    realtimeState.snapshotRevision++
+    await flushPromises()
+    expect(wrapper.text()).toContain('Last-known status')
+    expect(wrapper.text()).toContain('Notification history may be incomplete')
+    wrapper.unmount()
+  })
   it.each(['/activity?tab=overview', '/overview?source=history'])('retains the actual %s origin for links and programmatic play', async origin => {
     mocks.route.fullPath = origin
     history.replaceState({ current: origin }, '', origin)

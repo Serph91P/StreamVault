@@ -16,6 +16,7 @@ from app.schemas.recording import (
 )
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
 from app.dependencies import (
+    require_scopes,
     get_db,
     get_recording_manager,
     get_application_recording_manager,
@@ -130,7 +131,11 @@ async def get_recording_settings(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/settings", response_model=RecordingSettingsSchema)
+@router.post(
+    "/settings",
+    response_model=RecordingSettingsSchema,
+    dependencies=[Depends(require_scopes("recording:write"))],
+)
 async def update_recording_settings(
     settings_data: RecordingSettingsSchema,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
@@ -525,7 +530,11 @@ def _streamer_name_snapshot(
         return streamer.username if streamer else f"Streamer {streamer_id}"
 
 
-@router.post("/stop/{streamer_id}", response_model=None)
+@router.post(
+    "/stop/{streamer_id}",
+    response_model=None,
+    dependencies=[Depends(require_scopes("recording:write"))],
+)
 async def stop_recording(
     streamer_id: int,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
@@ -609,7 +618,11 @@ async def stop_recording(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/streamers/{streamer_id}", response_model=StreamerRecordingSettingsSchema)
+@router.post(
+    "/streamers/{streamer_id}",
+    response_model=StreamerRecordingSettingsSchema,
+    dependencies=[Depends(require_scopes("recording:write"))],
+)
 def update_streamer_recording_settings(
     streamer_id: int,
     settings: StreamerRecordingSettingsSchema,
@@ -736,7 +749,11 @@ def update_streamer_recording_settings(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/force-start/{streamer_id}", response_model=None)
+@router.post(
+    "/force-start/{streamer_id}",
+    response_model=None,
+    dependencies=[Depends(require_scopes("recording:write"))],
+)
 async def force_start_recording(
     streamer_id: int,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
@@ -835,7 +852,11 @@ async def force_start_recording(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/cleanup/{streamer_id}", response_model=None)
+@router.post(
+    "/cleanup/{streamer_id}",
+    response_model=None,
+    dependencies=[Depends(require_scopes("recording:write"))],
+)
 async def cleanup_old_recordings(
     streamer_id: int,
     retention_service: CleanupService = Depends(get_retention_service),
@@ -890,7 +911,11 @@ async def cleanup_old_recordings(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/cleanup/{streamer_id}/custom", response_model=Dict)
+@router.post(
+    "/cleanup/{streamer_id}/custom",
+    response_model=Dict,
+    dependencies=[Depends(require_scopes("recording:write"))],
+)
 async def run_custom_cleanup(
     streamer_id: int,
     policy: CleanupPolicySchema,
@@ -929,7 +954,11 @@ async def get_storage_usage(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/streamers/{streamer_id}/cleanup-policy", response_model=Dict)
+@router.post(
+    "/streamers/{streamer_id}/cleanup-policy",
+    response_model=Dict,
+    dependencies=[Depends(require_scopes("recording:write"))],
+)
 def update_streamer_cleanup_policy(
     streamer_id: int, request_data: dict[str, object], db: Session = Depends(get_db)
 ) -> dict[str, str]:

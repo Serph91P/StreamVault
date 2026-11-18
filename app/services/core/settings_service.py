@@ -210,7 +210,8 @@ class SettingsService:
             settings = GlobalSettings()
             self.db.add(settings)
 
-        settings.notification_url = settings_data.notification_url or ""
+        if "notification_url" in settings_data.model_fields_set:
+            settings.notification_url = settings_data.notification_url or ""
         settings.notifications_enabled = settings_data.notifications_enabled
         settings.notify_online_global = settings_data.notify_online_global
         settings.notify_offline_global = settings_data.notify_offline_global
@@ -230,8 +231,10 @@ class SettingsService:
         settings.twitch_max_concurrent_upstreams = (
             settings_data.twitch_max_concurrent_upstreams
         )
-        settings.http_proxy = settings_data.http_proxy or ""
-        settings.https_proxy = settings_data.https_proxy or ""
+        if "http_proxy" in settings_data.model_fields_set:
+            settings.http_proxy = settings_data.http_proxy or ""
+        if "https_proxy" in settings_data.model_fields_set:
+            settings.https_proxy = settings_data.https_proxy or ""
 
         self.db.commit()
         return GlobalSettingsSchema.model_validate(settings)

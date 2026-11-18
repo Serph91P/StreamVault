@@ -15,6 +15,7 @@ vi.mock('@/composables/useWebSocket', async () => {
   const { ref } = await vi.importActual<typeof import('vue')>('vue')
   const manager = {
     connectionStatus: ref('disconnected'),
+    snapshotRevision: ref(0),
     messages: ref([]),
     isBrowserOnline: ref(true),
     reconnectAttempt: ref(0),
@@ -26,7 +27,7 @@ vi.mock('@/composables/useWebSocket', async () => {
   return { WebSocketManager: { getInstance: () => manager } }
 })
 vi.mock('@/services/api', () => ({ backgroundQueueApi: api }))
-vi.mock('@/composables/useSystemAndRecordingStatus', () => ({ useSystemAndRecordingStatus: () => ({ activeRecordings: ref([]) }) }))
+vi.mock('@/composables/useSystemAndRecordingStatus', () => ({ useSystemAndRecordingStatus: () => ({ activeRecordings: ref([]), snapshotsStale: ref(false) }) }))
 vi.mock('@/composables/useModal', () => ({ useModal: () => {
   const isOpen = ref(false)
   return { isOpen, open: () => { isOpen.value = true }, close: () => { isOpen.value = false } }
@@ -64,6 +65,16 @@ afterEach(() => {
 })
 
 describe('production BackgroundQueueMonitor + composable + both Pinia stores', () => {
+  it('offers retry instead of authoritative queue rows when a connected snapshot is unavailable', async () => {
+    manager.connectionStatus.value = 'connected'
+    api.getStats.mockRejectedValue(new Error('Synthetic refresh failure'))
+    await openPanel(createPinia())
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('Background queue updates are unavailable.')
+    expect(document.body.querySelector('[role="alert"] button')?.textContent).toBe('Retry')
+    expect(document.body.querySelector('.stats-section')).toBeNull()
+    expect(wrappers.at(-1)!.get('.queue-status-indicator').attributes('aria-label')).toContain('status unavailable')
+  })
+
   it('CONTROL: connected-at-mount renders statistics with the real Pinia-unwrapped string', async () => {
     const pinia = createPinia()
     manager.connectionStatus.value = 'connected'
