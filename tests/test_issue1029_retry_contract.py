@@ -21,7 +21,7 @@ from aiohttp import web
 import httpx
 import pytest
 from sqlalchemy import event
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.requests import HTTPConnection
 
 from app import dependencies
@@ -763,6 +763,7 @@ async def test_offline_emitted_before_local_recording_start_stops_owned_child(
         "raise",
         "false",
         "db-commit",
+        "db-constraint",
         "db-replacement",
         "cancel",
         "timeout",
@@ -802,6 +803,7 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
     native_terminate = manager.process_manager.terminate_process
     release_termination = asyncio.Event()
     catalog_fault = False
+    stop_constraint_failures = 0
     actual_factory = ctx.database.sync_session_factory
 
     def open_catalog_session():
@@ -882,16 +884,22 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
         return await native_terminate(process_id, recording_id=recording_id)
 
     def fail_stop_commit(session):
+        nonlocal stop_constraint_failures
         if catalog_fault and fault.endswith("-commit"):
             raise SQLAlchemyError("synthetic catalog first commit failure")
         if (
             armed
-            and fault in {"db-commit", "db-replacement"}
+            and fault in {"db-commit", "db-constraint", "db-replacement"}
             and any(
                 isinstance(row, Recording) and row.status == "stopped"
                 for row in session.dirty
             )
         ):
+            if fault == "db-constraint":
+                stop_constraint_failures += 1
+                raise IntegrityError(
+                    None, None, ValueError("synthetic stop constraint")
+                )
             raise SQLAlchemyError("synthetic stop status commit failure")
 
     async def monitor(recording_id):
@@ -1039,7 +1047,10 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
             assert (await ctx.client.post("/eventsub", **request)).status_code == (
                 204 if fault == "dead" else 500
             )
-        if fault not in {"db-commit", "db-replacement", "dead", "stop-commit-cancel"}:
+        if fault == "db-constraint":
+            assert stop_constraint_failures == 1
+            assert children[0].returncode is not None
+        elif fault not in {"db-commit", "db-replacement", "dead", "stop-commit-cancel"}:
             assert children[0].returncode is None
         if fault not in {"dead", "stop-commit-cancel"}:
             with ctx.database.sync_session_factory() as session:
