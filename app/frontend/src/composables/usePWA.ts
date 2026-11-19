@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import router from '@/router'
 import { normalizeNotificationTargetUrl } from '@/types/events'
+import { applyPWAUpdate, pwaUpdateAvailable } from '@/services/pwa-update'
 
 interface PWAInstallPrompt extends Event {
   prompt(): Promise<void>
@@ -30,8 +31,7 @@ export function usePWA() {
   const pushState = ref<PushState>('unsubscribed')
   const pushError = ref<string | null>(null)
   const installError = ref<string | null>(null)
-  const updateAvailable = ref(false)
-  let applyServiceWorkerUpdate: (() => Promise<void>) | null = null
+  const updateAvailable = pwaUpdateAvailable
   const existingSubscription = ref<PushSubscription | null>(null)
 
   const subscriptionUsesApplicationServerKey = (
@@ -430,17 +430,8 @@ export function usePWA() {
     installPrompt.value = null
   }
 
-  const handleUpdateAvailable = (event: Event) => {
-    applyServiceWorkerUpdate = (event as CustomEvent<{ update: () => Promise<void> }>).detail.update
-    updateAvailable.value = true
-  }
-
   const applyUpdate = async () => {
-    if (!applyServiceWorkerUpdate) return
-    const update = applyServiceWorkerUpdate
-    applyServiceWorkerUpdate = null
-    updateAvailable.value = false
-    await update()
+    await applyPWAUpdate()
   }
 
   const handleServiceWorkerMessage = (event: MessageEvent) => {
@@ -471,7 +462,7 @@ export function usePWA() {
     window.addEventListener('offline', handleOffline)
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
     window.addEventListener('appinstalled', handleAppInstalled)
-    window.addEventListener('pwa-needs-refresh', handleUpdateAvailable)
+
 
     if (typeof window.matchMedia === 'function') {
       displayModeQuery = window.matchMedia('(display-mode: standalone)')
@@ -496,9 +487,7 @@ export function usePWA() {
     window.removeEventListener('offline', handleOffline)
     window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
     window.removeEventListener('appinstalled', handleAppInstalled)
-    window.removeEventListener('pwa-needs-refresh', handleUpdateAvailable)
-    applyServiceWorkerUpdate = null
-    updateAvailable.value = false
+
 
     if (displayModeQuery) {
       if (typeof displayModeQuery.removeEventListener === 'function') {
