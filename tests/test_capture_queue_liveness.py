@@ -58,7 +58,20 @@ async def capture_queue(monkeypatch):
         assert_stop_authorized=authorized
     )
     manager = RecordingManager.__new__(RecordingManager)
+
+    async def has_capture_owner(recording_id):
+        return False
+
+    async def get_recording_by_id(recording_id):
+        return None
+
     manager._service = SimpleNamespace(
+        orchestrator=SimpleNamespace(
+            database_service=SimpleNamespace(
+                has_capture_owner=has_capture_owner,
+                get_recording_by_id=get_recording_by_id,
+            )
+        ),
         process_manager=process_manager,
         get_active_recording=lambda recording_id: (
             {

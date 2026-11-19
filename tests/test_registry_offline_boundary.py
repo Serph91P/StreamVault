@@ -89,6 +89,7 @@ async def test_offline_event_uses_own_closed_workers_before_notifications_and_st
                     len([item for item in notifications if item[0] == self.owner]) == 1
                 )
                 stopped.append((self.owner, recording_id, reason))
+                return True
 
         registries.append(
             module.EventHandlerRegistry(
@@ -222,9 +223,10 @@ async def test_offline_worker_failure_rolls_back_without_notify_or_stop(
         notification_service=SimpleNamespace(send_stream_notification=unexpected),
     )
     try:
-        await registry.handle_stream_offline(
-            {"broadcaster_user_id": "first", "broadcaster_user_login": "channel"}
-        )
+        with pytest.raises(SQLAlchemyError, match="injected update failure"):
+            await registry.handle_stream_offline(
+                {"broadcaster_user_id": "first", "broadcaster_user_login": "channel"}
+            )
         assert effects == []
         assert database.sync_engine.pool.checkedout() == 0
         with database.sync_session_factory() as session:
@@ -324,6 +326,7 @@ async def test_offline_recording_lookup_remains_fresh_after_notification(
     async def stop(recording_id, **kwargs):
         assert database.sync_engine.pool.checkedout() == 0
         stopped.append(recording_id)
+        return True
 
     registry = module.EventHandlerRegistry(
         ConnectionManager(),

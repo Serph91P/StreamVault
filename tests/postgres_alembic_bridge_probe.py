@@ -79,6 +79,8 @@ def _run_single() -> None:
 
 def _restore_actual_pre_alembic_fixture(connection):
     # Historical applications did not have these known candidate tables.
+    connection.execute(text("DROP INDEX ix_stream_events_delivery_key"))
+    connection.execute(text("ALTER TABLE stream_events DROP COLUMN delivery_key"))
     for table in (
         "background_task_dependencies",
         "background_tasks",
