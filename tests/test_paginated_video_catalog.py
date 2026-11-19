@@ -117,7 +117,7 @@ def test_sql_catalog_page_is_bounded_stable_and_uses_global_totals(
 
 @pytest.mark.asyncio
 async def test_background_backfill_completes_and_drains_on_cancel(
-    catalog_sessions, monkeypatch, tmp_path
+    catalog_sessions, tmp_path
 ):
     from app.models import VideoCatalogEntry
 
@@ -129,30 +129,51 @@ async def test_background_backfill_completes_and_drains_on_cancel(
         channel = Streamer(username="backfill", twitch_id="backfill")
         db.add(channel)
         db.flush()
-        stream = Stream(
-            streamer_id=channel.id, title="backfill", recording_path=str(media)
-        )
-        db.add(stream)
+        # One more than fits in a production reconciliation batch.
+        streams = [
+            Stream(streamer_id=channel.id, title="backfill", recording_path=str(media))
+            for _ in range(201)
+        ]
+        db.add_all(streams)
+        db.flush()
+        stream_ids = {stream.id for stream in streams}
         db.commit()
-        stream_id = stream.id
     lifecycle = importlib.import_module("app.lifespan")
 
     assert hasattr(lifecycle, "_run_catalog_reconciliation"), (
         "backfill must run outside request handlers"
     )
+    loop = asyncio.get_running_loop()
+    second_commit = loop.create_future()
+    commits = 0
+
+    def observe_commit(_session):
+        nonlocal commits
+        commits += 1
+        if commits == 2:
+            loop.call_soon_threadsafe(second_commit.set_result, None)
+
+    # The first commit can become visible before the worker resumes from the thread.
+    event.listen(sessions, "after_commit", observe_commit)
     task = asyncio.create_task(lifecycle._run_catalog_reconciliation(sessions))
     try:
-        async with asyncio.timeout(5):
-            while True:
-                with sessions() as db:
-                    entry = db.get(VideoCatalogEntry, stream_id)
-                    if entry is not None and entry.state == "available":
-                        break
-                await asyncio.sleep(0.01)
+        done, _ = await asyncio.wait(
+            (second_commit, task), timeout=5, return_when=asyncio.FIRST_COMPLETED
+        )
+        assert second_commit in done, "backfill did not commit a second batch"
+        assert not task.done(), "backfill stopped before cancellation was requested"
     finally:
-        task.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await task
+        try:
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        finally:
+            event.remove(sessions, "after_commit", observe_commit)
+
+    with sessions() as db:
+        entries = db.query(VideoCatalogEntry).all()
+        assert {entry.stream_id for entry in entries} == stream_ids
+        assert all(entry.state == "available" for entry in entries)
 
 
 def test_catalog_source_changes_invalidate_snapshot_in_same_transaction(
