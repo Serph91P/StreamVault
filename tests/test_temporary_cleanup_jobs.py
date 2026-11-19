@@ -1,5 +1,6 @@
 """Admin cleanup respects ownership recorded only in the durable queue."""
 
+import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
@@ -8,15 +9,23 @@ from threading import Event
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event
+from sqlalchemy import event, select
 
+from app.models import Recording, Stream, Streamer
 from app.models.background_task import BackgroundTask
+from app.services.background_queue_service import BackgroundQueueService
+from app.services.communication.websocket_manager import ConnectionManager
+from app.services.processing.post_processing_task_handlers import (
+    PostProcessingTaskHandlers,
+)
 from app.services.queues.durable_task_store import DurableTaskStore
 from app.services.queues.task_progress_tracker import (
     QueueTask,
     TaskPriority,
     TaskStatus,
 )
+from app.services.recording.recording_database_service import RecordingDatabaseService
+from app.services.recording.recording_lifecycle_manager import RecordingLifecycleManager
 from tests.test_temporary_cleanup_ownership import (
     admin_stack as admin_stack,
     credential_headers,
@@ -130,6 +139,7 @@ def test_cleanup_rechecks_durable_media_state_after_preview(admin_stack, state):
     ("task_type", "path_fields"),
     [
         ("metadata_generation", {"mp4_path": "artifact.tmp", "output_dir": "output"}),
+        ("metadata_generation", {"video_path": "artifact.tmp", "output_dir": "output"}),
         ("chapters_generation", {"mp4_path": "artifact.tmp"}),
         ("mp4_remux", {"ts_file_path": "input.ts", "mp4_output_path": "artifact.tmp"}),
         ("mp4_validation", {"ts_file_path": "input.ts", "mp4_path": "artifact.tmp"}),
@@ -177,7 +187,15 @@ def test_preview_uses_registered_media_path_contracts(
 
 
 @pytest.mark.parametrize("admin_stack", [SQLITE], indirect=True)
-@pytest.mark.parametrize("failure", ["invalid_reference", "unavailable_queue"])
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "invalid_reference",
+        "missing_metadata_directory",
+        "invalid_metadata_video",
+        "unavailable_queue",
+    ],
+)
 def test_confirmation_fails_closed_when_job_ownership_is_uncertain(
     admin_stack, failure
 ):
@@ -200,8 +218,13 @@ def test_confirmation_fails_closed_when_job_ownership_is_uncertain(
                     "segment_files": [None],
                 },
             )
-        else:
+        elif failure == "unavailable_queue":
             BackgroundTask.__table__.drop(sessions.kw["bind"])
+        else:
+            payload = {"stream_id": 1, "base_filename": "media"}
+            if failure == "invalid_metadata_video":
+                payload.update(output_dir=str(root / "output"), video_path="bad\0path")
+            enqueue(DurableTaskStore(sessions), "metadata_generation", payload)
         response = confirm(client, headers, original)
         if failure == "unavailable_queue":
             assert response.status_code == 500
@@ -210,6 +233,98 @@ def test_confirmation_fails_closed_when_job_ownership_is_uncertain(
             assert response.json()["files_removed"] == 0
             assert response.json()["errors"]
         assert source.is_file()
+
+
+@pytest.mark.parametrize("admin_stack", [SQLITE], indirect=True)
+def test_lifecycle_metadata_does_not_block_unrelated_temp_cleanup(admin_stack):
+    app, _, sessions, sentinel, _ = admin_stack
+    root = sentinel.parent
+    recording = expired(root / "active" / "capture.ts")
+    sidecar = expired(recording.parent / "sidecar.tmp")
+    control = expired(root / "unused.tmp")
+    with sessions() as db:
+        db.add(Streamer(id=1, username="synthetic", twitch_id="synthetic"))
+        db.flush()
+        db.add(Stream(id=1, streamer_id=1, title="synthetic"))
+        db.flush()
+        db.add(
+            Recording(
+                id=1,
+                stream_id=1,
+                path=str(recording),
+                status="completed",
+                start_time=datetime.now(timezone.utc),
+            )
+        )
+        db.commit()
+
+    queue = BackgroundQueueService.for_application(
+        ConnectionManager(), session_factory=sessions
+    )
+    handlers = PostProcessingTaskHandlers(session_factory=sessions)
+    queue.register_task_handler(
+        "metadata_generation", handlers.handle_metadata_generation
+    )
+    queue.register_task_handler("mp4_remux", handlers.handle_mp4_remux)
+    queue.register_task_handler(
+        "thumbnail_generation", handlers.handle_thumbnail_generation
+    )
+    queue.register_task_handler("cleanup", handlers.handle_cleanup)
+    lifecycle = RecordingLifecycleManager(
+        database_service=RecordingDatabaseService(session_factory=sessions),
+        queue_service=queue,
+    )
+    headers = credential_headers(admin_stack, "jwt", "admin")
+    with closing(TestClient(app)) as client:
+        original = preview(client, headers)
+        assert [item["path"] for item in original] == [control.name]
+        asyncio.run(lifecycle._trigger_post_processing(1))
+        with sessions() as db:
+            metadata = db.scalars(
+                select(BackgroundTask).where(
+                    BackgroundTask.task_type == "metadata_generation"
+                )
+            ).one()
+            assert metadata.status == "pending"
+            assert metadata.payload["output_dir"] == str(recording.parent)
+            assert metadata.payload["video_path"] == str(recording.with_suffix(".mp4"))
+
+        fresh = preview(client, headers)
+        response = confirm(client, headers, original)
+        assert response.status_code == 200
+        assert ([item["path"] for item in fresh], response.json()["files_removed"]) == (
+            [control.name],
+            1,
+        )
+        assert response.json()["errors"] == []
+        assert not control.exists()
+        assert recording.is_file() and sidecar.is_file()
+
+
+@pytest.mark.parametrize("admin_stack", [SQLITE], indirect=True)
+def test_job_protected_entries_do_not_count_toward_preview_limit(admin_stack):
+    app, _, sessions, sentinel, _ = admin_stack
+    root = sentinel.parent
+    protected = [expired(root / f"first-{idx:03}.tmp") for idx in range(100)]
+    unused = [expired(root / f"last-{idx:03}.tmp") for idx in range(101)]
+    store = DurableTaskStore(sessions)
+    for idx, source in enumerate(protected):
+        enqueue(store, "mp4_remux", remux_payload(root, source), task_id=f"media-{idx}")
+
+    headers = credential_headers(admin_stack, "jwt", "admin")
+    with closing(TestClient(app)) as client:
+        candidates = preview(client, headers)
+        assert [item["path"] for item in candidates] == [
+            path.name for path in unused[:100]
+        ]
+        assert confirm(client, headers, [*candidates, candidates[0]]).status_code == 422
+        assert all(path.is_file() for path in unused)
+        response = confirm(client, headers, candidates)
+        assert response.status_code == 200
+        assert response.json()["files_removed"] == 100
+        assert [item["path"] for item in preview(client, headers)] == [unused[-1].name]
+    assert all(path.is_file() for path in protected)
+    assert not any(path.exists() for path in unused[:100])
 
 
 @pytest.mark.parametrize(

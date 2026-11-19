@@ -3,6 +3,7 @@
 import os
 import stat
 import time
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
@@ -26,7 +27,7 @@ MIN_AGE_SECONDS = 24 * 3600
 # File and directory references in the handlers registered by background_queue_init.
 # A TS path can be absent from the metadata-only chain.
 MEDIA_JOB_PATHS = {
-    "metadata_generation": ("mp4_path", "output_dir"),
+    "metadata_generation": ("output_dir",),
     "chapters_generation": ("mp4_path",),
     "mp4_remux": ("ts_file_path", "mp4_output_path"),
     "mp4_validation": ("ts_file_path", "mp4_path"),
@@ -83,8 +84,7 @@ def _snapshot(root: Path, path: Path) -> TemporaryFileCandidate | None:
     )
 
 
-def _discover(root: Path) -> list[TemporaryFileCandidate]:
-    candidates = []
+def _discover(root: Path) -> Iterator[TemporaryFileCandidate]:
     # Never classify TS/part/codec intermediates as disposable by extension.
     for pattern in ("**/*.tmp", "**/streamlink_*.log.*", "**/ffmpeg_*.log.*"):
         for path in sorted(root.glob(pattern)):
@@ -95,10 +95,7 @@ def _discover(root: Path) -> list[TemporaryFileCandidate]:
             except OSError:
                 continue
             if candidate is not None:
-                candidates.append(candidate)
-            if len(candidates) == MAX_CANDIDATES:
-                return candidates
-    return candidates
+                yield candidate
 
 
 def _protected_directories(db: Session, root: Path) -> set[Path] | None:
@@ -173,7 +170,14 @@ def _job_artifacts(db: Session) -> set[Path] | None:
         if not isinstance(payload, dict):
             return None
         paths = [payload.get(field) for field in MEDIA_JOB_PATHS[kind]]
-        if kind == "segment_concatenation":
+        if kind == "metadata_generation":
+            # The task factory and recording lifecycle name the video differently.
+            paths.extend(
+                payload[field]
+                for field in ("mp4_path", "video_path")
+                if field in payload
+            )
+        elif kind == "segment_concatenation":
             segments = payload.get("segment_files")
             if not isinstance(segments, list) or not segments:
                 return None
@@ -198,7 +202,7 @@ def _job_artifacts(db: Session) -> set[Path] | None:
 
 
 def _inspect(
-    db: Session, root: Path, candidates: list[TemporaryFileCandidate], dry_run: bool
+    db: Session, root: Path, candidates: Iterable[TemporaryFileCandidate], dry_run: bool
 ) -> dict[str, object]:
     protected = _protected_directories(db, root)
     job_artifacts = _job_artifacts(db) if protected is not None else None
@@ -267,6 +271,9 @@ def _inspect(
                 os.close(parent)
         except (OSError, ValueError):
             errors.append("Temporary candidate could not be safely removed")
+        # Protected or stale files must not use up slots in the preview.
+        if dry_run and len(eligible) == MAX_CANDIDATES:
+            break
     return {
         "files_removed": removed,
         "space_freed_mb": round(freed / (1024 * 1024), 2),
