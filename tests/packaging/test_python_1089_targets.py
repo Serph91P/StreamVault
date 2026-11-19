@@ -10,7 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_AND_TOOL_TARGETS = {
     "pytest-cov": "7.1.0",
-    "fastapi": "0.162.5",
+    "fastapi": "0.163.1",
     "psycopg": "3.3.9",
     "psycopg-binary": "3.3.9",
     "pydantic-settings": "2.16.3",
@@ -22,7 +22,7 @@ RUNTIME_AND_TOOL_TARGETS = {
     "cachetools": "8.0.0",
     "mypy": "2.4.1",
     "multidict": "7.2.1",
-    "pycryptodome": "4.4.0",
+    "pycryptodome": "4.5.0",
 }
 BUILD_TARGETS = {"setuptools": "84.2.1", "setuptools-scm": "10.3.4"}
 
