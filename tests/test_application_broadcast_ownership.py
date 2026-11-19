@@ -15,6 +15,11 @@ from starlette.websockets import WebSocket
 from app.database import Base, DatabaseLifecycle
 from app.main import create_app
 from app.models import Recording, Stream, Streamer
+from app.services.queues.task_progress_tracker import (
+    QueueTask,
+    TaskPriority,
+    TaskStatus,
+)
 
 
 @pytest.mark.asyncio
@@ -120,6 +125,22 @@ async def test_factory_broadcaster_uses_owned_db_queue_and_closed_session_snapsh
                 assert message["type"] == "active_recordings_update"
                 assert [row["streamer_name"] for row in message["data"]] == [label]
                 assert [row["file_path"] for row in message["data"]] == [f"/{label}.ts"]
+
+                # Seed the owned queue snapshot without waiting for a worker or timer.
+                tracker = (
+                    app.state.background_queue_service.queue_manager.progress_tracker
+                )
+                completed_id = f"completed-{label}"
+                tracker.completed_tasks[completed_id] = QueueTask(
+                    id=completed_id,
+                    task_type="scope.probe",
+                    priority=TaskPriority.NORMAL,
+                    payload={"streamer_name": label},
+                    status=TaskStatus.COMPLETED,
+                    created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                    completed_at=datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc),
+                    progress=100.0,
+                )
                 await producer._broadcast_background_queue_status()
                 message = json.loads(
                     (await asyncio.wait_for(outgoing.get(), 3))["text"]
@@ -127,6 +148,18 @@ async def test_factory_broadcaster_uses_owned_db_queue_and_closed_session_snapsh
                 assert message["type"] == "background_queue_update"
                 assert [task["id"] for task in message["data"]["active_tasks"]] == [
                     task_id
+                ]
+                assert message["data"]["recent_tasks"] == [
+                    {
+                        "id": completed_id,
+                        "task_type": "scope.probe",
+                        "status": "completed",
+                        "progress": 100.0,
+                        "created_at": "2026-01-01T00:00:00+00:00",
+                        "completed_at": "2026-01-01T00:01:00+00:00",
+                        "streamer_name": label,
+                        "error_message": None,
+                    }
                 ]
         assert sql_threads and all(thread != loop_thread for thread in sql_threads)
         assert observed_snapshot_sessions and not active_sessions
