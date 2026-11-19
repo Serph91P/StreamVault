@@ -2,7 +2,26 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import type { RuntimeCaching } from 'workbox-build'
 import { compactProductionChunks } from './scripts/compact-production-chunks'
+
+// Auth stays outside precache and SPA fallback. Only this public document route
+// bypasses legacy HTTP-cache entries; JSON, other auth paths and methods do not.
+export const publicLoginNavigation: RuntimeCaching = {
+  urlPattern: ({ url, sameOrigin, request }) => sameOrigin
+    && request.mode === 'navigate' && url.pathname === '/auth/login'
+    && !request.headers.get('accept')?.includes('application/json')
+    && request.headers.get('X-Requested-With') !== 'XMLHttpRequest',
+  method: 'GET',
+  handler: 'NetworkOnly',
+  options: {
+    plugins: [{
+      // Workbox 7 ignores fetchOptions for navigation requests. Its supported
+      // request hook preserves the original request while bypassing HTTP cache.
+      requestWillFetch: async ({ request }) => new Request(request, { cache: 'no-store' }),
+    }],
+  },
+}
 
 function retryableSettingsPanelHost(): Plugin {
   const publicPath = '/assets/settings-panel-host-loader.js'
@@ -76,7 +95,7 @@ export default defineConfig({
     compactProductionChunks(),
     retryableSettingsPanelHost(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       // Workbox globs already enumerate these public static assets. Keep the
       // manifest metadata, but do not register a second copy in precache.
       includeAssets: [],
@@ -96,6 +115,7 @@ export default defineConfig({
         // Prevent service worker from intercepting API, auth, and WebSocket paths
         navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/ws/, /^\/eventsub/, /^\/health/],
         runtimeCaching: [
+          publicLoginNavigation,
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -148,7 +168,9 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // The app targets modern browsers; use Workbox Window's modern build instead of its ES5 entry.
+      'workbox-window': 'workbox-window/build/workbox-window.prod.mjs'
     },
   },
   build: {
