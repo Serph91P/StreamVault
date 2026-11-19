@@ -95,6 +95,9 @@ class StreamEvent(Base):
         Integer, ForeignKey("streams.id", ondelete="CASCADE"), index=True
     )
     event_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    delivery_key: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, unique=True, index=True
+    )
     title: Mapped[str | None] = mapped_column(String, nullable=True)
     category_name: Mapped[str | None] = mapped_column(String, nullable=True)
     language: Mapped[str | None] = mapped_column(String, nullable=True)
