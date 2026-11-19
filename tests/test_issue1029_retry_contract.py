@@ -785,7 +785,7 @@ async def test_offline_emitted_before_local_recording_start_stops_owned_child(
     ],
 )
 async def test_real_manager_offline_retry_stops_child_after_termination_failure(
-    ctx, monkeypatch, fault
+    ctx, monkeypatch, caplog, fault
 ):
     import asyncio
     from app.utils.async_db_utils import run_in_thread_pool
@@ -1050,6 +1050,14 @@ async def test_real_manager_offline_retry_stops_child_after_termination_failure(
         if fault == "db-constraint":
             assert stop_constraint_failures == 1
             assert children[0].returncode is not None
+            # Both a handler failure and the webhook deadline return HTTP 500.
+            assert any(
+                record.pathname == eventsub.__file__
+                and record.exc_info is not None
+                and isinstance(record.exc_info[1], RuntimeError)
+                and record.exc_info[1].args == ("Recording stop was not completed",)
+                for record in caplog.records
+            ), "Expected stop failure, not a webhook timeout"
         elif fault not in {"db-commit", "db-replacement", "dead", "stop-commit-cancel"}:
             assert children[0].returncode is None
         if fault not in {"dead", "stop-commit-cancel"}:
