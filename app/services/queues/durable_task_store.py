@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import psutil
 from sqlalchemy import select, func
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import Session, aliased
 
 from app.models.background_task import (
     BackgroundTask as StoredTask,
@@ -106,14 +106,18 @@ class DurableTaskStore:
         )
 
     @staticmethod
-    def _lock_queue(db):
-        # Admission, claims and retention must observe one dependency/status boundary.
-        if db.get_bind().dialect.name == "sqlite":
-            db.connection().exec_driver_sql("BEGIN IMMEDIATE")
-        elif db.get_bind().dialect.name == "postgresql":
+    def lock_queue(db: Session, *, sqlite_write_locked: bool = False) -> None:
+        """Fence admission (including terminal-task revival) until transaction end."""
+        dialect = db.get_bind().dialect.name
+        if dialect == "sqlite":
+            if not sqlite_write_locked:
+                db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        elif dialect == "postgresql":
             db.connection().exec_driver_sql(
                 "SELECT pg_advisory_xact_lock(6005076117384319317)"
             )
+        else:
+            raise RuntimeError("Unsupported database for durable queue locking")
 
     def accept(self, entries, recording_id=None):
         """One transaction accepts an entire dependency chain before acknowledging it."""
@@ -126,7 +130,7 @@ class DurableTaskStore:
         required = set().union(*(set(deps) for _, deps, _ in entries)) - ids
         with self.sessions() as db:
             state = None
-            self._lock_queue(db)
+            self.lock_queue(db)
             if recording_id is not None:
                 from app.models import RecordingProcessingState
 
@@ -261,7 +265,7 @@ class DurableTaskStore:
         claimed = []
         busy = set(busy_streamers)
         with self.sessions() as db:
-            self._lock_queue(db)
+            self.lock_queue(db)
             if global_capacity is not None:
                 running = db.scalar(
                     select(func.count())
@@ -429,7 +433,7 @@ class DurableTaskStore:
             .exists()
         )
         with self.sessions() as db:
-            self._lock_queue(db)
+            self.lock_queue(db)
             ids = list(
                 db.scalars(
                     select(StoredTask.id)

@@ -333,8 +333,12 @@ async def test_deferred_journal_work_is_counted_without_materializing_active_tas
 ):
     apps, databases, clients, _ = image_applications
     queue = apps[0].state.background_queue_service
+    started = asyncio.Event()
+    allow_retry = asyncio.Event()
 
     async def retry_later(_payload, _progress):
+        started.set()
+        await allow_retry.wait()
         raise RuntimeError("synthetic retryable work failure")
 
     queue.register_task_handler("scope.deferred", retry_later)
@@ -342,7 +346,12 @@ async def test_deferred_journal_work_is_counted_without_materializing_active_tas
         await queue.start()
         task_id = await queue.enqueue_task("scope.deferred", {"streamer_name": "scope"})
 
-        async def deferred_snapshot():
+        async def active_then_deferred_snapshot():
+            await started.wait()
+            active = await clients[0].get("/api/status/background-queue")
+            assert active.status_code == 200
+            assert [task["id"] for task in active.json()["active_tasks"]] == [task_id]
+            allow_retry.set()
             while True:
                 response = await clients[0].get("/api/status/background-queue")
                 assert response.status_code == 200
@@ -351,7 +360,7 @@ async def test_deferred_journal_work_is_counted_without_materializing_active_tas
                     return response
                 await asyncio.sleep(0)
 
-        owner = await asyncio.wait_for(deferred_snapshot(), 3)
+        owner = await asyncio.wait_for(active_then_deferred_snapshot(), 3)
         peer = await clients[1].get("/api/status/background-queue")
         assert owner.status_code == peer.status_code == 200
         assert owner.json()["active_tasks"] == []
@@ -367,5 +376,6 @@ async def test_deferred_journal_work_is_counted_without_materializing_active_tas
         assert await run_in_thread_pool(persisted)
         assert not queue.get_active_tasks()
     finally:
+        allow_retry.set()
         await queue.stop()
         await queue.queue_manager.progress_tracker.cleanup_background_tasks()
