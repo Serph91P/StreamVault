@@ -27,10 +27,11 @@ async def test_startup_drains_both_pipes_before_monitor_handoff(tmp_path):
     manager._remember_streamlink_output_secrets(process, [])
     try:
         for _ in range(200):
-            if marker.exists():
+            if marker.exists() and marker.read_bytes() == b"media-complete":
                 break
             await asyncio.sleep(0.01)
         assert marker.exists(), "startup blocked behind undrained child pipes"
+        assert marker.read_bytes() == b"media-complete"
         process.terminate()
         stdout, stderr = await manager._collect_streamlink_output(process)
         assert len(stdout) <= 65536

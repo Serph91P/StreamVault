@@ -141,6 +141,29 @@ def test_feature_model_metadata_preserves_pre_extraction_sqlite_and_postgres_abi
         (Path(__file__).parent / "fixtures" / "accepted-develop-1045.json").read_text()
     )["models"]
     current = snapshot_model_schema()
+    # #1029's additive nullable identity is verified on migrated SQLite and PG18 too.
+    baseline["StreamEvent"]["columns"].insert(
+        3,
+        {
+            "name": "delivery_key",
+            "attribute": "delivery_key",
+            "nullable": True,
+            "autoincrement": "auto",
+            "default": None,
+            "onupdate": None,
+        },
+    )
+    for ddl in baseline["StreamEvent"]["ddl"].values():
+        ddl["table"] = ddl["table"].replace(
+            "\tevent_type VARCHAR NOT NULL,",
+            "\tevent_type VARCHAR NOT NULL, \n\tdelivery_key VARCHAR(64),",
+        )
+        ddl["indexes"] = sorted(
+            [
+                *ddl["indexes"],
+                "CREATE UNIQUE INDEX ix_stream_events_delivery_key ON stream_events (delivery_key)",
+            ]
+        )
     for name, definition in additions.items():
         assert current.pop(name) == definition
     assert current == baseline
