@@ -49,9 +49,12 @@ async def test_update_query_failure_leaves_both_catalogues_unchanged(
             )
     event.listen(first.sync_engine, "before_cursor_execute", unavailable)
     try:
-        await registry.handle_stream_update(
-            {"broadcaster_user_id": "fixture", "title": "must not publish"}
-        )
+        with pytest.raises(
+            (RuntimeError, OperationalError), match="synthetic query fault"
+        ):
+            await registry.handle_stream_update(
+                {"broadcaster_user_id": "fixture", "title": "must not publish"}
+            )
     finally:
         event.remove(first.sync_engine, "before_cursor_execute", unavailable)
         await client.close()

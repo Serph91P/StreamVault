@@ -12,7 +12,14 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import SessionLocal
-from app.models import Recording, Stream, Streamer, StreamEvent
+from app.models import (
+    ActiveRecordingState,
+    Recording,
+    Stream,
+    Streamer,
+    StreamEvent,
+    TwitchUpstreamLease,
+)
 from app.services.recording.recording_values import (
     RecordingStream,
     RecordingValue,
@@ -88,14 +95,33 @@ class RecordingDatabaseService:
 
         await self._run(work)
 
-    async def create_recording(self, stream_id: int, file_path: str) -> RecordingValue:
+    async def create_recording(
+        self, stream_id: int, file_path: str, *, resume_recording_id: int | None = None
+    ) -> RecordingValue:
         def work(session: Session) -> RecordingValue:
-            row = Recording(
-                stream_id=stream_id,
-                path=file_path,
-                status="recording",
-                start_time=datetime.utcnow(),
+            row = (
+                session.get(Recording, resume_recording_id)
+                if resume_recording_id is not None
+                else None
             )
+            if resume_recording_id is not None and (
+                row is None
+                or row.stream_id != stream_id
+                or not (
+                    row.status == "recording"
+                    or (
+                        row.status == "failed"
+                        and row.error_message == "Failed to start recording process"
+                    )
+                )
+            ):
+                raise NonRetryableError("Recording is not an unstarted retry target")
+            if row is None:
+                row = Recording(stream_id=stream_id, start_time=datetime.utcnow())
+            row.path = file_path
+            row.status = "recording"
+            row.end_time = None
+            row.error_message = None
             session.add(row)
             session.flush()
             session.refresh(row)
@@ -116,6 +142,30 @@ class RecordingDatabaseService:
 
     async def get_recording_by_id(self, recording_id: int) -> RecordingValue | None:
         return await self.get_recording(recording_id)
+
+    async def has_capture_owner(self, recording_id: int) -> bool:
+        """Unknown durable owners remain recovery-owned, never inferred stopped."""
+
+        def work(session: Session) -> bool:
+            return (
+                session.scalar(
+                    select(ActiveRecordingState.id)
+                    .where(ActiveRecordingState.recording_id == recording_id)
+                    .limit(1)
+                )
+                is not None
+                or session.scalar(
+                    select(TwitchUpstreamLease.id)
+                    .where(
+                        TwitchUpstreamLease.recording_id == recording_id,
+                        TwitchUpstreamLease.state != "RELEASED",
+                    )
+                    .limit(1)
+                )
+                is not None
+            )
+
+        return await self._run(work)
 
     async def get_active_recordings_from_db(self) -> list[RecordingValue]:
         def work(session: Session) -> list[RecordingValue]:

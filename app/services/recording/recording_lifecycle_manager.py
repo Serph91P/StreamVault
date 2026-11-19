@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     )
 
     class RecordingStartOptions(TypedDict, total=False):
+        resume_recording_id: int
         quality: str | None
         resume_segments_dir: str | None
         recovery_generation: int | None
@@ -186,6 +187,17 @@ class RecordingLifecycleManager:
                 ),
                 None,
             )
+            if (
+                existing_recording is not None
+                and existing_recording == kwargs.get("resume_recording_id")
+                and not await self.database_service.has_capture_owner(
+                    existing_recording
+                )
+                and self.process_manager is not None
+                and await self.process_manager.is_capture_running(stream_id) is False
+            ):
+                self.state_manager.remove_active_recording(existing_recording)
+                existing_recording = None
             if existing_recording:
                 # STALE RECORDING RECOVERY: Check if the "active" recording actually has a running process.
                 # If not, it's a ghost recording (e.g., from a DB outage or handler timeout) - clean it up.
@@ -235,13 +247,37 @@ class RecordingLifecycleManager:
                     )
                     return None
 
-            # Generate file path
-            file_path = await self._generate_recording_path(streamer_id, stream_id)
-
-            # Create recording in database
-            recording = await self.database_service.create_recording(
-                stream_id=stream_id, file_path=file_path
-            )
+            resume_recording_id = kwargs.get("resume_recording_id")
+            if resume_recording_id is not None:
+                recording = await self.database_service.get_recording_by_id(
+                    resume_recording_id
+                )
+                if (
+                    recording is None
+                    or recording.stream_id != stream_id
+                    or not (
+                        recording.status == "recording"
+                        or (
+                            recording.status == "failed"
+                            and recording.error_message
+                            == "Failed to start recording process"
+                        )
+                    )
+                    or not recording.path
+                    or await self.database_service.has_capture_owner(
+                        resume_recording_id
+                    )
+                ):
+                    return None
+                file_path = recording.path
+                recording = await self.database_service.create_recording(
+                    stream_id, file_path, resume_recording_id=resume_recording_id
+                )
+            else:
+                file_path = await self._generate_recording_path(streamer_id, stream_id)
+                recording = await self.database_service.create_recording(
+                    stream_id=stream_id, file_path=file_path
+                )
 
             if not recording:
                 logger.error("Failed to create recording in database")
@@ -325,20 +361,53 @@ class RecordingLifecycleManager:
     async def stop_recording(self, recording_id: int, reason: str = "manual") -> bool:
         """Stop an active recording"""
         success = False
+        status_persisted = False
         recording_data = None
         try:
             assert self.state_manager is not None
             recording_data = self.state_manager.get_active_recording(recording_id)
             if not recording_data:
-                logger.warning(
-                    f"Recording {recording_id} not found in active recordings"
+                # After restart, only a positively ownerless capture may finish its DB stop.
+                assert self.database_service is not None
+                recording = await self.database_service.get_recording_by_id(
+                    recording_id
                 )
-                return False
+                if (
+                    recording is None
+                    or recording.status != "recording"
+                    or recording.stream is None
+                    or self.process_manager is None
+                    or await self.database_service.has_capture_owner(recording_id)
+                ):
+                    return False
+                local = (await self.process_manager.capture_process_snapshot()).get(
+                    f"stream_{recording.stream_id}"
+                )
+                if local is not None and not local.exited:
+                    return False
+                self.state_manager.add_active_recording(
+                    recording_id,
+                    {
+                        "stream_id": recording.stream_id,
+                        "streamer_id": recording.stream.streamer_id,
+                        "file_path": recording.path,
+                        "stop_confirmed": True,
+                    },
+                )
+                recording_data = self.state_manager.get_active_recording(recording_id)
+                assert recording_data is not None
 
             logger.info(f"Stopping recording {recording_id}, reason: {reason}")
 
-            # Stop the recording process
-            success = await self._stop_recording_process(recording_id)
+            # A DB retry must not terminate a replacement capture for the same stream.
+            success = bool(recording_data.get("stop_confirmed"))
+            if not success:
+                success = await self._stop_recording_process(recording_id)
+                if success:
+                    recording_data["stop_confirmed"] = True
+            if not success:
+                # Keep the retry target until termination is confirmed.
+                return False
 
             # Log recording stop to dedicated file
             if hasattr(self, "recording_logger") and self.recording_logger is not None:
@@ -383,17 +452,19 @@ class RecordingLifecycleManager:
                 except Exception as log_error:
                     logger.debug(f"Could not log recording stop: {log_error}")
 
-            # Update status regardless of process stop success
+            # A stopped child with an uncommitted status is still retryable.
             try:
                 assert self.database_service is not None
                 await self.database_service.update_recording_status(
                     recording_id=recording_id,
-                    status="stopped" if success else "failed",
+                    status="stopped",
                 )
+                status_persisted = True
             except Exception as db_err:
                 logger.error(
                     f"Failed to update recording {recording_id} status in DB: {db_err}"
                 )
+                return False
 
             # Trigger database event for orphaned recovery
             try:
@@ -426,10 +497,31 @@ class RecordingLifecycleManager:
             logger.error(f"Failed to stop recording {recording_id}: {e}")
             return False
         finally:
-            # CRITICAL: Always remove from active recordings when we had recording_data,
-            # even if the stop process timed out or DB operations failed.
-            # Prevents ghost recordings that permanently block future recordings.
-            if recording_data is not None:
+            confirmation_cancelled = False
+            # Cancellation drains the owned DB worker, which may already have committed.
+            if success and not status_persisted and self.database_service is not None:
+                confirmation = asyncio.create_task(
+                    self.database_service.get_recording_by_id(recording_id)
+                )
+                try:
+                    while not confirmation.done():
+                        try:
+                            await asyncio.shield(confirmation)
+                        except asyncio.CancelledError:
+                            confirmation_cancelled = True
+                    persisted = confirmation.result()
+                    status_persisted = (
+                        persisted is not None and persisted.status == "stopped"
+                    )
+                except Exception as error:
+                    logger.error(
+                        "Could not confirm recording %s stop commit: %s",
+                        recording_id,
+                        error,
+                    )
+            # Unknown/live stops and incomplete status writes must remain retryable.
+            # ProcessManager treats a positively absent/dead child as a successful stop.
+            if recording_data is not None and status_persisted:
                 assert self.state_manager is not None
                 self.state_manager.remove_active_recording(recording_id)
                 self._status_cache.delete("active_recordings")
@@ -448,6 +540,8 @@ class RecordingLifecycleManager:
                         logger.error(
                             f"Failed to trigger post-processing for recording {recording_id}: {pp_err}"
                         )
+            if confirmation_cancelled:
+                raise asyncio.CancelledError
 
     async def force_start_recording(self, streamer_id: int) -> Optional[int]:
         """Force start recording for a live streamer"""
@@ -697,7 +791,9 @@ class RecordingLifecycleManager:
             process_id = f"stream_{recording.stream_id}"
             logger.info(f"🎬 TERMINATING_PROCESS: process_id={process_id}")
 
-            success = await self.process_manager.terminate_process(process_id)
+            success = await self.process_manager.terminate_process(
+                process_id, recording_id=recording_id
+            )
             logger.info(f"🎬 STOP_RESULT: success={success}")
 
             return success

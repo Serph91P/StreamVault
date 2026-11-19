@@ -1822,6 +1822,7 @@ class ProcessManager:
             # before its own fenced handoff fails. Always clean up the currently
             # tracked child in that case; otherwise the rollback child survives
             # after the rotating lease is released.
+            process: asyncio.subprocess.Process | None
             if tracked_process not in (
                 None,
                 captured_process,
@@ -2535,7 +2536,9 @@ class ProcessManager:
                         del self.long_stream_processes[process_id]
                     break
 
-    async def terminate_process(self, process_id: str, timeout: float = 10) -> bool:
+    async def terminate_process(
+        self, process_id: str, timeout: float = 10, *, recording_id: int | None = None
+    ) -> bool:
         """
         Gracefully terminate a process (handles segmented recordings)
 
@@ -2558,6 +2561,15 @@ class ProcessManager:
                     return True
                 process = self.active_processes[process_id]
                 segment_info = self.long_stream_processes.get(process_id)
+                if (
+                    recording_id is not None
+                    and segment_info is not None
+                    and segment_info.get("recording_id") != recording_id
+                ):
+                    logger.warning(
+                        "Refusing stop for replacement recording on %s", process_id
+                    )
+                    return False
             if segment_info and segment_info.get("upstream_channel_key"):
                 if segment_info.get("upstream_activated", True):
                     try:
