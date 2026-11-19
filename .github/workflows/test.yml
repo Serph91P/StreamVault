@@ -280,6 +280,30 @@ jobs:
       - name: Install dependencies
         working-directory: app/frontend
         run: npm ci --prefer-offline
+      - name: Prefer the Ubuntu archive on affected EC2 runners
+        shell: bash
+        run: &playwright-apt-mirror |
+          list=/etc/apt/apt-mirrors.txt
+          ec2='^[[:blank:]]*https?://us-east-2\.ec2\.archive\.ubuntu\.com/ubuntu/?([[:blank:]]|$)'
+          if [[ ! -f "$list" ]]; then
+            echo 'No runner APT mirror list; leaving runner configuration unchanged.'
+            exit 0
+          fi
+          mirrors=$(<"$list")
+          if ! grep -Eq "$ec2" <<< "$mirrors"; then
+            echo 'No affected EC2 APT mirror; leaving runner configuration unchanged.'
+            exit 0
+          fi
+
+          # APT mirror metadata is tab-delimited, and lower priorities win.
+          # Only edit the known runner layout; leave both existing fallbacks intact.
+          expected=$(printf 'http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1\nhttps://archive.ubuntu.com/ubuntu/\tpriority:2\nhttps://security.ubuntu.com/ubuntu/\tpriority:3\n')
+          if [[ $(grep -Ev '^[[:blank:]]*(#|$)' <<< "$mirrors") != "$expected" ]]; then
+            echo 'Unexpected EC2 APT mirror list; refusing to modify it.' >&2
+            exit 1
+          fi
+          sudo sed -i -E "\@$ec2@d" "$list"
+          echo 'Removed the affected EC2 APT entry; https://archive.ubuntu.com/ubuntu/ is now first, with security.ubuntu.com as fallback.'
       - name: Install Playwright browsers
         working-directory: app/frontend
         run: npx playwright install --with-deps
@@ -346,6 +370,9 @@ jobs:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: app/frontend/package-lock.json
+      - name: Prefer the Ubuntu archive on affected EC2 runners
+        shell: bash
+        run: *playwright-apt-mirror
       - name: Install dependencies and Chromium
         working-directory: app/frontend
         run: |
