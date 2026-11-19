@@ -10,6 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models import Recording, Stream, Streamer, TwitchUpstreamLease
+from app.models.background_task import BackgroundTask
+from app.services.queues.durable_task_store import TERMINAL, DurableTaskStore
 from app.services.recording.media_ownership import (
     CaptureState,
     LocalCapture,
@@ -20,6 +22,18 @@ from app.utils.async_db_utils import run_in_thread_pool
 
 MAX_CANDIDATES = 100
 MIN_AGE_SECONDS = 24 * 3600
+
+# File and directory references in the handlers registered by background_queue_init.
+# A TS path can be absent from the metadata-only chain.
+MEDIA_JOB_PATHS = {
+    "metadata_generation": ("mp4_path", "output_dir"),
+    "chapters_generation": ("mp4_path",),
+    "mp4_remux": ("ts_file_path", "mp4_output_path"),
+    "mp4_validation": ("ts_file_path", "mp4_path"),
+    "thumbnail_generation": ("mp4_path",),
+    "segment_concatenation": ("output_path",),
+    "cleanup": (),
+}
 
 
 class TemporaryFileCandidate(BaseModel):
@@ -148,15 +162,55 @@ def _open_parent(root: Path, relative: str) -> tuple[int, str]:
         raise
 
 
+def _job_artifacts(db: Session) -> set[Path] | None:
+    # Dependency-blocked and deferred retries are still nonterminal reservations.
+    jobs = select(BackgroundTask.task_type, BackgroundTask.payload).where(
+        BackgroundTask.task_type.in_(MEDIA_JOB_PATHS),
+        BackgroundTask.status.not_in(TERMINAL),
+    )
+    protected: set[Path] = set()
+    for kind, payload in db.execute(jobs.execution_options(yield_per=100)):
+        if not isinstance(payload, dict):
+            return None
+        paths = [payload.get(field) for field in MEDIA_JOB_PATHS[kind]]
+        if kind == "segment_concatenation":
+            segments = payload.get("segment_files")
+            if not isinstance(segments, list) or not segments:
+                return None
+            paths.extend(segments)
+        elif kind == "cleanup":
+            if "cleanup_paths" in payload:
+                targets = payload["cleanup_paths"]
+            else:
+                targets = payload.get("files_to_remove")
+                paths.append(payload.get("mp4_path"))
+            # Both queued-cleanup payloads accept a string as well as a list.
+            if isinstance(targets, list):
+                paths.extend(targets)
+            elif targets is not None:
+                paths.append(targets)
+        for path in paths:
+            if not isinstance(path, str) or not path or "\0" in path:
+                return None
+            # Allow outputs that do not exist yet, not failed symlink resolution.
+            protected.add(Path(os.path.realpath(path, strict=os.path.ALLOW_MISSING)))
+    return protected
+
+
 def _inspect(
     db: Session, root: Path, candidates: list[TemporaryFileCandidate], dry_run: bool
 ) -> dict[str, object]:
     protected = _protected_directories(db, root)
-    if protected is None:
+    job_artifacts = _job_artifacts(db) if protected is not None else None
+    if protected is None or job_artifacts is None:
         return {
             "files_removed": 0,
             "space_freed_mb": 0,
-            "errors": ["Capture reservation path is unverified"],
+            "errors": [
+                "Capture reservation path is unverified"
+                if protected is None
+                else "Media job ownership is unverified"
+            ],
             "dry_run": dry_run,
             "candidates": [],
         }
@@ -166,6 +220,8 @@ def _inspect(
     freed = 0
     for candidate in candidates:
         path = root / candidate.path
+        if path in job_artifacts or not job_artifacts.isdisjoint(path.parents):
+            continue
         if any(
             path.parent == directory
             or (directory != root and path.is_relative_to(directory))
@@ -230,10 +286,14 @@ async def cleanup_temporary_files(
                 return _inspect(db, root, _discover(root), True)
 
         return await run_in_thread_pool(preview)
-    # Admission and confirmed deletion share the existing persisted coordinator guard.
+
+    # Keep the capture guard, then fence queue admission before reading ownership.
+    # SQLite's existing BEGIN IMMEDIATE already serializes both writers.
+    def delete(db: Session) -> dict[str, object]:
+        DurableTaskStore.lock_queue(db, sqlite_write_locked=True)
+        return _inspect(db, root, request.candidates, False)
+
     coordinator = TwitchUpstreamCoordinator(
         session_factory=factory, monotonic_clock=time.monotonic
     )
-    return await coordinator.run_capture_maintenance(
-        lambda db: _inspect(db, root, request.candidates, False)
-    )
+    return await coordinator.run_capture_maintenance(delete)
