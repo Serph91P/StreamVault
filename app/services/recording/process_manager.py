@@ -1822,6 +1822,7 @@ class ProcessManager:
             # before its own fenced handoff fails. Always clean up the currently
             # tracked child in that case; otherwise the rollback child survives
             # after the rotating lease is released.
+            process: asyncio.subprocess.Process | None
             if tracked_process not in (
                 None,
                 captured_process,
