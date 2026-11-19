@@ -7,6 +7,7 @@ Only owned output roots, synthetic fixtures and loopback listeners are used.
 import argparse
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -81,6 +82,13 @@ def main():
 
     legacy = export(LEGACY, "legacy-source")
     legacy_dist = build(legacy, "legacy")
+    # Restore the archived age of the historical document after rebuilding it.
+    # Without Cache-Control, Chromium uses Last-Modified for cache freshness.
+    legacy_index = (legacy / "app/frontend/index.html").stat()
+    os.utime(
+        legacy_dist / "index.html",
+        ns=(legacy_index.st_atime_ns, legacy_index.st_mtime_ns),
+    )
     candidate = export(head, "candidate-source")
     fixed_dist = build(candidate, "fixed")
     journey(legacy_dist, fixed_dist, "legacy-fixed", "--legacy-source", str(legacy))
