@@ -188,18 +188,21 @@ describe('usePWA listener lifecycle', () => {
     expect(routerPush).not.toHaveBeenCalled()
   })
 
-  it('surfaces service-worker updates for an explicit user action and detaches the update listener', async () => {
+  it('retains an update discovered without settings, through remount, until a deliberate action', async () => {
+    const { initializePWAUpdates } = await import('@/services/pwa-update')
     const update = vi.fn(() => Promise.resolve())
-    const { wrapper, state } = mountPWA()
-
-    window.dispatchEvent(new CustomEvent('pwa-needs-refresh', { detail: { update } }))
-    expect(state.updateAvailable.value).toBe(true)
-
-    await state.applyUpdate()
+    initializePWAUpdates(options => {
+      queueMicrotask(() => options.onNeedRefresh?.())
+      return update
+    })
+    await Promise.resolve()
+    const first = mountPWA()
+    expect(first.state.updateAvailable.value).toBe(true)
+    first.wrapper.unmount()
+    const second = mountPWA()
+    expect(second.state.updateAvailable.value).toBe(true)
+    await second.state.applyUpdate()
     expect(update).toHaveBeenCalledOnce()
-
-    wrapper.unmount()
-    window.dispatchEvent(new CustomEvent('pwa-needs-refresh', { detail: { update } }))
-    expect(state.updateAvailable.value).toBe(false)
+    second.wrapper.unmount()
   })
 })

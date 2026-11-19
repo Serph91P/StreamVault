@@ -24,7 +24,7 @@ from app.utils.token_store import ShareTokenModel
 
 
 @pytest.fixture
-def admin_stack(monkeypatch, tmp_path):
+def admin_stack(monkeypatch, tmp_path, request):
     settings = SimpleNamespace(
         AUTH_JWT_SECRET="admin-policy-test-secret-at-least-thirty-two-characters",
         AUTH_JWT_ALGORITHM="HS256",
@@ -32,7 +32,9 @@ def admin_stack(monkeypatch, tmp_path):
         AUTH_JWT_AUDIENCE="admin-policy-api",
         AUTH_ACCESS_TOKEN_MINUTES=15,
     )
-    lifecycle = DatabaseLifecycle("sqlite://")
+    lifecycle = DatabaseLifecycle(
+        getattr(request, "param", "sqlite://").replace("{tmp_path}", str(tmp_path))
+    )
     engine = lifecycle.sync_engine
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False)

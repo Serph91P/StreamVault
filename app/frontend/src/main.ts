@@ -31,17 +31,9 @@ app.mount('#app')
 
 // VitePWA owns SW registration via virtual:pwa-register
 import { registerSW } from 'virtual:pwa-register'
+import { initializePWAUpdates } from './services/pwa-update'
 
-const updateSW = registerSW({
-  onNeedRefresh() {
-    window.dispatchEvent(new CustomEvent('pwa-needs-refresh', {
-      detail: { update: () => updateSW(true) }
-    }))
-  },
-  onRegisterError(error) {
-    console.error('Service Worker registration failed:', error)
-  },
-})
+initializePWAUpdates(registerSW)
 
 
 // Lightweight session keepalive: ping backend periodically to refresh cookie session

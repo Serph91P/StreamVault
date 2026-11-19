@@ -267,6 +267,7 @@ jobs:
 
   frontend-browser:
     name: Frontend Browser Regressions
+    needs: [pwa-update-regressions]
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -326,6 +327,48 @@ jobs:
             app/frontend/test-results/
             app/frontend/foundation-test-results/
           if-no-files-found: ignore
+          retention-days: 3
+
+  pwa-update-regressions:
+    name: PWA Original Factory Upgrades
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/frontend/package-lock.json
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.14'
+          cache: pip
+      - name: Install locked factory and browser dependencies
+        run: |
+          python -m pip install uv==0.11.6
+          uv sync --locked --all-groups
+          npm ci --prefer-offline --prefix app/frontend
+          cd app/frontend
+          npx playwright install --with-deps chromium
+      - name: Verify real legacy migration and multi-tab update races
+        env:
+          TMPDIR: ${{ runner.temp }}
+          PYTHON_DOTENV_DISABLED: '1'
+        run: .venv/bin/python tests/pwa_update_acceptance/verify.py --output "$RUNNER_TEMP/pwa-upgrades"
+      - name: Preserve original factory worker evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: pwa-upgrade-evidence-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/pwa-upgrades/sources.json
+            ${{ runner.temp }}/pwa-upgrades/*.log
+            ${{ runner.temp }}/pwa-upgrades/legacy-fixed/
+            ${{ runner.temp }}/pwa-upgrades/fixed-fixed/
+          if-no-files-found: error
           retention-days: 3
 
   # Keep artwork coverage isolated without changing the shared job's limits.

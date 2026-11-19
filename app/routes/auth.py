@@ -249,7 +249,9 @@ def login_page(request: Request, auth_service: AuthService = Depends(get_auth_se
     def serve_spa_or_error():
         """Serve SPA or return appropriate error response"""
         try:
-            return FileResponse("app/frontend/dist/index.html")
+            return FileResponse(
+                "app/frontend/dist/index.html", headers={"Cache-Control": "no-store"}
+            )
         except Exception as file_error:
             logger.error(f"Error serving index.html: {file_error}")
             if is_api_request():
