@@ -134,7 +134,7 @@ pycountry==26.2.16
     # via streamlink
 pycparser==3.12 ; implementation_name != 'PyPy'
     # via cffi
-pycryptodome==4.4.0
+pycryptodome==4.5.0
     # via streamlink
 pydantic==2.14.3
     # via
