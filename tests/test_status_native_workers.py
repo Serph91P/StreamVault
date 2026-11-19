@@ -328,19 +328,36 @@ async def test_status_health_queries_its_owner_and_keeps_peer_healthy(
 
 
 @pytest.mark.asyncio
-async def test_deferred_journal_work_is_counted_without_materializing_active_tasks(
+async def test_queue_status_shows_running_work_then_counts_deferred_retry(
     image_applications,
 ):
     apps, databases, clients, _ = image_applications
     queue = apps[0].state.background_queue_service
+    running = asyncio.Event()
+    release = asyncio.Event()
 
     async def retry_later(_payload, _progress):
+        running.set()
+        await release.wait()
         raise RuntimeError("synthetic retryable work failure")
 
     queue.register_task_handler("scope.deferred", retry_later)
     try:
         await queue.start()
         task_id = await queue.enqueue_task("scope.deferred", {"streamer_name": "scope"})
+        await asyncio.wait_for(running.wait(), 3)
+        active = await clients[0].get("/api/status/background-queue")
+        peer_active = await clients[1].get("/api/status/background-queue")
+        assert active.status_code == peer_active.status_code == 200
+        [task] = active.json()["active_tasks"]
+        assert (
+            task["id"],
+            task["task_type"],
+            task["status"],
+            task["streamer_name"],
+        ) == (task_id, "scope.deferred", "running", "scope")
+        assert peer_active.json()["active_tasks"] == []
+        release.set()
 
         async def deferred_snapshot():
             while True:
@@ -367,5 +384,6 @@ async def test_deferred_journal_work_is_counted_without_materializing_active_tas
         assert await run_in_thread_pool(persisted)
         assert not queue.get_active_tasks()
     finally:
+        release.set()
         await queue.stop()
         await queue.queue_manager.progress_tracker.cleanup_background_tasks()
