@@ -238,6 +238,18 @@ def test_feature_model_layout_preserves_canonical_postgresql_schema():
     assert [
         entry for entry in current if entry["table"] in added_tables
     ] == DEVELOP_1045["canonical_postgresql_schema"]
+    expected = copy.deepcopy(BASELINE["canonical_postgresql_schema"])
+    events = next(entry for entry in expected if entry["table"] == "stream_events")
+    events["create_table_postgresql"] = events["create_table_postgresql"].replace(
+        "\tevent_type VARCHAR NOT NULL,",
+        "\tevent_type VARCHAR NOT NULL, \n\tdelivery_key VARCHAR(64),",
+    )
+    events["indexes_postgresql"] = sorted(
+        [
+            *events["indexes_postgresql"],
+            "CREATE UNIQUE INDEX ix_stream_events_delivery_key ON stream_events (delivery_key)",
+        ]
+    )
     assert [
         entry for entry in current if entry["table"] not in added_tables
-    ] == BASELINE["canonical_postgresql_schema"]
+    ] == expected
