@@ -110,7 +110,7 @@ async def test_online_isolated_worker_snapshots_close_before_http_notify_and_adm
                     assert get_ident() == loop_thread
                     assert any(owner == self.owner for owner, _ in notifications)
                     admissions.append((self.owner, stream_id, streamer_id, force_mode))
-                    return False  # The test observes admission, not a real provider capture.
+                    return 1  # Successful admission; provider capture is not exercised here.
 
             registries.append(
                 module.EventHandlerRegistry(

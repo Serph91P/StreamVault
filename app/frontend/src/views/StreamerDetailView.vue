@@ -1,5 +1,6 @@
 <template>
   <div class="page-view streamer-detail-view">
+    <RealtimeSnapshotNotice />
     <h1 v-if="isLoading || !streamer">Kanal</h1>
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-container">
@@ -430,6 +431,7 @@ import { streamersApi, streamsApi } from '@/services/api'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { useToast } from '@/composables/useToast'
 import { useRealtimeStore } from '@/stores/realtime'
+import RealtimeSnapshotNotice from '@/components/RealtimeSnapshotNotice.vue'
 import { hasRealtimeEventType } from '@/types/events'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import EmptyState from '@/components/EmptyState.vue'

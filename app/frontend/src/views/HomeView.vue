@@ -1,5 +1,6 @@
 <template>
   <div class="page-view home-view">
+    <RealtimeSnapshotNotice />
 
     <PageHeader v-if="!embedded" title="Übersicht" icon="home" :subtitle="dashboardStateHeadline" />
 
@@ -215,6 +216,7 @@ import { prepareVideoReturn, restoreVideoReturnScroll } from '@/composables/useN
 import { streamersApi, videoApi, recordingApi, backgroundQueueApi } from '@/services/api'
 import type { CatalogVideo as VideoSummary } from '@/types/video'
 import { useRealtimeStore } from '@/stores/realtime'
+import RealtimeSnapshotNotice from '@/components/RealtimeSnapshotNotice.vue'
 import { useForceRecording } from '@/composables/useForceRecording'
 import { toRecordingStatusSummary, type RecordingStatusSource } from '@/services/recording-status'
 import {
