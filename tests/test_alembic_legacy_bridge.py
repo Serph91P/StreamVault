@@ -85,13 +85,23 @@ def bridge_engine(tmp_path, monkeypatch):
 
 
 def _record_complete_legacy_history(target):
+    # Synthetic bridge-only schema; real numbered migrations are PostgreSQL-only.
     MigrationService.ensure_migrations_table()
     with target.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE stream_events (id INTEGER PRIMARY KEY, stream_id INTEGER NOT NULL, event_type VARCHAR NOT NULL, title VARCHAR, category_name VARCHAR, language VARCHAR, timestamp DATETIME)"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO stream_events (id, stream_id, event_type, title) VALUES (1, 7, 'channel.update', 'legacy chapter')"
+            )
+        )
         for identity in MigrationService.LEGACY_MIGRATION_IDENTITIES:
             connection.execute(
                 text(
-                    "INSERT INTO migrations (script_name, success) "
-                    "VALUES (:identity, TRUE)"
+                    "INSERT INTO migrations (script_name, success) VALUES (:identity, TRUE)"
                 ),
                 {"identity": identity},
             )
@@ -132,7 +142,7 @@ def test_bridge_stamps_complete_legacy_history_without_touching_application_data
             connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            == "20261106_tasks"
+            == "20261116_eventsub"
         )
 
     # Immediate restart is a no-op and preserves both identity and data.
@@ -203,4 +213,4 @@ def test_documented_historical_alias_is_accepted(bridge_engine):
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "20261106_tasks"
+    assert revision == "20261116_eventsub"

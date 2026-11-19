@@ -22,10 +22,20 @@ def test_catalog_migration_empty_database_and_restart_preserve_rows(
             tables=[
                 table
                 for table in Base.metadata.sorted_tables
-                if table.name not in {"video_catalog_entries", "background_tasks", "background_task_dependencies"}
+                if table.name
+                not in {
+                    "video_catalog_entries",
+                    "background_tasks",
+                    "background_task_dependencies",
+                }
             ],
         )
         with engine.begin() as connection:
+            # Restore the actual pre-#1029 schema, not current ORM metadata.
+            connection.execute(text("DROP INDEX ix_stream_events_delivery_key"))
+            connection.execute(
+                text("ALTER TABLE stream_events DROP COLUMN delivery_key")
+            )
             command.stamp(
                 module.MigrationService._alembic_config(connection), "20260922_legacy"
             )
@@ -36,7 +46,7 @@ def test_catalog_migration_empty_database_and_restart_preserve_rows(
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-                == "20261106_tasks"
+                == "20261116_eventsub"
             )
             connection.execute(
                 text(

@@ -9,6 +9,7 @@ from cachetools import TTLCache
 
 from app.database import SessionLocal
 from app.events.event_catalog import (
+    delivery_key,
     prepare_offline,
     offline_recording_id,
     prepare_online,
@@ -203,6 +204,32 @@ class EventHandlerRegistry:
         except Exception as e:
             logger.error(f"Error forgetting event fingerprint: {e}", exc_info=True)
 
+    async def _notify_stream(self, **kwargs: Any) -> None:
+        try:
+            await self.notification_service.send_stream_notification(**kwargs)
+        except Exception as error:
+            logger.error(
+                "Optional stream notification failed (%s)", type(error).__name__
+            )
+
+    async def _start_recording(
+        self, stream_id: int, streamer_id: int, recording_id: int | None = None
+    ) -> None:
+        if recording_id is not None:
+            result = await self.recording_service.start_recording(
+                stream_id,
+                streamer_id,
+                force_mode=False,
+                resume_recording_id=recording_id,
+            )
+            if not result:
+                raise RuntimeError("Recording start was not accepted")
+            return
+        if not await self.recording_service.start_recording(
+            stream_id, streamer_id, force_mode=False
+        ):
+            raise RuntimeError("Recording start was not accepted")
+
     async def handle_stream_online(self, data: dict[str, str]) -> None:
         try:
             user_info = await self.get_user_info(data["broadcaster_user_id"])
@@ -217,11 +244,29 @@ class EventHandlerRegistry:
                 return
             if not snapshot.new_stream:
                 if snapshot.resume_recording:
-                    await self.recording_service.start_recording(
-                        snapshot.stream_id, snapshot.streamer_id, force_mode=False
+                    await self._start_recording(
+                        snapshot.stream_id, snapshot.streamer_id, snapshot.recording_id
                     )
+                elif (
+                    snapshot.recording_id is not None and delivery_key.get() is not None
+                ):
+                    capture = getattr(
+                        self.recording_service, "is_capture_running", None
+                    )
+                    if capture is not None:
+                        running = await capture(snapshot.recording_id)
+                        if running is None:
+                            raise RuntimeError(
+                                "Recording capture could not be confirmed"
+                            )
+                        if running is False:
+                            await self._start_recording(
+                                snapshot.stream_id,
+                                snapshot.streamer_id,
+                                snapshot.recording_id,
+                            )
                 return
-            await self.notification_service.send_stream_notification(
+            await self._notify_stream(
                 streamer_name=snapshot.username,
                 event_type="online",
                 details={
@@ -240,13 +285,13 @@ class EventHandlerRegistry:
             if await run_in_thread_pool(
                 self.config_manager.is_recording_enabled, snapshot.streamer_id
             ):
-                await self.recording_service.start_recording(
-                    snapshot.stream_id, snapshot.streamer_id, force_mode=False
-                )
+                await self._start_recording(snapshot.stream_id, snapshot.streamer_id)
         except SQLAlchemyError as e:
             logger.error(f"Database error handling stream online event: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error handling stream online event: {e}", exc_info=True)
+            raise
 
     async def handle_stream_offline(self, data: dict[str, str]) -> None:
         try:
@@ -256,7 +301,7 @@ class EventHandlerRegistry:
             )
             if snapshot is None:
                 return
-            await self.notification_service.send_stream_notification(
+            await self._notify_stream(
                 streamer_name=snapshot.username,
                 event_type="offline",
                 details={
@@ -273,9 +318,10 @@ class EventHandlerRegistry:
                 offline_recording_id, session_factory, snapshot
             )
             if recording_id is not None:
-                await self.recording_service.stop_recording(
+                if not await self.recording_service.stop_recording(
                     recording_id, reason="automatic"
-                )
+                ):
+                    raise RuntimeError("Recording stop was not completed")
             else:
                 logger.warning(
                     "No active recording for offline streamer_id=%s stream_id=%s",
@@ -284,8 +330,10 @@ class EventHandlerRegistry:
                 )
         except SQLAlchemyError as e:
             logger.error(f"Database error handling stream offline event: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error handling stream offline event: {e}", exc_info=True)
+            raise
 
     def _resolve_event_target_stream(
         self, db: Session, streamer_id: int
@@ -360,7 +408,7 @@ class EventHandlerRegistry:
                 "profile_image_url": snapshot.profile_image_url,
                 "twitch_login": data["broadcaster_user_login"],
             }
-            await self.notification_service.send_stream_notification(
+            await self._notify_stream(
                 streamer_name=snapshot.username,
                 event_type="update",
                 details={
@@ -410,7 +458,7 @@ class EventHandlerRegistry:
                             "Category image download failed (%s)", type(error).__name__
                         )
                 for _ in range(favorite_count):
-                    await self.notification_service.send_stream_notification(
+                    await self._notify_stream(
                         streamer_name=snapshot.username,
                         event_type="favorite_category",
                         details=dict(details),
@@ -419,8 +467,10 @@ class EventHandlerRegistry:
             logger.error(
                 "Database error handling stream update (%s)", type(error).__name__
             )
+            raise
         except Exception as error:
             logger.error("Error handling stream update (%s)", type(error).__name__)
+            raise
 
     async def list_subscriptions(self) -> dict[str, object]:
         return await self.twitch_api.list_eventsub_subscriptions()

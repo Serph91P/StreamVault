@@ -1,10 +1,12 @@
 """Worker-owned catalog transactions for EventSub handlers."""
 
 from collections.abc import Callable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from app.models import (
     Category,
@@ -15,6 +17,13 @@ from app.models import (
     Streamer,
     StreamEvent,
     User,
+)
+
+
+# Request-local identity also propagates into the owned catalog worker thread.
+delivery_key: ContextVar[str | None] = ContextVar("eventsub_delivery_key", default=None)
+delivery_timestamp: ContextVar[datetime | None] = ContextVar(
+    "eventsub_delivery_timestamp", default=None
 )
 
 
@@ -52,12 +61,41 @@ def prepare_update(
         )
         if streamer is None:
             return None
-        streamer.title = data.get("title")
-        streamer.category_name = category_name
-        streamer.language = data.get("language")
-        streamer.last_updated = datetime.now(timezone.utc)
+        key = delivery_key.get()
+        if key and session.query(StreamEvent.id).filter_by(delivery_key=key).first():
+            return UpdateEvent(
+                streamer.id,
+                streamer.username,
+                streamer.profile_image_url,
+                streamer.is_live,
+            )
+        cutoff = delivery_timestamp.get()
+        newer_stream = (
+            cutoff is not None
+            and session.query(Stream.id)
+            .filter(Stream.streamer_id == streamer.id, Stream.started_at > cutoff)
+            .first()
+            is not None
+        )
+        if not newer_stream:
+            streamer.title = data.get("title")
+            streamer.category_name = category_name
+            streamer.language = data.get("language")
+            streamer.last_updated = datetime.now(timezone.utc)
         session.commit()
-        stream = resolve_target(session, streamer.id)
+        stream = None if newer_stream else resolve_target(session, streamer.id)
+        if stream is None and cutoff is not None:
+            # Replay can arrive after offline, with or without a replacement stream.
+            stream = (
+                session.query(Stream)
+                .filter(
+                    Stream.streamer_id == streamer.id,
+                    or_(Stream.started_at.is_(None), Stream.started_at <= cutoff),
+                    or_(Stream.ended_at.is_(None), Stream.ended_at >= cutoff),
+                )
+                .order_by(Stream.started_at.desc())
+                .first()
+            )
         if stream is not None:
             if data.get("title"):
                 stream.title = data["title"]
@@ -73,6 +111,7 @@ def prepare_update(
                     category_name=category_name,
                     language=data.get("language"),
                     timestamp=datetime.now(timezone.utc),
+                    delivery_key=key,
                 )
             )
             session.commit()
@@ -156,20 +195,31 @@ def prepare_offline(
         )
         if streamer is None:
             return None
-        streamer.is_live = False
-        streamer.last_updated = datetime.now(timezone.utc)
-        streams = (
-            session.query(Stream)
-            .filter(Stream.streamer_id == streamer.id, Stream.ended_at.is_(None))
-            .order_by(Stream.started_at.desc())
-            .all()
+        cutoff = delivery_timestamp.get()
+        newer_stream = (
+            cutoff is not None
+            and session.query(Stream.id)
+            .filter(Stream.streamer_id == streamer.id, Stream.started_at > cutoff)
+            .first()
+            is not None
         )
+        if not newer_stream:
+            streamer.is_live = False
+            streamer.last_updated = datetime.now(timezone.utc)
+        query = session.query(Stream).filter(
+            Stream.streamer_id == streamer.id, Stream.ended_at.is_(None)
+        )
+        if cutoff is not None:
+            query = query.filter(
+                or_(Stream.started_at.is_(None), Stream.started_at <= cutoff)
+            )
+        streams = query.order_by(Stream.started_at.desc()).all()
         current = streams[0] if streams else None
         ended_at = datetime.now(timezone.utc)
         # Older captures remain recovery-owned, but cannot attract new chapter events.
         for stream in streams:
             stream.ended_at = ended_at
-        if current:
+        if current and not newer_stream:
             streamer.last_stream_title = current.title
             streamer.last_stream_category_name = current.category_name
             streamer.last_stream_ended_at = current.ended_at
@@ -187,21 +237,24 @@ def offline_recording_id(
 ) -> int | None:
     with session_factory() as session:
         stream_id = event.stream_id
+        cutoff = delivery_timestamp.get()
         if stream_id is None:
-            recent = (
-                session.query(Stream)
-                .filter(Stream.streamer_id == event.streamer_id)
-                .order_by(Stream.created_at.desc())
-                .first()
+            query = session.query(Stream).filter(
+                Stream.streamer_id == event.streamer_id
             )
+            if cutoff is not None:
+                query = query.filter(
+                    or_(Stream.started_at.is_(None), Stream.started_at <= cutoff)
+                )
+            recent = query.order_by(Stream.created_at.desc()).first()
             if recent is None:
                 return None
             stream_id = recent.id
-        recording = (
-            session.query(Recording)
-            .filter(Recording.stream_id == stream_id, Recording.status == "recording")
-            .first()
+        recordings = session.query(Recording).filter(
+            Recording.stream_id == stream_id, Recording.status == "recording"
         )
+        # Local admission can follow offline emission; the stream owns the target.
+        recording = recordings.first()
         return recording.id if recording else None
 
 
@@ -216,10 +269,16 @@ class OnlineEvent:
     language: str | None
     new_stream: bool
     resume_recording: bool
+    recording_id: int | None = None
 
 
 def _online_snapshot(
-    streamer: Streamer, stream: Stream, *, new_stream: bool, resume_recording: bool
+    streamer: Streamer,
+    stream: Stream,
+    *,
+    new_stream: bool,
+    resume_recording: bool,
+    recording_id: int | None = None,
 ) -> OnlineEvent:
     return OnlineEvent(
         streamer_id=streamer.id,
@@ -231,6 +290,7 @@ def _online_snapshot(
         language=streamer.language,
         new_stream=new_stream,
         resume_recording=resume_recording,
+        recording_id=recording_id,
     )
 
 
@@ -257,6 +317,7 @@ def prepare_online(
         )
         if existing is not None:
             resume = False
+            active = None
             if existing.ended_at is None and recording_enabled(streamer.id):
                 active = (
                     session.query(Recording)
@@ -267,8 +328,25 @@ def prepare_online(
                     .first()
                 )
                 resume = active is None
+                if active is None and delivery_key.get() is not None:
+                    latest = (
+                        session.query(Recording)
+                        .filter(Recording.stream_id == existing.id)
+                        .order_by(Recording.id.desc())
+                        .first()
+                    )
+                    if (
+                        latest is not None
+                        and latest.status == "failed"
+                        and latest.error_message == "Failed to start recording process"
+                    ):
+                        active = latest
             return _online_snapshot(
-                streamer, existing, new_stream=False, resume_recording=resume
+                streamer,
+                existing,
+                new_stream=False,
+                resume_recording=resume,
+                recording_id=active.id if active else None,
             )
         if user_info:
             profile = user_info.get("profile_image_url")
