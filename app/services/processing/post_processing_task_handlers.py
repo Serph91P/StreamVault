@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 import copy
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 from collections.abc import Callable
 from pathlib import Path
 
@@ -27,6 +27,8 @@ from app.services.communication.websocket_manager import (
     ConnectionManager,
     websocket_manager,
 )
+from app.config.settings import get_settings
+from app.services.recording.recording_cleanup import clean_recording
 from app.utils import ffmpeg_utils
 from app.utils.structured_logging import log_with_context
 from app.config.constants import CACHE_CONFIG, ASYNC_DELAYS
@@ -81,6 +83,9 @@ class PostProcessingTaskHandlers:
         recordings_root_provider: Callable[[], Path] | None = None,
     ):
         self._session_factory = session_factory
+        self._recordings_root = recordings_root_provider or (
+            lambda: Path(get_settings().RECORDING_DIRECTORY)
+        )
         self._recovery_service_factory = recovery_service_factory
         self.connection_manager = (
             connection_manager if connection_manager is not None else websocket_manager
@@ -845,257 +850,53 @@ class PostProcessingTaskHandlers:
 
         return None
 
-    @staticmethod
-    def _validate_cleanup_output(mp4_path: str | None) -> None:
-        if not mp4_path or not os.path.exists(mp4_path):
-            raise Exception("MP4 file not found, not removing source files")
-        mp4_size = os.path.getsize(mp4_path)
-        if mp4_size < 1024 * 1024:
-            raise Exception(
-                f"MP4 file too small ({mp4_size} bytes), not removing source files"
-            )
-
-    def _persist_removed_segments(self, stream_id: int, segments_path: str) -> None:
+    def _clean_owned_artifacts(self, payload: dict[str, Any]) -> None:
         with self._sessions() as db:
-            metadata = (
-                db.query(StreamMetadata)
-                .filter(StreamMetadata.stream_id == stream_id)
-                .first()
-            )
-            if metadata is None:
-                metadata = StreamMetadata(stream_id=stream_id)
-                db.add(metadata)
-            if hasattr(metadata, "segments_dir_path"):
-                metadata.segments_dir_path = segments_path
-            if hasattr(metadata, "segments_removed"):
+            removed = clean_recording(db, self._recordings_root(), payload)
+            if removed:
+                stream_id = payload["stream_id"]
+                metadata = db.scalar(
+                    select(StreamMetadata).where(StreamMetadata.stream_id == stream_id)
+                )
+                if metadata is None:
+                    metadata = StreamMetadata(stream_id=stream_id)
+                    db.add(metadata)
+                metadata.segments_dir_path = str(removed[0])
                 metadata.segments_removed = True
-            db.commit()
-            logger.debug(
-                "Updated StreamMetadata for stream %s: segments_removed=True, segments_dir_path=%s",
-                stream_id,
-                segments_path,
-            )
+                db.commit()
 
     async def handle_cleanup(
         self,
         payload: "CleanupTaskPayload",
         progress_callback: "ProgressCallback | None" = None,
     ) -> None:
-        """Handle cleanup task with intelligent TS cleanup or stream deletion cleanup"""
+        """Apply the same ownership boundary for both schedulers and legacy jobs."""
+        await run_in_thread_pool(self._clean_owned_artifacts, dict(payload))
         stream_id = payload["stream_id"]
-
-        # Handle both post-processing cleanup and stream deletion cleanup
-        if "cleanup_paths" in payload:
-            # Stream deletion cleanup - delete everything without validation
-            files_to_remove = payload["cleanup_paths"]
-            mp4_path = None
-            intelligent_cleanup = False
-            is_deletion_cleanup = True
-        else:
-            # Post-processing cleanup - requires MP4 validation
-            files_to_remove = payload.get("files_to_remove", [])
-            mp4_path = payload["mp4_path"]
-            intelligent_cleanup = payload.get("intelligent_cleanup", False)
-            is_deletion_cleanup = False
-
-        max_wait_time = payload.get("max_wait_time", 300)  # 5 minutes default
-        streamer_name = payload.get("streamer_name", f"stream_{stream_id}")
-
-        # Validate that files_to_remove is a list
-        if not isinstance(files_to_remove, list):
-            logger.warning(
-                f"files_to_remove is not a list: {type(files_to_remove)}, converting to list"
-            )
-            files_to_remove = [files_to_remove] if files_to_remove else []
-
-        # For post-processing cleanup, validate MP4 file exists early (fail fast)
-        if not is_deletion_cleanup:
-            await run_in_thread_pool(self._validate_cleanup_output, mp4_path)
-
-        log_with_context(
-            logger,
-            "info",
-            f"Starting {'deletion' if is_deletion_cleanup else 'post-processing'} cleanup for stream {stream_id}",
-            task_id=payload.get("task_id"),
-            stream_id=stream_id,
-            files_to_remove=files_to_remove,
-            intelligent_cleanup=intelligent_cleanup,
-            operation="cleanup_start",
-            streamer_name=streamer_name,
-            is_deletion_cleanup=is_deletion_cleanup,
-        )
-        try:
-            if not is_deletion_cleanup:
-                await self._record_status(
-                    payload.get("recording_id"), stream_id, "cleanup", "running"
-                )
-        except Exception as e:
-            logger.debug(f"cleanup: failed to mark running: {e}")
-
-        # Log to structured logging service
+        recording_id = payload.get("recording_id")
         logging_service = await run_in_thread_pool(self._get_logging_service)
         if logging_service:
-            cleanup_type = (
-                "DELETION_CLEANUP" if is_deletion_cleanup else "POST_PROCESSING_CLEANUP"
-            )
             await run_in_thread_pool(
                 logging_service.log_recording_activity,
-                f"{cleanup_type}_START",
-                streamer_name,
-                f"Cleaning up {len(files_to_remove)} files for stream {stream_id}",
+                "ARTIFACT_CLEANUP_COMPLETE"
+                if "cleanup_paths" in payload or payload.get("mode") == "artifacts"
+                else "POST_PROCESSING_CLEANUP_COMPLETE",
+                payload.get("streamer_name", f"stream_{stream_id}"),
+                f"Recording artifacts cleaned for stream {stream_id}",
             )
-
-        try:
-            removed_files = []
-            segments_dirs_removed = []
-            for file_path in files_to_remove:
-                if await run_in_thread_pool(os.path.exists, file_path):
-                    try:
-                        is_directory = await run_in_thread_pool(
-                            os.path.isdir, file_path
-                        )
-                        logger.debug(
-                            f"🧹 CLEANUP_ATTEMPT: path={file_path} type={'dir' if is_directory else 'file'} intelligent={intelligent_cleanup and not is_deletion_cleanup}"
-                        )
-                        # Check if it's a directory
-                        if is_directory:
-                            # Remove directory and all its contents
-                            import shutil
-
-                            await run_in_thread_pool(shutil.rmtree, file_path)
-                            if file_path.endswith("_segments"):
-                                segments_dirs_removed.append(file_path)
-                            logger.info(f"Removed directory: {file_path}")
-                            removed_files.append(file_path)
-                        else:
-                            # Use intelligent cleanup for TS files if requested (only for post-processing cleanup)
-                            if (
-                                not is_deletion_cleanup
-                                and intelligent_cleanup
-                                and file_path.endswith(".ts")
-                            ):
-                                assert mp4_path is not None
-                                cleanup_success = await self._intelligent_ts_cleanup(
-                                    file_path, mp4_path, max_wait_time
-                                )
-                                if cleanup_success:
-                                    removed_files.append(file_path)
-                                else:
-                                    logger.warning(
-                                        f"Intelligent cleanup failed for {file_path}, keeping file"
-                                    )
-                            else:
-                                # Simple file removal
-                                await run_in_thread_pool(os.remove, file_path)
-                                logger.info(f"Removed file: {file_path}")
-                                removed_files.append(file_path)
-                    except Exception as e:
-                        logger.warning(f"Failed to remove {file_path}: {e}")
-                else:
-                    logger.debug(f"🧹 CLEANUP_SKIP_MISSING: path={file_path}")
-
-            # Update StreamMetadata with segments directory tracking
-            if segments_dirs_removed and not is_deletion_cleanup:
-                try:
-                    assert stream_id is not None
-                    await run_in_thread_pool(
-                        self._persist_removed_segments,
-                        stream_id,
-                        segments_dirs_removed[0],
-                    )
-                except Exception as meta_err:
-                    logger.debug(
-                        f"Could not update StreamMetadata with segments info: {meta_err}"
-                    )
-
-            log_with_context(
-                logger,
-                "info",
-                f"{'Deletion' if is_deletion_cleanup else 'Post-processing'} cleanup completed for stream {stream_id}",
-                task_id=payload.get("task_id"),
-                stream_id=stream_id,
-                removed_files=removed_files,
-                operation="cleanup_complete",
-                is_deletion_cleanup=is_deletion_cleanup,
-            )
-            # Persist
+        if "cleanup_paths" not in payload:
             try:
-                if not is_deletion_cleanup:
-                    await self._record_status(
-                        payload.get("recording_id"), stream_id, "cleanup", "completed"
-                    )
-            except Exception as persist_err:
-                logger.debug(f"Could not persist cleanup status: {persist_err}")
-
-            # Trigger database event for orphaned recovery after cleanup completion (only for post-processing)
-            if not is_deletion_cleanup:
-                try:
+                await self._record_status(
+                    recording_id, stream_id, "cleanup", "completed"
+                )
+                if recording_id:
                     from app.services.recording.database_event_orphaned_recovery import (
                         on_post_processing_completed,
                     )
 
-                    recording_id = payload.get("recording_id")
-                    if recording_id:
-                        await on_post_processing_completed(recording_id, "cleanup")
-                except Exception as e:
-                    logger.debug(
-                        f"Could not trigger database event for orphaned recovery: {e}"
-                    )
-
-        except Exception as e:
-            log_with_context(
-                logger,
-                "error",
-                f"{'Deletion' if is_deletion_cleanup else 'Post-processing'} cleanup failed for stream {stream_id}: {e}",
-                task_id=payload.get("task_id"),
-                stream_id=stream_id,
-                error=str(e),
-                operation="cleanup_error",
-                is_deletion_cleanup=is_deletion_cleanup,
-            )
-            try:
-                if not is_deletion_cleanup:
-                    await self._record_status(
-                        payload.get("recording_id"),
-                        stream_id,
-                        "cleanup",
-                        "failed",
-                        str(e),
-                    )
-            except Exception as persist_err:
-                logger.debug(f"Could not persist cleanup failed status: {persist_err}")
-            raise
-
-    async def _intelligent_ts_cleanup(
-        self, ts_path: str, mp4_path: str, max_wait_time: int
-    ) -> bool | None:
-        """Intelligent TS cleanup that waits for processes to finish"""
-        try:
-            # Use the intelligent cleanup from file_operations
-            from app.services.recording.file_operations import intelligent_ts_cleanup
-
-            # Check if psutil is available for process monitoring
-            psutil_available = False
-            try:
-                psutil_available = True
-            except ImportError:
-                pass
-
-            # Run intelligent cleanup
-            return await intelligent_ts_cleanup(
-                ts_path, max_wait_time, psutil_available
-            )
-
-        except Exception as e:
-            # Fallback to simple removal if intelligent cleanup fails
-            logger.warning(
-                f"Intelligent cleanup failed, falling back to simple removal: {e}"
-            )
-            if await run_in_thread_pool(os.path.exists, ts_path):
-                await run_in_thread_pool(os.remove, ts_path)
-                return True
-
-        return None
+                    await on_post_processing_completed(recording_id, "cleanup")
+            except Exception as error:
+                logger.warning("Could not publish cleanup status: %s", error)
 
     async def handle_unified_recovery(
         self,

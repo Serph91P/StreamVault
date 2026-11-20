@@ -1,6 +1,7 @@
 """#1025: mounted application, real credentials and isolated effect snapshots."""
 
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 
 import jwt
@@ -15,6 +16,7 @@ from app.main import create_app
 from app.models import (
     GlobalSettings,
     RecordingSettings,
+    Stream,
     Streamer,
     StreamerRecordingSettings,
     User,
@@ -92,7 +94,12 @@ SECRETS = {
 
 
 @pytest.fixture
-def stack(tmp_path, monkeypatch):
+def capability_database_url():
+    return "sqlite://"
+
+
+@pytest.fixture
+def stack(tmp_path, monkeypatch, capability_database_url):
     import socket
 
     def no_network(*args, **kwargs):
@@ -119,7 +126,7 @@ def stack(tmp_path, monkeypatch):
         ENVIRONMENT="test",
         ARTWORK_BASE_PATH=str(tmp_path / "artwork"),
     )
-    database = DatabaseLifecycle("sqlite://")
+    database = DatabaseLifecycle(capability_database_url)
     Base.metadata.create_all(database.sync_engine)
     with database.sync_session_factory() as db:
         db.add_all(
@@ -476,17 +483,22 @@ def test_admin_queue_admission_and_disconnect_have_real_effects(stack, mode):
     with database.sync_session_factory() as db:
         row = db.get(GlobalSettings, 1)
         assert row.twitch_access_token is None and row.twitch_refresh_token is None
+    output = Path(stack[2].RECORDING_DIRECTORY) / "synthetic.mp4"
+    output.parent.mkdir()
+    output.write_bytes(b"f" * (1024 * 1024))
+    with database.sync_session_factory() as db:
+        db.add(Stream(id=1, streamer_id=1, recording_path=str(output)))
+        db.commit()
     queued = client.post(
-        "/api/background-queue/tasks/enqueue?task_type=metadata_generation",
+        "/api/background-queue/tasks/enqueue?task_type=cleanup",
         headers=credential,
-        json={"streamer_name": "synthetic", "stream_id": 1, "output_dir": "synthetic"},
+        json={"stream_id": 1},
     )
     assert queued.status_code == 200, queued.text
     queue = app.state.background_queue_service
     task = queue.queue_manager.get_task(queued.json()["task_id"])
-    assert task is not None and task.task_type == "metadata_generation"
+    assert task is not None and task.task_type == "cleanup"
     assert task.payload["stream_id"] == 1
-    # Admission, not the adapter/worker outcome owned by #1033.
 
 
 @pytest.mark.parametrize("mode", MODES)

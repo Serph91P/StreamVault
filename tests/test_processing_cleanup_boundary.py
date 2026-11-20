@@ -1,12 +1,16 @@
 """Cleanup preserves source guards and commits segment metadata in its own worker."""
 
 import os
+import errno
 import sqlite3
 from datetime import datetime, timezone
 from threading import get_ident
 
 import pytest
 from sqlalchemy import event, select
+from sqlalchemy.exc import OperationalError
+
+from app.services.recording.recording_cleanup import CleanupRefused
 
 from app.database import Base, DatabaseLifecycle
 from app.models import (
@@ -45,24 +49,28 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
     database = DatabaseLifecycle(f"sqlite:///{tmp_path / 'cleanup.db'}")
     manager = ConnectionManager()
     handler = PostProcessingTaskHandlers(
-        session_factory=database.sync_session_factory, connection_manager=manager
+        session_factory=database.sync_session_factory,
+        connection_manager=manager,
+        recordings_root_provider=lambda: tmp_path,
     )
     source = tmp_path / "source.ts"
     source.write_bytes(b"source must remain until the existing output guard passes")
-    segments = tmp_path / "video_segments"
+    segments = tmp_path / "source_segments"
     segments.mkdir()
-    (segments / "000.ts").write_bytes(b"segment")
-    output = tmp_path / (
-        "source.mp4" if case == "intelligent-success" else "output.mp4"
-    )
+    (segments / "source_part001.ts").write_bytes(b"segment")
+    output = source.with_suffix(".mp4")
     # This is deliberately a size-guard fixture, not a claim of decoded media.
-    if case not in {"deletion", "missing_mp4"}:
+    if case != "missing_mp4":
         with output.open("wb") as file:
             file.truncate(
                 1024 * 1024 + 1
                 if case
                 in {
                     "post_processing",
+                    "deletion",
+                    "scalar-deletion",
+                    "empty-deletion",
+                    "missing-path-deletion",
                     "denied_segments",
                     "intelligent-timeout",
                     "intelligent-success",
@@ -74,19 +82,19 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
     queries = []
     probes = []
     native_stat = os.stat
-    import shutil
-
-    native_rmtree = shutil.rmtree
+    native_rmdir = os.rmdir
     removal_faults = []
 
-    def rmtree(path, *args, **kwargs):
-        if case == "denied_segments" and str(path) == str(segments):
+    def rmdir(path, *args, **kwargs):
+        if case == "denied_segments" and str(path) == segments.name:
             removal_faults.append(get_ident())
-            raise PermissionError("synthetic-owned-segment-removal-denied")
-        return native_rmtree(path, *args, **kwargs)
+            raise PermissionError(
+                errno.EACCES, "synthetic-owned-segment-removal-denied"
+            )
+        return native_rmdir(path, *args, **kwargs)
 
     def stat(path, *args, **kwargs):
-        if isinstance(path, (str, os.PathLike)) and str(path).startswith(str(tmp_path)):
+        if kwargs.get("dir_fd") is not None:
             probes.append(get_ident())
         return native_stat(path, *args, **kwargs)
 
@@ -97,13 +105,14 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
         with database.sync_session_factory() as session:
             session.add(Streamer(id=1, username="cleanup", twitch_id="cleanup"))
             session.flush()
-            session.add(Stream(id=1, streamer_id=1))
+            session.add(Stream(id=1, streamer_id=1, recording_path=str(output)))
             session.flush()
             session.add(
                 Recording(
                     id=1,
                     stream_id=1,
                     status="completed",
+                    path=str(output),
                     start_time=datetime.now(timezone.utc),
                 )
             )
@@ -114,7 +123,7 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
             queries.append(get_ident())
             if (
                 case == "metadata-denied"
-                and "STREAM_METADATA" in statement.upper()
+                and "INSERT INTO STREAM_METADATA" in statement.upper()
                 and not metadata_faults
             ):
                 metadata_faults.append(get_ident())
@@ -147,31 +156,26 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
                 payload["max_wait_time"] = 0
         with monkeypatch.context() as watched:
             watched.setattr(os, "stat", stat)
-            watched.setattr(shutil, "rmtree", rmtree)
-            if case in {
-                "post_processing",
-                "deletion",
-                "denied_segments",
-                "intelligent-timeout",
-                "intelligent-success",
-                "scalar-deletion",
-                "empty-deletion",
-                "missing-path-deletion",
-                "metadata-denied",
-            }:
-                await handler.handle_cleanup(payload)
-            else:
+            watched.setattr(os, "rmdir", rmdir)
+            failures = {
+                "missing_mp4": "MP4 file not found",
+                "small_mp4": "MP4 file too small",
+                "scalar-deletion": "Invalid legacy cleanup selection",
+                "empty-deletion": "Invalid legacy cleanup selection",
+                "missing-path-deletion": "does not belong",
+                "denied_segments": "synthetic-owned-segment-removal-denied",
+                "metadata-denied": "synthetic-owned-cleanup-metadata-denial",
+            }
+            if case in failures:
                 with pytest.raises(
-                    Exception,
-                    match="MP4 file not found"
-                    if case == "missing_mp4"
-                    else "MP4 file too small",
+                    (CleanupRefused, PermissionError, OperationalError),
+                    match=failures[case],
                 ):
                     await handler.handle_cleanup(payload)
-        if case != "empty-deletion":
+            else:
+                await handler.handle_cleanup(payload)
+        if case not in {"scalar-deletion", "empty-deletion", "missing-path-deletion"}:
             assert probes and loop_thread not in probes
-        else:
-            assert probes == []
         assert loop_thread not in queries
         if case == "post_processing":
             assert queries
@@ -182,14 +186,18 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
                 "post_processing",
                 "intelligent-timeout",
                 "intelligent-success",
+                "deletion",
             }:
                 assert metadata.segments_removed is True
                 assert metadata.segments_dir_path == str(segments)
-                assert state.cleanup_status == "completed"
+                if case == "deletion":
+                    assert state is None
+                else:
+                    assert state.cleanup_status == "completed"
                 assert output.exists()
             elif case in {"denied_segments", "metadata-denied"}:
                 assert metadata is None or metadata.segments_removed is not True
-                assert state.cleanup_status == "completed"
+                assert state is None
                 assert output.exists()
 
             else:
@@ -201,6 +209,8 @@ async def test_cleanup_closes_own_persistence_and_keeps_protected_sources(
                 "missing_mp4",
                 "small_mp4",
                 "intelligent-timeout",
+                "denied_segments",
+                "scalar-deletion",
                 "empty-deletion",
                 "missing-path-deletion",
             }

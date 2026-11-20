@@ -121,6 +121,16 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
     readiness["description"] = expected["openapi"]["paths"]["/api/health/ready"]["get"][
         "description"
     ]
+    # #1026 changes the delete semantics, not either route or response shape.
+    for path, description in {
+        "/api/streams/{stream_id}": "Permanently delete this stream and its exclusively owned files.",
+        "/api/streamers/{streamer_id}/streams/{stream_id}": "Permanently delete a stream belonging to this streamer.",
+    }.items():
+        operation = schema["paths"][path]["delete"]
+        assert operation["description"] == description
+        operation["description"] = expected["openapi"]["paths"][path]["delete"][
+            "description"
+        ]
     assert schema == expected["openapi"]
 
     # Handler modules may move; registration order, route kind and methods may not.
