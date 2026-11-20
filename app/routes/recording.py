@@ -11,7 +11,9 @@ from app.models import (
 )
 from app.schemas.recording import (
     RecordingSettingsSchema,
+    RecordingSettingsUpdate,
     StreamerRecordingSettingsSchema,
+    StreamerRecordingSettingsUpdate,
     ActiveRecordingSchema,
 )
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
@@ -50,7 +52,8 @@ from typing import List, Dict
 from datetime import datetime, timezone
 
 from app.services.recording.recording_manager import RecordingManager
-from app.services.system.cleanup_service import CleanupService
+from app.services.system.cleanup_service import CleanupService, InvalidRetentionPolicy
+from pydantic import ValidationError
 
 # Cache constants
 FALLBACK_SUFFIX = "_fallback"
@@ -137,7 +140,7 @@ async def get_recording_settings(
     dependencies=[Depends(require_scopes("recording:write"))],
 )
 async def update_recording_settings(
-    settings_data: RecordingSettingsSchema,
+    settings_data: RecordingSettingsUpdate,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     config_service: StreamlinkConfigService = Depends(get_streamlink_config_service),
 ) -> RecordingSettingsSchema:
@@ -184,7 +187,7 @@ async def update_recording_settings(
                     settings_data.use_category_as_chapter_title
                 )
 
-            if hasattr(settings_data, "max_streams_per_streamer"):
+            if "max_streams_per_streamer" in settings_data.model_fields_set:
                 existing_settings.max_streams_per_streamer = (
                     settings_data.max_streams_per_streamer
                 )
@@ -200,11 +203,8 @@ async def update_recording_settings(
                     settings_data.cleanup_policy.dict()
                 )
 
-            # Save changes
-            db.commit()
-            # This refreshes the instance after commit so it's bound to the session
-            db.refresh(existing_settings)
-            db.refresh(global_settings)
+            # Load insert defaults without committing before response validation.
+            db.flush()
 
             # Parse cleanup policy back to object for response
             cleanup_policy = None
@@ -238,6 +238,7 @@ async def update_recording_settings(
                 ),
                 cleanup_policy=cleanup_policy,
             )
+            db.commit()
             return response, codec_changed
 
     try:
@@ -625,7 +626,7 @@ async def stop_recording(
 )
 def update_streamer_recording_settings(
     streamer_id: int,
-    settings: StreamerRecordingSettingsSchema,
+    settings: StreamerRecordingSettingsUpdate,
     db: Session = Depends(get_db),
     logging_service: LoggingService = Depends(get_logging_service),
     unified_image_service: UnifiedImageService = Depends(get_image_service),
@@ -714,7 +715,6 @@ def update_streamer_recording_settings(
                 settings.cleanup_policy.dict()
             )
 
-        db.commit()
         # Return updated settings with streamer info
         try:
             cleanup_policy = None
@@ -728,7 +728,7 @@ def update_streamer_recording_settings(
             logger.warning(f"Error parsing cleanup policy: {e}")
             cleanup_policy = None
 
-        return StreamerRecordingSettingsSchema(
+        response = StreamerRecordingSettingsSchema(
             streamer_id=streamer_settings.streamer_id,
             username=streamer.username,
             profile_image_url=unified_image_service.get_profile_image_url(
@@ -740,7 +740,11 @@ def update_streamer_recording_settings(
             max_streams=streamer_settings.max_streams,
             twitch_auth_priority=streamer_settings.twitch_auth_priority,
             cleanup_policy=cleanup_policy,
+            use_global_cleanup_policy=streamer_settings.use_global_cleanup_policy
+            is not False,
         )
+        db.commit()
+        return response
     except HTTPException:
         raise
     except Exception as e:
@@ -899,6 +903,8 @@ async def cleanup_old_recordings(
             "deleted_count": deleted_count,
             "deleted_paths": deleted_paths,
         }
+    except InvalidRetentionPolicy as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     except Exception as e:
         await run_in_thread_pool(
             logging_service.log_recording_error,
@@ -924,7 +930,7 @@ async def run_custom_cleanup(
     """Run a custom cleanup with specified policy"""
     try:
         # Convert pydantic model to dict
-        policy_dict = policy.dict(exclude_unset=True)
+        policy_dict = policy.model_dump(mode="json", exclude_unset=True)
 
         deleted_count, deleted_paths = await retention_service.cleanup_old_recordings(
             streamer_id, custom_policy=policy_dict
@@ -964,6 +970,12 @@ def update_streamer_cleanup_policy(
 ) -> dict[str, str]:
     """Update cleanup policy for a specific streamer"""
     try:
+        raw_policy = request_data.get("cleanup_policy")
+        policy = (
+            CleanupPolicySchema.model_validate(raw_policy)
+            if raw_policy is not None
+            else None
+        )
         # Check if the streamer exists
         streamer = db.query(Streamer).filter(Streamer.id == streamer_id).first()
         if not streamer:
@@ -990,19 +1002,19 @@ def update_streamer_cleanup_policy(
         if use_global:
             # Clear custom policy when using global
             streamer_settings.cleanup_policy = None
-        else:
-            # Set custom policy
-            cleanup_policy = request_data.get("cleanup_policy")
-            if cleanup_policy:
-                import json
-
-                # Validate policy using schema
-                policy_schema = CleanupPolicySchema.parse_obj(cleanup_policy)
-                streamer_settings.cleanup_policy = json.dumps(policy_schema.dict())
+        elif policy is not None:
+            streamer_settings.cleanup_policy = policy.model_dump_json()
 
         db.commit()
 
         return {"status": "success", "message": "Cleanup policy updated successfully"}
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=error.errors(
+                include_context=False, include_url=False, include_input=False
+            ),
+        ) from error
     except HTTPException:
         raise
     except Exception as e:

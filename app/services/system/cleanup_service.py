@@ -2,12 +2,13 @@ import os
 import json
 import logging
 import shutil
-from datetime import datetime, timedelta, time
-from typing import List, Dict, Optional, Tuple, Any, Set
-from sqlalchemy.orm import Session, Query
-from app.models.recordings import JSONValue
+from datetime import datetime, timedelta, time, timezone
+from typing import List, Dict, Optional, Tuple, Any
+from sqlalchemy.orm import Session
+from pydantic import TypeAdapter, ValidationError
 
 from app.models import (
+    Category,
     Stream,
     Streamer,
     RecordingSettings,
@@ -16,8 +17,13 @@ from app.models import (
     StreamMetadata,
 )
 from app.database import SessionLocal
-from app.services.recording.config_manager import ConfigManager
-from app.schemas.recording import CleanupPolicyType
+from app.schemas.recording import (
+    CleanupPolicySchema,
+    CleanupPolicyType,
+    MAX_RECORDING_COUNT,
+    MaxStreams,
+    utc_datetime,
+)
 from app.utils.security import validate_path_security, is_path_within_base
 from app.config.settings import get_settings
 from app.config.settings import Settings
@@ -26,6 +32,22 @@ from collections.abc import Callable
 from app.services.system.logging_service import LoggingService
 
 logger = logging.getLogger("streamvault")
+_max_streams_adapter: TypeAdapter[int] = TypeAdapter(MaxStreams)
+
+
+class InvalidRetentionPolicy(ValueError):
+    """An invalid cleanup instruction must not fall through to another policy."""
+
+
+def _validated_policy(value: object, source: str) -> CleanupPolicySchema:
+    try:
+        return CleanupPolicySchema.model_validate(value)
+    except ValidationError as error:
+        issue = error.errors(include_url=False, include_input=False)[0]
+        field = ".".join(map(str, issue["loc"])) or "cleanup_policy"
+        raise InvalidRetentionPolicy(
+            f"Invalid {source} retention policy: {field}: {issue['msg']}. Correct the cleanup settings before retrying."
+        ) from None
 
 
 class CleanupService:
@@ -84,86 +106,68 @@ class CleanupService:
     ) -> Tuple[int, List[str]]:
         return await run_in_thread_pool(self._cleanup_orphaned_files, recordings_root)
 
-    def _parse_cleanup_policy(self, policy_str: Optional[str]) -> JSONValue:
-        """Parse the cleanup policy from JSON string"""
-        if not policy_str:
-            return None
-
+    def _parse_cleanup_policy(
+        self, policy_str: str, source: str
+    ) -> CleanupPolicySchema:
         try:
-            policy: JSONValue = json.loads(policy_str)
-            return policy
-        except Exception as e:
-            self._logger.error(f"Error parsing cleanup policy: {e}")
-            return None
+            raw = json.loads(policy_str)
+        except ValueError, TypeError, RecursionError:
+            raise InvalidRetentionPolicy(
+                f"Invalid {source} retention policy: cleanup_policy is not valid JSON. Correct the cleanup settings before retrying."
+            ) from None
+        return _validated_policy(raw, source)
 
     def _get_effective_cleanup_policy(
         self, streamer_id: int, db: Session
-    ) -> Optional[Dict[str, Any]]:
-        """Get the effective cleanup policy for a streamer, considering overrides"""
-        # First check streamer-specific settings
-        streamer_settings = (
+    ) -> CleanupPolicySchema | None:
+        channel = (
             db.query(StreamerRecordingSettings)
-            .filter(StreamerRecordingSettings.streamer_id == streamer_id)
+            .filter_by(streamer_id=streamer_id)
             .first()
         )
-
-        # If streamer has settings and explicitly wants to use custom policy
         if (
-            streamer_settings
-            and not streamer_settings.use_global_cleanup_policy
-            and streamer_settings.cleanup_policy
+            channel
+            and not channel.use_global_cleanup_policy
+            and channel.cleanup_policy is not None
         ):
-            policy = self._parse_cleanup_policy(streamer_settings.cleanup_policy)
-            if policy:
-                assert isinstance(policy, dict)
-                self._logger.debug(
-                    f"Using streamer-specific cleanup policy for streamer {streamer_id}"
-                )
-                return policy
+            return self._parse_cleanup_policy(channel.cleanup_policy, "channel")
 
-        # Use global settings (default behavior)
         global_settings = db.query(RecordingSettings).first()
-        if global_settings and global_settings.cleanup_policy:
-            policy = self._parse_cleanup_policy(global_settings.cleanup_policy)
-            if policy:
-                assert isinstance(policy, dict)
-                self._logger.debug(
-                    f"Using global cleanup policy for streamer {streamer_id}"
+        if global_settings and global_settings.cleanup_policy is not None:
+            return self._parse_cleanup_policy(global_settings.cleanup_policy, "global")
+
+        # Validate the legacy limit before comparing or falling back. A channel
+        # override wins when positive; the effective limit 0 means unlimited.
+        for source, field, raw_limit in (
+            ("channel", "max_streams", channel.max_streams if channel else None),
+            (
+                "global",
+                "max_streams_per_streamer",
+                global_settings.max_streams_per_streamer if global_settings else None,
+            ),
+        ):
+            if raw_limit is None:
+                continue
+            try:
+                limit = _max_streams_adapter.validate_python(raw_limit)
+            except ValidationError:
+                raise InvalidRetentionPolicy(
+                    f"Invalid {source} retention policy: {field} must be an integer from 0 to {MAX_RECORDING_COUNT}. Correct the cleanup settings before retrying."
+                ) from None
+            if limit > 0:
+                return CleanupPolicySchema(
+                    type=CleanupPolicyType.COUNT,
+                    threshold=limit,
+                    preserve_categories=[],
                 )
-                return policy
+        return None
 
-        # If no policy is set anywhere, fall back to the max_streams setting
-        config_manager = ConfigManager(
-            session_factory=self._session_factory, settings=self._settings
-        )
-        max_streams = config_manager.get_max_streams(streamer_id)
-
-        # CRITICAL FIX: max_streams = 0 means "unlimited" (no cleanup)
-        # Previously, 0 was incorrectly treated as "not set" and defaulted to threshold=10
-        # which caused all recordings beyond 10 to be automatically deleted!
-        if max_streams == 0:
-            # No cleanup policy configured and max_streams is unlimited
-            # Return None to indicate no cleanup should be performed
-            self._logger.debug(
-                f"No cleanup policy for streamer {streamer_id} (max_streams=0 means unlimited)"
-            )
-            return None
-
-        # Return default policy only when max_streams is explicitly set to a positive value
-        self._logger.debug(
-            f"Using default cleanup policy for streamer {streamer_id}: count-based with threshold {max_streams}"
-        )
-        return {
-            "type": CleanupPolicyType.COUNT.value,
-            "threshold": max_streams,
-            "preserve_favorites": True,
-            "preserve_categories": [],
-        }
-
-    def _get_favorite_categories(self, db: Session) -> Set[int | None]:
-        """Get IDs of all favorite categories across all users"""
-        favorite_categories = db.query(FavoriteCategory.category_id).all()
-        return {fc[0] for fc in favorite_categories}
+    def _resolve_policy(
+        self, streamer_id: int, db: Session, custom_policy: dict[str, Any] | None
+    ) -> CleanupPolicySchema | None:
+        if custom_policy is not None:
+            return _validated_policy(custom_policy, "custom")
+        return self._get_effective_cleanup_policy(streamer_id, db)
 
     def _cleanup_old_recordings(
         self,
@@ -171,126 +175,18 @@ class CleanupService:
         db: Optional[Session] = None,
         custom_policy: Optional[Dict[str, Any]] = None,
     ) -> Tuple[int, List[str]]:
-        """
-        Delete recordings based on the streamer's cleanup policy
-
-        Args:
-            streamer_id: ID of the streamer
-            db: Database session
-            custom_policy: Override the stored policy with this one
-
-        Returns:
-            Tuple containing (number of deleted recordings, list of deleted file paths)
-        """
-        close_db = False
+        close_db = db is None
         if db is None:
             db = self._session_factory()
-            close_db = True
-
         try:
-            # Get the policy to apply
-            policy = custom_policy or self._get_effective_cleanup_policy(
-                streamer_id, db
-            )
-
-            # CRITICAL: If no policy is configured (None), skip cleanup entirely
-            # This happens when max_streams=0 (unlimited) and no explicit cleanup policy is set
+            policy = self._resolve_policy(streamer_id, db, custom_policy)
             if policy is None:
-                self._logger.debug(
-                    f"No cleanup policy for streamer {streamer_id}, skipping cleanup (unlimited retention)"
-                )
                 return 0, []
-
-            policy_type = policy.get("type", CleanupPolicyType.COUNT.value)
-            threshold = policy.get("threshold", 10)
-            preserve_favorites = policy.get("preserve_favorites", True)
-            preserve_categories = policy.get("preserve_categories", [])
-            preserve_timeframe = policy.get("preserve_timeframe", {})
-
-            # Get favorite categories if needed
-            favorite_category_ids = set()
-            if preserve_favorites:
-                favorite_category_ids = self._get_favorite_categories(db)
-
-            # Get all completed recordings for this streamer
-            # LOGIC CHANGE: Now filters by ended_at instead of recording_path
-            # Reason: Cleanup should also remove database records of streams where:
-            #   1. Recording file was already deleted manually
-            #   2. Recording failed but stream metadata exists
-            #   3. Recording was moved/renamed outside of StreamVault
-            # This ensures complete cleanup of old stream history, not just files.
-            # If you want to preserve stream history without files, use preserve_favorites.
-
-            # SAFETY: Filter out streams that are too recent to prevent race conditions
-            # Don't delete streams that ended less than 5 minutes ago to avoid deleting
-            # files that are still being processed (remux, metadata generation, etc.)
-            from datetime import datetime, timezone, timedelta
-
-            safety_threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
-
-            streams_query = db.query(Stream).filter(
-                Stream.streamer_id == streamer_id,
-                Stream.ended_at.isnot(
-                    None
-                ),  # Only completed recordings (not currently recording)
-                Stream.ended_at
-                < safety_threshold,  # Only streams that ended more than 5 minutes ago
+            return self._delete_streams(
+                self._select_streams(streamer_id, db, policy), db
             )
-
-            # Log which policy is being applied for debugging
-            self._logger.info(
-                f"Applying cleanup policy for streamer {streamer_id}: type={policy_type}, threshold={threshold}"
-            )
-
-            # Apply different logic based on policy type
-            if policy_type == CleanupPolicyType.COUNT.value:
-                return self._apply_count_policy(
-                    streamer_id,
-                    threshold,
-                    preserve_favorites,
-                    preserve_categories,
-                    preserve_timeframe,
-                    favorite_category_ids,
-                    streams_query,
-                    db,
-                )
-            elif policy_type == CleanupPolicyType.SIZE.value:
-                return self._apply_size_policy(
-                    streamer_id,
-                    threshold,
-                    preserve_favorites,
-                    preserve_categories,
-                    preserve_timeframe,
-                    favorite_category_ids,
-                    streams_query,
-                    db,
-                )
-            elif policy_type == CleanupPolicyType.AGE.value:
-                return self._apply_age_policy(
-                    streamer_id,
-                    threshold,
-                    preserve_favorites,
-                    preserve_categories,
-                    preserve_timeframe,
-                    favorite_category_ids,
-                    streams_query,
-                    db,
-                )
-            else:
-                self._logger.warning(
-                    f"Unknown cleanup policy type: {policy_type}, falling back to COUNT"
-                )
-                return self._apply_count_policy(
-                    streamer_id,
-                    10,
-                    preserve_favorites,
-                    preserve_categories,
-                    preserve_timeframe,
-                    favorite_category_ids,
-                    streams_query,
-                    db,
-                )
-
+        except InvalidRetentionPolicy:
+            raise
         except Exception as e:
             self._logger.error(f"Error cleaning up recordings: {e}", exc_info=True)
             return 0, []
@@ -298,280 +194,107 @@ class CleanupService:
             if close_db:
                 db.close()
 
-    def _apply_count_policy(
-        self,
-        streamer_id: int,
-        threshold: int,
-        preserve_favorites: bool,
-        preserve_categories: List[str],
-        preserve_timeframe: Dict[str, Any],
-        favorite_category_ids: Set[int | None],
-        streams_query: Query[Stream],
-        db: Session,
-    ) -> Tuple[int, List[str]]:
-        """Apply count-based cleanup policy"""
-        # First get all recordings ordered by start time (newest first)
-        streams = streams_query.order_by(Stream.started_at.desc()).all()
-
-        # If we have fewer streams than the threshold, no cleanup needed
-        if len(streams) <= threshold:
-            return 0, []
-
-        # Keep track of streams to preserve
-        preserved_streams = set()
-
-        # Preserve streams based on category
-        if preserve_favorites or preserve_categories:
-            for stream in streams:
-                # Check if we should preserve this stream due to category
-                if (
-                    preserve_favorites
-                    and hasattr(stream, "category_id")
-                    and stream.category_id in favorite_category_ids
-                ):
-                    preserved_streams.add(stream.id)
-
-                # Check if we should preserve based on specified categories
-                if preserve_categories and stream.category_name in preserve_categories:
-                    preserved_streams.add(stream.id)
-
-        # Preserve streams based on timeframe if specified
-        if preserve_timeframe:
-            preserved_streams.update(
-                self._get_streams_in_timeframe(streams, preserve_timeframe)
+    def _select_streams(
+        self, streamer_id: int, db: Session, policy: CleanupPolicySchema
+    ) -> list[Stream]:
+        now = datetime.now(timezone.utc)
+        # Include completed history with missing media, but never active or
+        # recently completed streams (still eligible for post-processing).
+        query = db.query(Stream).filter(
+            Stream.streamer_id == streamer_id,
+            Stream.ended_at < now - timedelta(minutes=5),
+        )
+        if policy.type == CleanupPolicyType.AGE:
+            query = query.filter(
+                Stream.started_at < now - timedelta(days=policy.threshold)
             )
+        order = (
+            Stream.started_at.asc()
+            if policy.type == CleanupPolicyType.SIZE
+            else Stream.started_at.desc()
+        )
+        streams = query.order_by(order, Stream.id).all()
+        favorite_names = (
+            {
+                name
+                for (name,) in db.query(Category.name)
+                .join(FavoriteCategory)
+                .distinct()
+                .all()
+            }
+            if policy.preserve_favorites
+            else set()
+        )
+        protected_categories = favorite_names.union(policy.preserve_categories or [])
+        preserved = {
+            stream.id
+            for stream in streams
+            if stream.category_name in protected_categories
+        }
+        if policy.preserve_timeframe is not None:
+            preserved.update(
+                self._get_streams_in_timeframe(
+                    streams, policy.preserve_timeframe.model_dump()
+                )
+            )
+        unprotected = [stream for stream in streams if stream.id not in preserved]
+        if policy.type == CleanupPolicyType.COUNT:
+            return unprotected[policy.threshold :]
+        if policy.type == CleanupPolicyType.AGE:
+            return unprotected
 
-        # Identify streams to delete (keeping at least threshold streams)
-        kept_count = 0
-        streams_to_delete = []
-
-        for stream in streams:
-            if stream.id in preserved_streams:
-                # Always keep preserved streams
-                continue
-
-            if kept_count < threshold:
-                # Keep the newest streams up to threshold
-                kept_count += 1
-                continue
-
-            streams_to_delete.append(stream)
-
-        # Delete the identified streams
-        return self._delete_streams(streams_to_delete, db)
-
-    def _apply_size_policy(
-        self,
-        streamer_id: int,
-        threshold: int,  # In GB
-        preserve_favorites: bool,
-        preserve_categories: List[str],
-        preserve_timeframe: Dict[str, Any],
-        favorite_category_ids: Set[int | None],
-        streams_query: Query[Stream],
-        db: Session,
-    ) -> Tuple[int, List[str]]:
-        """Apply size-based cleanup policy"""
-        # First get all recordings sorted by age (oldest first)
-        streams = streams_query.order_by(Stream.started_at.asc()).all()
-
-        # Calculate threshold in bytes
-        threshold_bytes = threshold * 1024 * 1024 * 1024  # Convert GB to bytes
-
-        # Calculate current storage usage
-        total_size = 0
+        sizes: dict[int, int] = {}
         for stream in streams:
             if stream.recording_path and os.path.exists(stream.recording_path):
                 try:
-                    size = os.path.getsize(stream.recording_path)
-                    total_size += size
-                except Exception as e:
+                    sizes[stream.id] = os.path.getsize(stream.recording_path)
+                except OSError as error:
                     self._logger.error(
-                        f"Error getting file size for {stream.recording_path}: {e}"
+                        f"Error getting file size for {stream.recording_path}: {error}"
                     )
-
-        # If we're under the threshold, no cleanup needed
-        if total_size <= threshold_bytes:
-            return 0, []
-
-        # Keep track of streams to preserve
-        preserved_streams = set()
-
-        # Preserve streams based on category
-        if preserve_favorites or preserve_categories:
-            for stream in streams:
-                # Check if we should preserve this stream due to category
-                if (
-                    preserve_favorites
-                    and hasattr(stream, "category_id")
-                    and stream.category_id in favorite_category_ids
-                ):
-                    preserved_streams.add(stream.id)
-
-                # Check if we should preserve based on specified categories
-                if (
-                    preserve_categories
-                    and hasattr(stream, "category_name")
-                    and stream.category_name in preserve_categories
-                ):
-                    preserved_streams.add(stream.id)
-
-        # Preserve streams based on timeframe if specified
-        if preserve_timeframe:
-            preserved_streams.update(
-                self._get_streams_in_timeframe(streams, preserve_timeframe)
-            )
-
-        # Identify streams to delete (to get under the threshold)
-        streams_to_delete = []
-        current_size = total_size
-
-        # Start with the oldest streams
-        for stream in streams:
-            # Skip preserved streams
-            if stream.id in preserved_streams:
-                continue
-
-            # Check if we're now under the threshold
-            if current_size <= threshold_bytes:
+        remaining_size = sum(sizes.values())
+        threshold_bytes = policy.threshold * 1024**3
+        selected = []
+        for stream in unprotected:
+            if remaining_size <= threshold_bytes:
                 break
-
-            # Add this stream to deletion list and update size
-            if stream.recording_path and os.path.exists(stream.recording_path):
-                try:
-                    file_size = os.path.getsize(stream.recording_path)
-                    streams_to_delete.append(stream)
-                    current_size -= file_size
-                except Exception as e:
-                    self._logger.error(
-                        f"Error getting file size for {stream.recording_path}: {e}"
-                    )
-
-        # Delete the identified streams
-        return self._delete_streams(streams_to_delete, db)
-
-    def _apply_age_policy(
-        self,
-        streamer_id: int,
-        threshold: int,  # In days
-        preserve_favorites: bool,
-        preserve_categories: List[str],
-        preserve_timeframe: Dict[str, Any],
-        favorite_category_ids: Set[int | None],
-        streams_query: Query[Stream],
-        db: Session,
-    ) -> Tuple[int, List[str]]:
-        """Apply age-based cleanup policy"""
-        # Calculate the cutoff date
-        cutoff_date = datetime.now() - timedelta(days=threshold)
-
-        # Get streams older than the cutoff
-        old_streams = streams_query.filter(Stream.started_at < cutoff_date).all()
-
-        # If no old streams, no cleanup needed
-        if not old_streams:
-            return 0, []
-
-        # Keep track of streams to preserve
-        preserved_streams = set()
-
-        # Preserve streams based on category
-        if preserve_favorites or preserve_categories:
-            for stream in old_streams:
-                # Check if we should preserve this stream due to category
-                if (
-                    preserve_favorites
-                    and hasattr(stream, "category_id")
-                    and stream.category_id in favorite_category_ids
-                ):
-                    preserved_streams.add(stream.id)
-
-                # Check if we should preserve based on specified categories
-                if (
-                    preserve_categories
-                    and hasattr(stream, "category_name")
-                    and stream.category_name in preserve_categories
-                ):
-                    preserved_streams.add(stream.id)
-
-        # Preserve streams based on timeframe if specified
-        if preserve_timeframe:
-            preserved_streams.update(
-                self._get_streams_in_timeframe(old_streams, preserve_timeframe)
-            )
-
-        # Identify streams to delete
-        streams_to_delete = [s for s in old_streams if s.id not in preserved_streams]
-
-        # Delete the identified streams
-        return self._delete_streams(streams_to_delete, db)
+            if stream.id in sizes:
+                selected.append(stream)
+                remaining_size -= sizes[stream.id]
+        return selected
 
     def _get_streams_in_timeframe(
-        self, streams: List[Stream], timeframe: Dict[str, Any]
-    ) -> Set[int]:
-        """
-        Get IDs of streams that fall within the specified timeframe
-        """
-        preserved_ids = set()
-
+        self, streams: list[Stream], timeframe: dict[str, Any]
+    ) -> set[int]:
         start_date = timeframe.get("start_date")
         end_date = timeframe.get("end_date")
-        weekdays = timeframe.get("weekdays", [])
-        time_of_day = timeframe.get("timeOfDay")
-
+        start = utc_datetime(datetime.fromisoformat(start_date)) if start_date else None
+        end = utc_datetime(datetime.fromisoformat(end_date)) if end_date else None
+        weekdays = timeframe.get("weekdays")
+        clock = timeframe.get("timeOfDay")
+        if clock:
+            start_hour, start_minute = map(int, clock["start"].split(":"))
+            end_hour, end_minute = map(int, clock["end"].split(":"))
+            start_time = time(start_hour, start_minute)
+            end_time = time(end_hour, end_minute)
+        preserved = set()
         for stream in streams:
-            stream_time = stream.started_at
-            if not stream_time:
+            if stream.started_at is None:
                 continue
-
-            # Check date range
-            if start_date and stream_time < datetime.fromisoformat(start_date):
+            started = utc_datetime(stream.started_at)
+            if (start and started < start) or (end and started > end):
                 continue
-
-            if end_date and stream_time > datetime.fromisoformat(end_date):
+            if weekdays and started.weekday() not in weekdays:
                 continue
-
-            # Check weekday
-            if weekdays and stream_time.weekday() not in weekdays:
-                continue
-
-            # Check time of day
-            if time_of_day:
-                start_time = time_of_day.get("start")
-                end_time = time_of_day.get("end")
-
-                if start_time and end_time:
-                    try:
-                        # Parse time strings to hours and minutes
-                        start_hour, start_minute = map(int, start_time.split(":"))
-                        end_hour, end_minute = map(int, end_time.split(":"))
-
-                        # Create time objects for comparison
-                        stream_time_of_day = stream_time.time()
-                        start_time_obj = time(start_hour, start_minute)
-                        end_time_obj = time(end_hour, end_minute)
-
-                        # Check if stream time is within the range
-                        if (
-                            end_time_obj > start_time_obj
-                        ):  # Normal case (e.g., 8:00 to 17:00)
-                            if not (
-                                start_time_obj <= stream_time_of_day <= end_time_obj
-                            ):
-                                continue
-                        else:  # Overnight case (e.g., 22:00 to 6:00)
-                            if not (
-                                stream_time_of_day >= start_time_obj
-                                or stream_time_of_day <= end_time_obj
-                            ):
-                                continue
-                    except (ValueError, IndexError) as e:
-                        self._logger.error(f"Error parsing time of day: {e}")
-
-            # If we get here, the stream is within the timeframe
-            preserved_ids.add(stream.id)
-
-        return preserved_ids
+            if clock:
+                current = started.time()
+                if end_time > start_time:
+                    if not start_time <= current <= end_time:
+                        continue
+                elif not (current >= start_time or current <= end_time):
+                    continue
+            preserved.add(stream.id)
+        return preserved
 
     def _delete_streams(
         self, streams_to_delete: List[Stream], db: Session
@@ -998,11 +721,9 @@ class CleanupService:
                             )
                             continue
 
-                        policy_type = policy.get("type", "count")
-                        threshold = policy.get("threshold", 0)
                         self._logger.info(
                             f"Processing streamer {streamer.username} ({processed_count}/{len(streamers)}) "
-                            f"with policy {policy_type} (threshold: {threshold})"
+                            f"with policy {policy.type.value} (threshold: {policy.threshold})"
                         )
 
                         # Get current storage stats before cleanup
@@ -1035,6 +756,10 @@ class CleanupService:
                             self._logger.debug(
                                 f"No recordings to clean up for streamer {streamer.username}"
                             )
+                    except InvalidRetentionPolicy as error:
+                        self._logger.warning(
+                            "Skipping retention for channel %s: %s", streamer.id, error
+                        )
                     except Exception as e:
                         self._logger.error(
                             f"Error during cleanup for streamer {streamer.username}: {e}",
@@ -1071,182 +796,10 @@ class CleanupService:
             close_db = True
 
         try:
-            # Get the policy to apply
-            policy = custom_policy or self._get_effective_cleanup_policy(
-                streamer_id, db
-            )
-
-            # If no policy is configured, nothing would be deleted
+            policy = self._resolve_policy(streamer_id, db, custom_policy)
             if policy is None:
-                self._logger.debug(
-                    f"No cleanup policy for streamer {streamer_id}, nothing to simulate"
-                )
                 return 0, []
-
-            policy_type = policy.get("type", CleanupPolicyType.COUNT.value)
-            threshold = policy.get("threshold", 10)
-            preserve_favorites = policy.get("preserve_favorites", True)
-            preserve_categories = policy.get("preserve_categories", [])
-            preserve_timeframe = policy.get("preserve_timeframe", {})
-
-            # Get favorite categories if needed
-            favorite_category_ids = set()
-            if preserve_favorites:
-                favorite_category_ids = self._get_favorite_categories(db)
-
-            # Get all recordings for this streamer
-            streams_query = db.query(Stream).filter(
-                Stream.streamer_id == streamer_id, Stream.recording_path.isnot(None)
-            )
-
-            # Apply the same logic as cleanup but don't delete, just identify what would be deleted
-            streams = []
-
-            if policy_type == CleanupPolicyType.COUNT.value:
-                # Get streams sorted by time (newest first)
-                all_streams = streams_query.order_by(Stream.started_at.desc()).all()
-
-                # Identify preserved streams
-                preserved_streams = set()
-
-                # Preserve streams based on category
-                if preserve_favorites or preserve_categories:
-                    for stream in all_streams:
-                        # Check if we should preserve this stream due to category
-                        if (
-                            preserve_favorites
-                            and hasattr(stream, "category_id")
-                            and stream.category_id in favorite_category_ids
-                        ):
-                            preserved_streams.add(stream.id)
-
-                        # Check if we should preserve based on specified categories
-                        if (
-                            preserve_categories
-                            and stream.category_name in preserve_categories
-                        ):
-                            preserved_streams.add(stream.id)
-
-                # Preserve streams based on timeframe if specified
-                if preserve_timeframe:
-                    preserved_streams.update(
-                        self._get_streams_in_timeframe(all_streams, preserve_timeframe)
-                    )
-
-                # Identify streams to delete (keeping at least threshold streams)
-                kept_count = 0
-                for stream in all_streams:
-                    if stream.id in preserved_streams:
-                        # Always keep preserved streams
-                        continue
-
-                    if kept_count < threshold:
-                        # Keep the newest streams up to threshold
-                        kept_count += 1
-                        continue
-
-                    streams.append(stream)
-
-            elif policy_type == CleanupPolicyType.SIZE.value:
-                # Logic for size policy
-                all_streams = streams_query.order_by(Stream.started_at.asc()).all()
-
-                # Calculate threshold in bytes
-                threshold_bytes = threshold * 1024 * 1024 * 1024  # Convert GB to bytes
-
-                # Calculate current storage usage
-                total_size = 0
-                for stream in all_streams:
-                    if stream.recording_path and os.path.exists(stream.recording_path):
-                        try:
-                            size = os.path.getsize(stream.recording_path)
-                            total_size += size
-                        except Exception:
-                            # Ignore permission errors or race conditions where file was deleted
-                            pass
-
-                # Identify preserved streams
-                preserved_streams = set()
-
-                # Preserve streams based on category and timeframe
-                if preserve_favorites or preserve_categories:
-                    for stream in all_streams:
-                        if (
-                            preserve_favorites
-                            and hasattr(stream, "category_id")
-                            and stream.category_id in favorite_category_ids
-                        ):
-                            preserved_streams.add(stream.id)
-
-                        if (
-                            preserve_categories
-                            and stream.category_name in preserve_categories
-                        ):
-                            preserved_streams.add(stream.id)
-
-                if preserve_timeframe:
-                    preserved_streams.update(
-                        self._get_streams_in_timeframe(all_streams, preserve_timeframe)
-                    )
-
-                # Identify streams to delete (to get under the threshold)
-                current_size = total_size
-
-                for stream in all_streams:
-                    # Skip preserved streams
-                    if stream.id in preserved_streams:
-                        continue
-
-                    # Check if we're now under the threshold
-                    if current_size <= threshold_bytes:
-                        break
-
-                    # Add this stream to deletion list and update size
-                    if stream.recording_path and os.path.exists(stream.recording_path):
-                        try:
-                            file_size = os.path.getsize(stream.recording_path)
-                            streams.append(stream)
-                            current_size -= file_size
-                        except Exception:
-                            # Ignore permission errors or race conditions where file was deleted
-                            pass
-
-            elif policy_type == CleanupPolicyType.AGE.value:
-                # Logic for age policy
-                cutoff_date = datetime.now() - timedelta(days=threshold)
-
-                # Get streams older than the cutoff
-                old_streams = streams_query.filter(
-                    Stream.started_at < cutoff_date
-                ).all()
-
-                # Identify preserved streams
-                preserved_streams = set()
-
-                # Preserve streams based on category
-                if preserve_favorites or preserve_categories:
-                    for stream in old_streams:
-                        if (
-                            preserve_favorites
-                            and hasattr(stream, "category_id")
-                            and stream.category_id in favorite_category_ids
-                        ):
-                            preserved_streams.add(stream.id)
-
-                        if (
-                            preserve_categories
-                            and stream.category_name in preserve_categories
-                        ):
-                            preserved_streams.add(stream.id)
-
-                # Preserve streams based on timeframe if specified
-                if preserve_timeframe:
-                    preserved_streams.update(
-                        self._get_streams_in_timeframe(old_streams, preserve_timeframe)
-                    )
-
-                # Identify streams to delete
-                streams = [s for s in old_streams if s.id not in preserved_streams]
+            streams = self._select_streams(streamer_id, db, policy)
 
             # Format the result for display
             result_streams = []
@@ -1283,14 +836,16 @@ class CleanupService:
                     "total_size": total_size,
                     "total_size_formatted": self._format_size(total_size),
                     "policy": {
-                        "type": policy_type,
-                        "threshold": threshold,
-                        "preserve_favorites": preserve_favorites,
-                        "preserve_categories": preserve_categories,
+                        "type": policy.type.value,
+                        "threshold": policy.threshold,
+                        "preserve_favorites": policy.preserve_favorites,
+                        "preserve_categories": policy.preserve_categories or [],
                     },
                 },
             )
 
+        except InvalidRetentionPolicy:
+            raise
         except Exception as e:
             self._logger.error(f"Error simulating cleanup: {e}", exc_info=True)
             return 0, {
@@ -1357,7 +912,7 @@ class CleanupService:
                     real_path = os.path.realpath(path)
                     real_safe_root = os.path.realpath(safe_root)
                     return is_path_within_base(real_path, real_safe_root)
-                except (OSError, ValueError):
+                except OSError, ValueError:
                     return False
 
             for root, dirs, files in os.walk(safe_root):

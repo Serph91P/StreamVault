@@ -6,11 +6,12 @@ import os
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 
 from app.config.settings import Settings
 from app.database import Base, DatabaseLifecycle
 from app.models import RecordingSettings, Stream, Streamer, StreamerRecordingSettings
-from app.services.system.cleanup_service import CleanupService
+from app.services.system.cleanup_service import CleanupService, InvalidRetentionPolicy
 
 
 @pytest.fixture
@@ -155,7 +156,12 @@ async def test_retention_legacy_fallbacks_keep_explicit_unlimited_meaning(
                 )
             )
         db.commit()
-    count, _ = await service.cleanup_old_recordings(1)
+    if configuration.startswith("invalid-"):
+        with pytest.raises(InvalidRetentionPolicy, match=configuration.split("-")[1]):
+            await service.cleanup_old_recordings(1)
+        count = 0
+    else:
+        count, _ = await service.cleanup_old_recordings(1)
     expected = 2 if configuration.startswith("max-streams") else 0
     assert count == expected
     assert sum(path.exists() for path in paths) == 3 - expected
@@ -180,6 +186,80 @@ async def test_scheduled_retention_uses_same_policy_and_remains_idempotent(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("inherit", [True, False])
+async def test_unlimited_preview_and_scheduler_leave_catalog_untouched(
+    retention_catalog, inherit
+):
+    service, database, paths = retention_catalog
+    with database.sync_session_factory() as db:
+        assert db.get(RecordingSettings, 1).max_streams_per_streamer == 0
+        db.add(
+            StreamerRecordingSettings(
+                streamer_id=1, use_global_cleanup_policy=inherit, max_streams=0
+            )
+        )
+        db.commit()
+
+    assert await service.simulate_cleanup(1) == (0, [])
+    await service.run_scheduled_cleanup()
+
+    with database.sync_session_factory() as db:
+        assert set(db.scalars(select(Stream.id))) == {1, 2, 3}
+        config = db.get(StreamerRecordingSettings, 1)
+        assert config.use_global_cleanup_policy is inherit
+        assert config.max_streams == 0
+    assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)
+    assert database.sync_engine.pool.checkedout() == 0
+
+
+@pytest.mark.asyncio
+async def test_size_cleanup_ignores_missing_media_and_removes_oldest_available(
+    retention_catalog,
+):
+    service, database, paths = retention_catalog
+    paths[0].unlink()
+    with paths[1].open("wb") as file:
+        file.truncate(768 * 1024 * 1024)
+    policy = {"type": "size", "threshold": 1, "preserve_favorites": False}
+
+    count, preview = await service.simulate_cleanup(1, policy)
+    assert count == 1
+    assert {item["id"] for item in preview["streams"]} == {2}
+    assert paths[1].stat().st_size == 768 * 1024 * 1024
+    assert paths[2].stat().st_size == 512 * 1024 * 1024
+    with database.sync_session_factory() as db:
+        assert set(db.scalars(select(Stream.id))) == {1, 2, 3}
+
+    deleted, deleted_paths = await service.cleanup_old_recordings(1, policy)
+    assert deleted == 1
+    assert {Path(path) for path in deleted_paths} == {paths[1]}
+    with database.sync_session_factory() as db:
+        assert set(db.scalars(select(Stream.id))) == {1, 3}
+    assert not paths[0].exists() and not paths[1].exists()
+    assert paths[2].stat().st_size == 512 * 1024 * 1024
+
+
+@pytest.mark.asyncio
+async def test_age_preview_lists_history_without_media_as_zero_bytes(retention_catalog):
+    service, database, paths = retention_catalog
+    paths[0].unlink()
+    policy = {"type": "age", "threshold": 7, "preserve_favorites": False}
+
+    count, preview = await service.simulate_cleanup(1, policy)
+
+    assert count == 3
+    assert {item["id"]: item["size"] for item in preview["streams"]} == {
+        1: 0,
+        2: 512 * 1024 * 1024,
+        3: 512 * 1024 * 1024,
+    }
+    assert preview["total_size"] == 1024 * 1024 * 1024
+    with database.sync_session_factory() as db:
+        assert set(db.scalars(select(Stream.id))) == {1, 2, 3}
+    assert [path.exists() for path in paths] == [False, True, True]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("source", ["global", "channel"])
 @pytest.mark.parametrize("value", [True, [1], "not-a-policy-object"])
 async def test_truthy_nonobject_json_policy_never_falls_through_to_deletion(
@@ -187,7 +267,7 @@ async def test_truthy_nonobject_json_policy_never_falls_through_to_deletion(
 ):
     service, database, paths = retention_catalog
     serialized = json.dumps(value)
-    assert service._parse_cleanup_policy(serialized) == value
+
     with database.sync_session_factory() as db:
         settings = db.get(RecordingSettings, 1)
         settings.max_streams_per_streamer = 1
@@ -202,9 +282,10 @@ async def test_truthy_nonobject_json_policy_never_falls_through_to_deletion(
                 )
             )
         db.commit()
-    assert await service.cleanup_old_recordings(1) == (0, [])
-    count, _ = await service.simulate_cleanup(1)
-    assert count == 0
+    with pytest.raises(InvalidRetentionPolicy, match=source):
+        await service.cleanup_old_recordings(1)
+    with pytest.raises(InvalidRetentionPolicy, match=source):
+        await service.simulate_cleanup(1)
     await service.run_scheduled_cleanup()
     assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)
     with database.sync_session_factory() as db:
@@ -225,13 +306,13 @@ async def test_truthy_nonobject_json_policy_never_falls_through_to_deletion(
         ({"timeOfDay": {"start": "09:00", "end": "11:00"}}, {1}),
         ({"timeOfDay": {"start": "22:00", "end": "06:00"}}, {3}),
         ({"timeOfDay": {"start": "17:00", "end": "19:00"}}, set()),
-        ({"timeOfDay": {"start": "invalid", "end": "99:99"}}, {1, 2, 3}),
+        ({"timeOfDay": {"start": "invalid", "end": "99:99"}}, None),
     ],
 )
 async def test_existing_preview_timeframe_filters_are_pure(
     retention_catalog, policy_type, timeframe, kept
 ):
-    # Existing SDK preview only, not the separate #993 execution/parity feature.
+    # Service preview only; the UI contract belongs to #993.
     service, database, paths = retention_catalog
     with database.sync_session_factory() as db:
         for identifier, hour in ((1, 10), (2, 14), (3, 23)):
@@ -239,21 +320,29 @@ async def test_existing_preview_timeframe_filters_are_pure(
             row.started_at = datetime(2020, 1, 5 + identifier, hour)
             row.ended_at = row.started_at + timedelta(minutes=15)
         db.commit()
+    policy = {
+        "type": policy_type,
+        "threshold": 7 if policy_type == "age" else 1,
+        "preserve_favorites": False,
+        "preserve_timeframe": timeframe,
+    }
+    if kept is None:
+        with pytest.raises(InvalidRetentionPolicy, match="timeOfDay"):
+            await service.simulate_cleanup(1, policy)
+        with pytest.raises(InvalidRetentionPolicy, match="timeOfDay"):
+            await service.cleanup_old_recordings(1, policy)
+        assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)
+        with database.sync_session_factory() as db:
+            assert db.query(Stream).count() == 3
+        assert database.sync_engine.pool.checkedout() == 0
+        return
     candidates = sorted({1, 2, 3} - kept)
     expected = {
         "count": candidates[:-1],
         "size": candidates[:1],
         "age": candidates,
     }[policy_type]
-    count, result = await service.simulate_cleanup(
-        1,
-        {
-            "type": policy_type,
-            "threshold": 7 if policy_type == "age" else 1,
-            "preserve_favorites": False,
-            "preserve_timeframe": timeframe,
-        },
-    )
+    count, result = await service.simulate_cleanup(1, policy)
     assert count == len(expected)
     assert sorted(row["id"] for row in result["streams"]) == expected
     assert all(path.stat().st_size == 512 * 1024 * 1024 for path in paths)

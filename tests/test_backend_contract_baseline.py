@@ -80,15 +80,19 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
         },
     }
     # #933 adds only this codec field and these four SPA entrypoints.
-    assert schema["components"]["schemas"]["RecordingSettingsSchema"]["properties"].pop(
-        "supported_codecs"
-    ) == {
+    codec_schema = {
         "type": "string",
         "pattern": "^(?:h264|h265|av1)(?:,(?:h264|h265|av1))*$",
         "title": "Supported Codecs",
         "description": "Global recording codec preferences (ordered h264, h265, av1 list)",
         "default": "h264,h265",
     }
+    assert (
+        schema["components"]["schemas"]["RecordingSettingsSchema"]["properties"].pop(
+            "supported_codecs"
+        )
+        == codec_schema
+    )
     spa_paths = ("/onboarding", "/system", "/overview", "/activity")
     for path in spa_paths:
         operation = copy.deepcopy(expected["openapi"]["paths"]["/streamers"])
@@ -121,7 +125,55 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
     readiness["description"] = expected["openapi"]["paths"]["/api/health/ready"]["get"][
         "description"
     ]
-    assert schema == expected["openapi"]
+    # #1028 intentionally tightens only these retention fields. Keep the frozen
+    # baseline and compare every other property and route without exceptions.
+    expected_openapi = copy.deepcopy(expected["openapi"])
+    policy_schemas = expected_openapi["components"]["schemas"]
+    policy = policy_schemas["CleanupPolicySchema"]
+    policy["additionalProperties"] = False
+    policy["required"] = ["type", "threshold"]
+    policy["properties"]["type"].pop("default")
+    threshold = policy["properties"]["threshold"]
+    threshold.pop("default")
+    threshold.update(
+        minimum=1,
+        description="Positive integer: recordings, GiB or days, depending on type",
+    )
+    timeframe = policy_schemas["PreserveTimeframeSchema"]
+    timeframe["additionalProperties"] = False
+    timeframe["properties"]["weekdays"]["anyOf"][0]["items"].update(
+        minimum=0, maximum=6
+    )
+    # Strict count bounds belong to POST bodies, not responses that show stored values.
+    for model, field, path in (
+        ("RecordingSettings", "max_streams_per_streamer", "/api/recording/settings"),
+        (
+            "StreamerRecordingSettings",
+            "max_streams",
+            "/api/recording/streamers/{streamer_id}",
+        ),
+    ):
+        response_fields = policy_schemas[f"{model}Schema"]["properties"]
+        request = copy.deepcopy(policy_schemas[f"{model}Schema"])
+        update_model = f"{model}Update"
+        request["title"] = update_model
+        request_field = request["properties"][field]
+        if model == "RecordingSettings":
+            request["properties"]["supported_codecs"] = codec_schema
+            request_field.update(minimum=0, maximum=2147483647)
+        else:
+            request_field["anyOf"][0].update(minimum=0, maximum=2147483647)
+        policy_schemas[update_model] = request
+        expected_openapi["paths"][path]["post"]["requestBody"]["content"][
+            "application/json"
+        ]["schema"] = {"$ref": f"#/components/schemas/{update_model}"}
+
+        response_field = response_fields[field]
+        response_field.pop("type", None)
+        response_field["anyOf"] = [
+            {"type": kind} for kind in ("integer", "number", "string", "null")
+        ]
+    assert schema == expected_openapi
 
     # Handler modules may move; registration order, route kind and methods may not.
     def signatures(routes):
