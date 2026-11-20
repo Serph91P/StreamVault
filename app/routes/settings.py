@@ -223,24 +223,31 @@ def _persist_settings_snapshot(
         http_proxy = ((settings.http_proxy or "") if settings else "").strip()
         https_proxy = ((settings.https_proxy or "") if settings else "").strip()
         codecs = settings.supported_codecs if settings else "h264,h265"
-        notification_url = (
-            (settings.notification_url or "") if settings else ""
-        ).strip()
+        notification_url = (settings.notification_url or "") if settings else ""
         notifications_enabled = (
             bool(settings.notifications_enabled) if settings else True
         )
-        new_notification_url = (settings_data.notification_url or "").strip()
+        submitted_notification_url = settings_data.notification_url or ""
+        new_notification_url = submitted_notification_url.strip()
         new_http_proxy = (settings_data.http_proxy or "").strip()
         new_https_proxy = (settings_data.https_proxy or "").strip()
         url_changed = (
-            "notification_url" in supplied and notification_url != new_notification_url
+            "notification_url" in supplied
+            and notification_url.strip() != new_notification_url
         )
         http_changed = "http_proxy" in supplied and http_proxy != new_http_proxy
         https_changed = "https_proxy" in supplied and https_proxy != new_https_proxy
         if (
-            url_changed
-            and new_notification_url
-            and not service.validate_apprise_url(new_notification_url)
+            "notification_url" in supplied
+            and submitted_notification_url
+            and submitted_notification_url != notification_url
+            and (
+                not new_notification_url
+                or (
+                    url_changed
+                    and not service.validate_apprise_url(new_notification_url)
+                )
+            )
         ):
             raise HTTPException(
                 status_code=400, detail="Invalid notification URL format"

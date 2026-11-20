@@ -42,12 +42,13 @@ DOCS_URL = "https://github.com/caronc/apprise/wiki"
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("legacy_url", ["legacy-not-currently-valid", "  \t "])
 async def test_panel_save_can_keep_unchanged_legacy_notification_url(
-    image_applications,
+    image_applications, legacy_url
 ):
     _, databases, clients, _ = image_applications
     factory = databases[0].sync_session_factory
-    legacy_url = "legacy-not-currently-valid"
+
     seed = SEED | {"notification_url": legacy_url}
     with factory() as db:
         db.add(GlobalSettings(id=1, **seed))
@@ -65,6 +66,48 @@ def persisted(session_factory):
     with session_factory() as db:
         row = db.scalars(select(GlobalSettings)).one()
         return {name: getattr(row, name) for name in SEED}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "initial_url", ["", SEED["notification_url"]], ids=["empty", "configured"]
+)
+async def test_whitespace_notification_url_rejects_entire_save(
+    image_applications, monkeypatch, initial_url
+):
+    _, databases, clients, queries = image_applications
+    factory = databases[0].sync_session_factory
+    seed = SEED | {"notification_url": initial_url}
+    with factory() as db:
+        db.add(GlobalSettings(id=1, **seed))
+        db.commit()
+
+    effects = []
+    monkeypatch.setattr(
+        NotificationService, "_initialize_apprise", lambda _: effects.append("apprise")
+    )
+
+    async def regenerate(_service):
+        effects.append("streamlink")
+        return True
+
+    monkeypatch.setattr(StreamlinkConfigService, "regenerate_config", regenerate)
+    client = clients[0]
+    before = await client.get(SETTINGS)
+    assert before.status_code == 200
+    queries.clear()
+    response = await client.post(
+        SETTINGS, json={"notification_url": "  \t ", "notify_update_global": True}
+    )
+    assert response.status_code == 500, response.text
+    assert persisted(factory) == seed
+    readback = await client.get(SETTINGS)
+    assert readback.status_code == 200
+    assert readback.json() == before.json()
+    assert not effects
+    assert not any(
+        sql.lstrip().startswith("UPDATE global_settings") for _, sql in queries
+    )
 
 
 @pytest.mark.asyncio
@@ -121,6 +164,13 @@ def persisted(session_factory):
             200,
             ["apprise", "streamlink"],
             id="explicit-clears-and-defaults",
+        ),
+        pytest.param(
+            {"notification_url": None},
+            {"notification_url": ""},
+            200,
+            ["apprise"],
+            id="explicit-null-notification-url",
         ),
         pytest.param(
             {"http_proxy": "", "https_proxy": None, "supported_codecs": ""},
