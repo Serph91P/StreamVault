@@ -200,6 +200,106 @@ def test_legacy_count_save_boundary(retention, entry, value):
 
 
 @pytest.mark.parametrize("source", ["global", "channel"])
+@pytest.mark.parametrize("stored", [-1, 2**31, "invalid-integer", 1.5, None, 0])
+@pytest.mark.parametrize("operation", ["read", "save-without-count"])
+def test_legacy_count_readback_preserves_original_value(
+    retention, source, stored, operation
+):
+    _, database, settings, client, _, auth = retention
+    model, field, read_path, save_path, update = (
+        (
+            RecordingSettings,
+            "max_streams_per_streamer",
+            "/api/recording/settings",
+            "/api/recording/settings",
+            {
+                "default_quality": "720p",
+                "output_directory": settings.RECORDING_DIRECTORY,
+            },
+        )
+        if source == "global"
+        else (
+            StreamerRecordingSettings,
+            "max_streams",
+            "/api/recording/streamers",
+            "/api/recording/streamers/1",
+            {"streamer_id": 1, "quality": "720p"},
+        )
+    )
+    quality = "default_quality" if source == "global" else "quality"
+    with database.sync_session_factory() as db:
+        setattr(db.get(model, 1), field, stored)
+        db.commit()
+    before_rows, before_files = snapshot(retention)
+
+    if operation == "read":
+        response = client.get(read_path, headers=auth)
+    else:
+        response = client.post(save_path, json=update, headers=auth)
+        # Read committed values in a session distinct from the request's session.
+        with database.sync_session_factory() as db:
+            row = db.get(model, 1)
+            assert (
+                response.status_code,
+                getattr(row, quality),
+                getattr(row, field),
+            ) == (
+                200,
+                "720p",
+                stored,
+            )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    if source == "channel" and operation == "read":
+        body = next(row for row in body if row["streamer_id"] == 1)
+    assert body[field] == stored
+    assert type(body[field]) is type(stored)
+    after_rows, after_files = snapshot(retention)
+    if operation == "read":
+        assert after_rows == before_rows
+    assert after_rows["background_tasks"] == before_rows["background_tasks"]
+    assert after_files == before_files
+
+
+@pytest.mark.parametrize("source", ["global", "channel"])
+def test_invalid_legacy_count_can_be_explicitly_repaired(retention, source):
+    _, database, settings, client, _, auth = retention
+    model, field, path, body = (
+        (
+            RecordingSettings,
+            "max_streams_per_streamer",
+            "/api/recording/settings",
+            {"output_directory": settings.RECORDING_DIRECTORY},
+        )
+        if source == "global"
+        else (
+            StreamerRecordingSettings,
+            "max_streams",
+            "/api/recording/streamers/1",
+            {"streamer_id": 1},
+        )
+    )
+    with database.sync_session_factory() as db:
+        setattr(db.get(model, 1), field, -1)
+        db.commit()
+
+    before_rows, before_files = snapshot(retention)
+    invalid = client.post(path, json={**body, field: -1}, headers=auth)
+    assert invalid.status_code == 422, invalid.text
+    assert invalid.json()["detail"][0]["loc"] == ["body", field]
+    assert snapshot(retention) == (before_rows, before_files)
+
+    repaired = client.post(path, json={**body, field: 1}, headers=auth)
+    assert repaired.status_code == 200, repaired.text
+    assert repaired.json()[field] == 1
+    with database.sync_session_factory() as db:
+        assert getattr(db.get(model, 1), field) == 1
+    after_rows, after_files = snapshot(retention)
+    assert after_rows["background_tasks"] == before_rows["background_tasks"]
+    assert after_files == before_files
+
+
+@pytest.mark.parametrize("source", ["global", "channel"])
 @pytest.mark.parametrize(
     "stored",
     [

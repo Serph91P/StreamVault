@@ -22,6 +22,8 @@ class CleanupPolicyType(str, Enum):
 MAX_RECORDING_COUNT = 2**31 - 1  # PostgreSQL Integer storage for legacy limits.
 MAX_SIZE_GIB = (2**63 - 1) // 1024**3  # Signed 64-bit byte range.
 MaxStreams = Annotated[int, Field(strict=True, ge=0, le=MAX_RECORDING_COUNT)]
+# SQLite can contain legacy text or real values even in an integer column.
+StoredMaxStreams = int | float | str | None
 
 
 def utc_datetime(value: datetime) -> datetime:
@@ -110,7 +112,12 @@ class CleanupPolicySchema(BaseModel):
         return self
 
 
-class RecordingSettingsSchema(BaseModel):
+_GLOBAL_COUNT_DESCRIPTION = (
+    "Maximum number of streams to keep per streamer (0 = unlimited)"
+)
+
+
+class _RecordingSettingsFields(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     enabled: bool = Field(default=True, description="Enable recording globally")
     output_directory: str = Field(
@@ -138,14 +145,23 @@ class RecordingSettingsSchema(BaseModel):
         default=False,
         description="Use category name as chapter title instead of stream title",
     )
-    max_streams_per_streamer: MaxStreams = Field(
-        default=0,
-        description="Maximum number of streams to keep per streamer (0 = unlimited)",
-    )
     cleanup_policy: Optional[CleanupPolicySchema] = None
 
 
-class StreamerRecordingSettingsSchema(BaseModel):
+class RecordingSettingsSchema(_RecordingSettingsFields):
+    max_streams_per_streamer: StoredMaxStreams = Field(
+        default=0,
+        description=_GLOBAL_COUNT_DESCRIPTION,
+    )
+
+
+class RecordingSettingsUpdate(_RecordingSettingsFields):
+    max_streams_per_streamer: MaxStreams = Field(
+        default=0, description=_GLOBAL_COUNT_DESCRIPTION
+    )
+
+
+class _StreamerRecordingSettingsFields(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     streamer_id: int
     username: Optional[str] = None
@@ -153,7 +169,6 @@ class StreamerRecordingSettingsSchema(BaseModel):
     enabled: bool = True
     quality: Optional[str] = None
     custom_filename: Optional[str] = None
-    max_streams: Optional[MaxStreams] = None
     cleanup_policy: Optional[CleanupPolicySchema] = None
     use_global_cleanup_policy: bool = (
         True  # Use global cleanup policy or streamer-specific
@@ -170,6 +185,14 @@ class StreamerRecordingSettingsSchema(BaseModel):
             "Equal priority keeps the current owner."
         ),
     )
+
+
+class StreamerRecordingSettingsSchema(_StreamerRecordingSettingsFields):
+    max_streams: StoredMaxStreams = None
+
+
+class StreamerRecordingSettingsUpdate(_StreamerRecordingSettingsFields):
+    max_streams: Optional[MaxStreams] = None
 
 
 class ActiveRecordingSchema(BaseModel):

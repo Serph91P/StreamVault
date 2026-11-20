@@ -18,6 +18,11 @@ otherwise the global count limit applies. An effective count limit of `0` is
 unlimited and never becomes a delete-all instruction. A null channel limit
 still leaves the global limit in effect.
 
+Settings responses return stored legacy count values unchanged, even if they
+cannot be submitted as new limits. Saving without the count leaves it intact.
+To repair a count, send a valid integer in the affected field; sending an
+invalid value explicitly returns a field-specific HTTP **422**.
+
 `preserve_favorites` must be a JSON boolean if provided; its default is `true`.
 `preserve_categories` accepts a list of names or null. Optional timeframes use
 inclusive ISO date/datetime bounds (offsets are compared in UTC; no offset means

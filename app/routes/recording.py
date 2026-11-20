@@ -11,7 +11,9 @@ from app.models import (
 )
 from app.schemas.recording import (
     RecordingSettingsSchema,
+    RecordingSettingsUpdate,
     StreamerRecordingSettingsSchema,
+    StreamerRecordingSettingsUpdate,
     ActiveRecordingSchema,
 )
 from app.schemas.recording import CleanupPolicySchema, StorageUsageSchema
@@ -138,7 +140,7 @@ async def get_recording_settings(
     dependencies=[Depends(require_scopes("recording:write"))],
 )
 async def update_recording_settings(
-    settings_data: RecordingSettingsSchema,
+    settings_data: RecordingSettingsUpdate,
     session_factory: Callable[[], Session] = Depends(get_application_session_factory),
     config_service: StreamlinkConfigService = Depends(get_streamlink_config_service),
 ) -> RecordingSettingsSchema:
@@ -185,7 +187,7 @@ async def update_recording_settings(
                     settings_data.use_category_as_chapter_title
                 )
 
-            if hasattr(settings_data, "max_streams_per_streamer"):
+            if "max_streams_per_streamer" in settings_data.model_fields_set:
                 existing_settings.max_streams_per_streamer = (
                     settings_data.max_streams_per_streamer
                 )
@@ -201,11 +203,8 @@ async def update_recording_settings(
                     settings_data.cleanup_policy.dict()
                 )
 
-            # Save changes
-            db.commit()
-            # This refreshes the instance after commit so it's bound to the session
-            db.refresh(existing_settings)
-            db.refresh(global_settings)
+            # Load insert defaults without committing before response validation.
+            db.flush()
 
             # Parse cleanup policy back to object for response
             cleanup_policy = None
@@ -239,6 +238,7 @@ async def update_recording_settings(
                 ),
                 cleanup_policy=cleanup_policy,
             )
+            db.commit()
             return response, codec_changed
 
     try:
@@ -626,7 +626,7 @@ async def stop_recording(
 )
 def update_streamer_recording_settings(
     streamer_id: int,
-    settings: StreamerRecordingSettingsSchema,
+    settings: StreamerRecordingSettingsUpdate,
     db: Session = Depends(get_db),
     logging_service: LoggingService = Depends(get_logging_service),
     unified_image_service: UnifiedImageService = Depends(get_image_service),
@@ -715,7 +715,6 @@ def update_streamer_recording_settings(
                 settings.cleanup_policy.dict()
             )
 
-        db.commit()
         # Return updated settings with streamer info
         try:
             cleanup_policy = None
@@ -729,7 +728,7 @@ def update_streamer_recording_settings(
             logger.warning(f"Error parsing cleanup policy: {e}")
             cleanup_policy = None
 
-        return StreamerRecordingSettingsSchema(
+        response = StreamerRecordingSettingsSchema(
             streamer_id=streamer_settings.streamer_id,
             username=streamer.username,
             profile_image_url=unified_image_service.get_profile_image_url(
@@ -741,7 +740,11 @@ def update_streamer_recording_settings(
             max_streams=streamer_settings.max_streams,
             twitch_auth_priority=streamer_settings.twitch_auth_priority,
             cleanup_policy=cleanup_policy,
+            use_global_cleanup_policy=streamer_settings.use_global_cleanup_policy
+            is not False,
         )
+        db.commit()
+        return response
     except HTTPException:
         raise
     except Exception as e:
