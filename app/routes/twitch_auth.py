@@ -1,13 +1,23 @@
 import aiohttp
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Query
+from hashlib import sha256
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from starlette.requests import HTTPConnection
 from pydantic import BaseModel, Field
-from app.services.api.twitch_oauth_service import TwitchOAuthService
+from app.services.api.twitch_oauth_service import (
+    OAuthBrowserSession,
+    TwitchOAuthService,
+)
 from app.services.streamer_service import StreamerService
 from app.dependencies import get_streamer_service, get_application_twitch_token_service
-from app.dependencies import get_application_twitch_oauth_service, require_admin_user
+from app.dependencies import (
+    get_application_session_factory,
+    get_application_twitch_oauth_service,
+    get_current_identity,
+    get_current_user,
+    require_admin_user,
+)
 from app.services.system.twitch_token_service import (
     TwitchTokenService,
     TwitchTokenState,
@@ -108,84 +118,139 @@ def get_twitch_oauth_service(
     return get_application_twitch_oauth_service(connection)
 
 
-@router.get(
-    "/auth-url", response_model=None, dependencies=[Depends(require_admin_user)]
-)
+def _authorized_browser(request: Request) -> OAuthBrowserSession:
+    factory = get_application_session_factory(request)
+    identity = get_current_identity(request, factory)
+    cookie_name = {"jwt": "access_token", "legacy-session": "session"}.get(
+        identity.auth_method
+    )
+    if (
+        not identity.interactive
+        or cookie_name is None
+        or not (token := request.cookies.get(cookie_name))
+    ):
+        raise HTTPException(status_code=403, detail="Browser session required")
+    user = require_admin_user(get_current_user(identity, factory), identity)
+    return user.id, cookie_name, sha256(token.encode()).digest()
+
+
+@router.get("/auth-url", response_model=None)
 async def get_twitch_auth_url(
-    state: str = Query(
+    request: Request,
+    response: Response,
+    state: str | None = Query(
         None,
         description="Return URL after OAuth (e.g., '/settings' or '/add-streamer')",
     ),
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
 ) -> dict[str, str]:
-    """Get Twitch OAuth authorization URL
+    """Start a browser link. The legacy `state` input is only a return hint."""
+    if request.headers.get("sec-fetch-site") not in (None, "none", "same-origin"):
+        raise HTTPException(status_code=403, detail="Same-origin initiation required")
+    browser = await run_in_thread_pool(_authorized_browser, request)
+    response.headers["Cache-Control"] = "no-store"
+    return {"auth_url": oauth_service.begin_link(browser, state)}
 
-    Args:
-        state: Optional return URL to redirect to after OAuth completes
-    """
-    auth_url = oauth_service.get_auth_url(state=state)
-    return {"auth_url": auth_url}
+
+def _link_redirect(location: str) -> RedirectResponse:
+    return RedirectResponse(
+        url=location,
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+    )
 
 
-@router.get("/callback")
+@router.get(
+    "/callback",
+    response_class=RedirectResponse,
+    status_code=307,
+    responses={
+        307: {"description": "Redirect to the application with the link outcome."}
+    },
+    # Describe the wire contract without moving validation ahead of the handler.
+    openapi_extra={
+        "parameters": [
+            {
+                "name": "state",
+                "in": "query",
+                "required": True,
+                "schema": {"type": "string"},
+                "description": "One-time state returned by Twitch.",
+            },
+            {
+                "name": "code",
+                "in": "query",
+                "required": False,
+                "schema": {"type": "string"},
+                "description": "Authorization code on successful consent.",
+            },
+            {
+                "name": "error",
+                "in": "query",
+                "required": False,
+                "schema": {"type": "string"},
+                "description": "Provider error on cancelled or failed consent.",
+            },
+        ]
+    },
+)
 async def twitch_callback(
-    code: str = Query(...),
-    state: str = Query(None, description="Return URL passed from OAuth initiation"),
+    request: Request,
     oauth_service: TwitchOAuthService = Depends(get_twitch_oauth_service),
     token_service: TwitchTokenService = Depends(get_application_twitch_token_service),
 ) -> RedirectResponse:
-    """Handle Twitch OAuth callback
+    """Consume the current browser's link grant before any provider or storage effect."""
+    invalid = "/add-streamer?error=auth_failed"
+    states = request.query_params.getlist("state")
+    if len(states) != 1:
+        return _link_redirect(invalid)
+    try:
+        browser = await run_in_thread_pool(_authorized_browser, request)
+    except HTTPException:
+        return _link_redirect(invalid)
+    destination = oauth_service.consume_link(browser, states[0])
+    if destination is None:
+        return _link_redirect(invalid)
 
-    Args:
-        code: Authorization code from Twitch
-        state: Return URL (e.g., '/settings' or '/add-streamer')
-    """
-    # Exchange code for access token
-    token_data = await oauth_service.exchange_code(code)
+    failed = f"{destination}?error=auth_failed"
+    codes = request.query_params.getlist("code")
+    if "error" in request.query_params or len(codes) != 1 or not codes[0]:
+        return _link_redirect(failed)
+    token_data = await oauth_service.exchange_code(codes[0])
+    if not token_data:
+        return _link_redirect(failed)
 
-    if not token_data or "access_token" not in token_data:
-        logger.error("Failed to get access token from Twitch")
-        # SECURITY: Use constant redirect URL to prevent open redirect attacks (CWE-601)
-        # Always redirect to /add-streamer on auth failure (safe, no user input)
-        return RedirectResponse(url="/add-streamer?error=auth_failed")
-
-    # Store refresh token in database for automatic token refresh
-    access_token = token_data["access_token"]
+    access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
     expires_in = token_data.get("expires_in", 14400)  # Default 4 hours
-
-    if refresh_token:
-        # Store refresh token in database for automatic renewal
-        try:
-            assert isinstance(access_token, str)
-            assert isinstance(refresh_token, str)
-            assert isinstance(expires_in, (int, float))
-            success = await token_service.store_oauth_tokens(
-                access_token=access_token,
-                refresh_token=refresh_token,
-                expires_in=expires_in,
-            )
-
-            if success:
-                logger.info("✅ Twitch OAuth tokens stored - automatic refresh enabled")
-            else:
-                logger.warning("Failed to store OAuth tokens in database")
-        except Exception:
-            logger.error("Error storing OAuth tokens")
-
-    # SECURITY: Use whitelisted constant redirects to prevent open redirect attacks (CWE-601)
-    # Only allow two safe destinations: /settings or /add-streamer
-    # SECURITY: Never pass tokens in URLs — they leak via browser history, logs, and Referer headers
-    # The token is already stored in the database via store_oauth_tokens() above
-
-    # Validate state parameter against whitelist
-    if state and state.strip() == "/add-streamer":
-        logger.info("✅ Twitch OAuth completed - redirecting to /add-streamer")
-        return RedirectResponse(url="/add-streamer?auth_success=true")
-    else:
-        # Default: For settings page, redirect without token in URL (stored in DB)
-        logger.info("✅ Twitch OAuth completed - redirecting to /settings")
-        return RedirectResponse(url="/settings?auth_success=true")
+    if not (
+        isinstance(access_token, str)
+        and access_token
+        and isinstance(refresh_token, str)
+        and refresh_token
+        and isinstance(expires_in, (int, float))
+        and not isinstance(expires_in, bool)
+        and 0 < expires_in < float("inf")
+    ):
+        return _link_redirect(failed)
+    try:
+        if await run_in_thread_pool(_authorized_browser, request) != browser:
+            return _link_redirect(failed)
+    except HTTPException:
+        return _link_redirect(failed)
+    try:
+        success = await token_service.store_oauth_tokens(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=expires_in,
+        )
+    except Exception:
+        logger.error("Error storing OAuth tokens")
+        return _link_redirect(failed)
+    if not success:
+        logger.warning("Failed to store OAuth tokens in database")
+        return _link_redirect(failed)
+    logger.info("Twitch OAuth link completed")
+    return _link_redirect(f"{destination}?auth_success=true")
 
 
 @router.get("/followed-channels", response_model=None)
@@ -224,7 +289,7 @@ async def get_followed_channels(
         raise HTTPException(
             status_code=504, detail="Twitch follow request timed out"
         ) from None
-    except (ConnectionError, ValueError, aiohttp.ClientError):
+    except ConnectionError, ValueError, aiohttp.ClientError:
         raise HTTPException(
             status_code=502, detail="Could not load complete Twitch follows"
         ) from None

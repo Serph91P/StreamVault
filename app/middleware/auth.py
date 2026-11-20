@@ -304,6 +304,11 @@ class AuthMiddleware:
         # All data/media paths require auth to prevent unauthenticated access
         # to images, sync/cleanup POST endpoints, and system info.
         if _is_public_path(request.url.path):
+            if request.url.path.rstrip("/") == "/api/twitch/callback":
+                # The route needs the grant parameters; the ASGI server's access log does not.
+                callback_scope = scope.copy()
+                scope["query_string"] = b""
+                return await self.app(callback_scope, receive, send)
             return await self.app(scope, receive, send)
 
         bearer_token = _extract_bearer_token(scope.get("headers", []))

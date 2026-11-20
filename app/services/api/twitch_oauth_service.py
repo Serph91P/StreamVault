@@ -7,6 +7,10 @@ Use twitch_api.py for general Twitch API interactions.
 """
 
 import asyncio
+from dataclasses import dataclass
+from secrets import compare_digest, token_urlsafe
+from threading import Lock
+from time import monotonic
 import json
 import logging
 from collections.abc import Coroutine
@@ -23,6 +27,16 @@ from urllib.parse import urlencode
 
 logger = logging.getLogger("streamvault")
 T = TypeVar("T")
+
+
+OAuthBrowserSession = tuple[int, str, bytes]
+
+
+@dataclass(frozen=True)
+class _PendingLink:
+    nonce: str
+    expires_at: float
+    return_path: str
 
 
 class TwitchOAuthService:
@@ -45,6 +59,9 @@ class TwitchOAuthService:
         self._supervisor = TaskSupervisor("twitch-oauth")
         self._operation_ids = count()
         self._close_task: asyncio.Task[None] | None = None
+        # Only link/relink grants live here. A process restart requires a fresh start.
+        self._pending_links: dict[OAuthBrowserSession, _PendingLink] = {}
+        self._link_lock = Lock()
         self._owns_http = http_client is None
         self._http = (
             http_client
@@ -86,28 +103,60 @@ class TwitchOAuthService:
             raise asyncio.CancelledError
 
     async def _close_resources(self) -> None:
+        with self._link_lock:
+            self._pending_links.clear()
         try:
             await self._supervisor.shutdown()
         finally:
             if self._owns_http:
                 await self._http.close()
 
-    def get_auth_url(self, state: str | None = None) -> str:
-        """Generate Twitch OAuth URL for user authentication
+    def begin_link(self, browser: OAuthBrowserSession, return_path: str | None) -> str:
+        destination = (
+            "/add-streamer"
+            if (return_path or "").strip() == "/add-streamer"
+            else "/settings"
+        )
+        nonce = token_urlsafe(32)
+        url = self.get_auth_url(nonce)
+        with self._link_lock:
+            now = monotonic()
+            self._pending_links = {
+                owner: grant
+                for owner, grant in self._pending_links.items()
+                if grant.expires_at > now
+            }
+            self._pending_links.pop(browser, None)
+            if len(self._pending_links) >= 256:
+                del self._pending_links[next(iter(self._pending_links))]
+            self._pending_links[browser] = _PendingLink(nonce, now + 300, destination)
+        return url
 
-        Args:
-            state: Optional state parameter (e.g., return URL like '/settings' or '/add-streamer')
-        """
+    def consume_link(self, browser: OAuthBrowserSession, nonce: str) -> str | None:
+        if len(nonce) != 43 or not nonce.isascii():
+            return None
+        with self._link_lock:
+            pending = self._pending_links.get(browser)
+            if pending is None:
+                return None
+            if pending.expires_at <= monotonic():
+                del self._pending_links[browser]
+                return None
+            if not compare_digest(pending.nonce, nonce):
+                return None
+            del self._pending_links[browser]
+            return pending.return_path
+
+    def get_auth_url(self, state: str) -> str:
+        """Build the provider URL with an opaque link grant nonce."""
         params = {
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "response_type": "code",
             "scope": "user:read:follows",  # Required for reading followed channels
             "force_verify": "true",  # Force re-authentication to ensure fresh refresh_token
+            "state": state,
         }
-
-        if state:
-            params["state"] = state
 
         return f"https://id.twitch.tv/oauth2/authorize?{urlencode(params)}"
 
@@ -141,7 +190,7 @@ class TwitchOAuthService:
             ):
                 raise ValueError("Invalid OAuth exchange response")
             return value
-        except (HTTPClientError, ValueError):
+        except HTTPClientError, ValueError:
             logger.warning("OAuth code exchange failed")
             return None
 

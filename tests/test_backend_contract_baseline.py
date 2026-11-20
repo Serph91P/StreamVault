@@ -19,7 +19,7 @@ DEVELOP_1045 = json.loads(
 
 def test_public_openapi_routes_and_middleware_preserve_verified_base():
     current = public_contract()
-    expected = BASELINE["public"]
+    expected = copy.deepcopy(BASELINE["public"])
     # #938 intentionally replaces destructive no-body cleanup with optional preview/
     # confirmation. Verify that exact additive contract before comparing the rest.
     from app.services.system.temporary_cleanup_service import TemporaryCleanupRequest
@@ -121,6 +121,45 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
     readiness["description"] = expected["openapi"]["paths"]["/api/health/ready"]["get"][
         "description"
     ]
+    # #1027 changes only the two browser OAuth operations. The callback
+    # validates query values itself so rejections redirect instead of returning 422.
+    auth_url = expected["openapi"]["paths"]["/api/twitch/auth-url"]["get"]
+    auth_url["description"] = (
+        "Start a browser link. The legacy `state` input is only a return hint."
+    )
+    state_hint = auth_url["parameters"][0]["schema"]
+    assert state_hint.pop("type") == "string"
+    state_hint["anyOf"] = [{"type": "string"}, {"type": "null"}]
+    callback = expected["openapi"]["paths"]["/api/twitch/callback"]["get"]
+    callback["description"] = (
+        "Consume the current browser's link grant before any provider or storage effect."
+    )
+    callback["parameters"] = [
+        {
+            "name": "state",
+            "in": "query",
+            "required": True,
+            "schema": {"type": "string"},
+            "description": "One-time state returned by Twitch.",
+        },
+        {
+            "name": "code",
+            "in": "query",
+            "required": False,
+            "schema": {"type": "string"},
+            "description": "Authorization code on successful consent.",
+        },
+        {
+            "name": "error",
+            "in": "query",
+            "required": False,
+            "schema": {"type": "string"},
+            "description": "Provider error on cancelled or failed consent.",
+        },
+    ]
+    callback["responses"] = {
+        "307": {"description": "Redirect to the application with the link outcome."}
+    }
     assert schema == expected["openapi"]
 
     # Handler modules may move; registration order, route kind and methods may not.
