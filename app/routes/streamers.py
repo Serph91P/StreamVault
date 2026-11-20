@@ -32,8 +32,7 @@ from sqlalchemy.orm import Session, joinedload
 import logging
 from pathlib import Path
 import json
-from pydantic import TypeAdapter, ValidationError
-from app.schemas.recording import MaxStreams
+from app.schemas.channel_settings import ChannelSettingsPatch
 import re
 from app.utils import async_file
 from app.utils.async_db_utils import run_in_thread_pool
@@ -981,7 +980,7 @@ def get_streamer(
 )
 def update_streamer_settings(
     streamer_id: int,
-    settings: Dict[str, Any] = Body(...),
+    settings: ChannelSettingsPatch,
     db: Session = Depends(get_db),
 ):
     """Update recording settings for a specific streamer"""
@@ -1012,88 +1011,8 @@ def update_streamer_settings(
             db.add(recording_settings)
             db.flush()
 
-        # Update settings from request body
-        # Supports BOTH:
-        #   * legacy flat keys (autoRecord, quality, filenameTemplate, ...)
-        #   * schema-driven nested payload from StreamerSettingsFields:
-        #       { quality, recording: {...}, notifications: {...} }
-        recording_block = (
-            settings.get("recording")
-            if isinstance(settings.get("recording"), dict)
-            else None
-        )
-        notifications_block = (
-            settings.get("notifications")
-            if isinstance(settings.get("notifications"), dict)
-            else None
-        )
-
-        # --- Recording fields ---
-        if recording_block is not None:
-            if "enabled" in recording_block:
-                recording_settings.enabled = bool(recording_block["enabled"])
-            if "quality" in recording_block:
-                recording_settings.quality = recording_block["quality"]
-            if "custom_filename" in recording_block:
-                recording_settings.custom_filename = (
-                    recording_block["custom_filename"] or None
-                )
-            if "supported_codecs" in recording_block:
-                recording_settings.supported_codecs = (
-                    recording_block["supported_codecs"] or None
-                )
-            if "use_global_cleanup_policy" in recording_block:
-                recording_settings.use_global_cleanup_policy = bool(
-                    recording_block["use_global_cleanup_policy"]
-                )
-
-        # Schema also sends top-level "quality" (stream quality picker)
-        if "quality" in settings and (
-            settings["quality"] is None or isinstance(settings["quality"], str)
-        ):
-            recording_settings.quality = settings["quality"]
-
-        # --- Legacy flat keys (kept for backwards compat) ---
-        if "autoRecord" in settings:
-            recording_settings.enabled = settings["autoRecord"]
-            logger.info(
-                f"Updated recording enabled for {streamer.username}: {recording_settings.enabled}"
-            )
-
-        if "filenameTemplate" in settings:
-            recording_settings.custom_filename = (
-                settings["filenameTemplate"] if settings["filenameTemplate"] else None
-            )
-            logger.info(
-                f"Updated custom filename for {streamer.username}: {recording_settings.custom_filename}"
-            )
-
-        if "maxStreams" in settings:
-            recording_settings.max_streams = TypeAdapter(
-                MaxStreams | None
-            ).validate_python(settings["maxStreams"])
-            logger.info(
-                f"Updated max streams for {streamer.username}: {recording_settings.max_streams}"
-            )
-
-        if "supportedCodecs" in settings:
-            recording_settings.supported_codecs = (
-                settings["supportedCodecs"] if settings["supportedCodecs"] else None
-            )
-            logger.info(
-                f"Updated supported codecs for {streamer.username}: {recording_settings.supported_codecs}"
-            )
-
-        if "useGlobalCleanupPolicy" in settings:
-            recording_settings.use_global_cleanup_policy = settings[
-                "useGlobalCleanupPolicy"
-            ]
-            logger.info(
-                f"Updated use global cleanup for {streamer.username}: {recording_settings.use_global_cleanup_policy}"
-            )
-
-        # --- Notification fields (nested schema only) ---
-        if notifications_block is not None:
+        notification_updates = settings.notifications.model_dump(exclude_unset=True)
+        if notification_updates:
             notification_settings = (
                 db.query(NotificationSettings)
                 .filter(NotificationSettings.streamer_id == streamer_id)
@@ -1103,20 +1022,14 @@ def update_streamer_settings(
                 notification_settings = NotificationSettings(streamer_id=streamer_id)
                 db.add(notification_settings)
 
-            for key in (
-                "notify_online",
-                "notify_offline",
-                "notify_update",
-                "notify_favorite_category",
-            ):
-                if key in notifications_block:
-                    setattr(notification_settings, key, bool(notifications_block[key]))
+            for key, value in notification_updates.items():
+                setattr(notification_settings, key, value)
 
-        db.commit()
-        db.refresh(recording_settings)
+        for key, value in settings.recording_updates().items():
+            setattr(recording_settings, key, value)
 
-        # Return updated settings
-        return {
+        db.flush()
+        response = {
             "success": True,
             "settings": {
                 "autoRecord": recording_settings.enabled,
@@ -1128,12 +1041,8 @@ def update_streamer_settings(
             },
         }
 
-    except ValidationError as error:
-        db.rollback()
-        raise HTTPException(
-            status_code=422,
-            detail="maxStreams must be a non-negative integer within the supported range, or null",
-        ) from error
+        db.commit()
+        return response
     except HTTPException:
         raise
     except Exception as e:

@@ -1,0 +1,196 @@
+{
+  "request_schema": {
+    "$ref": "#/components/schemas/ChannelSettingsPatch"
+  },
+  "schemas": {
+    "ChannelNotificationsPatch": {
+      "properties": {
+        "notify_favorite_category": {
+          "default": false,
+          "title": "Notify Favorite Category",
+          "type": "boolean"
+        },
+        "notify_offline": {
+          "default": true,
+          "title": "Notify Offline",
+          "type": "boolean"
+        },
+        "notify_online": {
+          "default": true,
+          "title": "Notify Online",
+          "type": "boolean"
+        },
+        "notify_update": {
+          "default": true,
+          "title": "Notify Update",
+          "type": "boolean"
+        }
+      },
+      "title": "ChannelNotificationsPatch",
+      "type": "object"
+    },
+    "ChannelRecordingPatch": {
+      "properties": {
+        "custom_filename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Custom Filename"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "max_streams": {
+          "anyOf": [
+            {
+              "maximum": 2147483647.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Max Streams"
+        },
+        "quality": {
+          "anyOf": [
+            {
+              "enum": [
+                "",
+                "best",
+                "worst",
+                "source",
+                "1440p60",
+                "1080p60",
+                "1080p",
+                "720p60",
+                "720p",
+                "480p",
+                "360p",
+                "160p",
+                "audio_only"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Quality"
+        },
+        "supported_codecs": {
+          "anyOf": [
+            {
+              "pattern": "^(?:[ \\t]*(?:h264|h265|av1)(?:[ \\t]*,[ \\t]*(?:h264|h265|av1))*[ \\t]*)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Supported Codecs"
+        },
+        "use_global_cleanup_policy": {
+          "default": true,
+          "title": "Use Global Cleanup Policy",
+          "type": "boolean"
+        }
+      },
+      "title": "ChannelRecordingPatch",
+      "type": "object"
+    },
+    "ChannelSettingsPatch": {
+      "description": "Only supplied fields change. Flags must be JSON booleans; blocks must\nbe objects. Null/empty text clears quality, filename and codec overrides;\nnull clears maxStreams. Cleanup inheritance is an explicit boolean and\ndoesn't erase the stored policy. Legacy aliases can accompany nested\nvalues if they agree after normalization. Unknown fields are ignored for\ncompatibility; they are never written.",
+      "properties": {
+        "autoRecord": {
+          "default": true,
+          "title": "Autorecord",
+          "type": "boolean"
+        },
+        "filenameTemplate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Filenametemplate"
+        },
+        "maxStreams": {
+          "anyOf": [
+            {
+              "maximum": 2147483647.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Maxstreams"
+        },
+        "notifications": {
+          "$ref": "#/components/schemas/ChannelNotificationsPatch"
+        },
+        "quality": {
+          "anyOf": [
+            {
+              "enum": [
+                "",
+                "best",
+                "worst",
+                "source",
+                "1440p60",
+                "1080p60",
+                "1080p",
+                "720p60",
+                "720p",
+                "480p",
+                "360p",
+                "160p",
+                "audio_only"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Quality"
+        },
+        "recording": {
+          "$ref": "#/components/schemas/ChannelRecordingPatch"
+        },
+        "supportedCodecs": {
+          "anyOf": [
+            {
+              "pattern": "^(?:[ \\t]*(?:h264|h265|av1)(?:[ \\t]*,[ \\t]*(?:h264|h265|av1))*[ \\t]*)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Supportedcodecs"
+        },
+        "useGlobalCleanupPolicy": {
+          "default": true,
+          "title": "Useglobalcleanuppolicy",
+          "type": "boolean"
+        }
+      },
+      "title": "ChannelSettingsPatch",
+      "type": "object"
+    }
+  }
+}

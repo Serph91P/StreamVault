@@ -59,7 +59,7 @@
 import { ref, reactive } from 'vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import StreamerSettingsFields from '@/components/streamers/StreamerSettingsFields.vue'
-import { buildDefaultState } from '@/schemas/streamerSettings.schema'
+import { buildDefaultState, serializeChannelSettings } from '@/schemas/streamerSettings.schema'
 import { useToast } from '@/composables/useToast'
 
 interface StreamerInfo {
@@ -80,7 +80,7 @@ const isValidating = ref(false)
 const isValid = ref(false)
 const streamerInfo = ref<StreamerInfo | null>(null)
 
-// Schema-driven reactive state: { quality, notifications: {...}, recording: {...} }
+// Schema-driven reactive state: { notifications: {...}, recording: {...} }
 const settings = reactive<Record<string, unknown>>(buildDefaultState())
 
 const validateUsername = async () => {
@@ -134,7 +134,7 @@ const addStreamer = async () => {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings),
+      body: JSON.stringify(serializeChannelSettings(settings)),
     })
 
     const data = await response.json().catch(() => ({}))

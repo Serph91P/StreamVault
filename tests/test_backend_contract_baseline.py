@@ -173,6 +173,17 @@ def test_public_openapi_routes_and_middleware_preserve_verified_base():
         response_field["anyOf"] = [
             {"type": kind} for kind in ("integer", "number", "string", "null")
         ]
+    # #1032 replaces only the nested channel PUT request body. Keep comparing
+    # its responses and all other operations to the frozen contract.
+    channel_patch = json.loads(
+        (ROOT / "docs/architecture/contracts/channel-settings-1032.json").read_text()
+    )
+    policy_schemas.update(channel_patch["schemas"])
+    expected_openapi["paths"]["/api/streamers/streamer/{streamer_id}/settings"][
+        "put"
+    ]["requestBody"]["content"]["application/json"]["schema"] = channel_patch[
+        "request_schema"
+    ]
     assert schema == expected_openapi
 
     # Handler modules may move; registration order, route kind and methods may not.
