@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
+from app.services.core.channel_settings import initialize_channel_settings
 from app.models import (
     Streamer,
     Stream,
@@ -352,9 +353,9 @@ class StreamerRepository:
         try:
             notification_settings = self.get_notification_settings(streamer_id)
             if not notification_settings:
-                # Create new settings if they don't exist
-                notification_settings = NotificationSettings(streamer_id=streamer_id)
-                self.db.add(notification_settings)
+                notification_settings = initialize_channel_settings(
+                    self.db, NotificationSettings, streamer_id
+                )
 
             for key, value in settings.items():
                 if hasattr(notification_settings, key):
@@ -378,9 +379,9 @@ class StreamerRepository:
         try:
             recording_settings = self.get_recording_settings(streamer_id)
             if not recording_settings:
-                # Create new settings if they don't exist
-                recording_settings = StreamerRecordingSettings(streamer_id=streamer_id)
-                self.db.add(recording_settings)
+                recording_settings = initialize_channel_settings(
+                    self.db, StreamerRecordingSettings, streamer_id
+                )
 
             for key, value in settings.items():
                 if hasattr(recording_settings, key):

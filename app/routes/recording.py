@@ -31,6 +31,7 @@ from app.dependencies import (
     get_retention_service,
 )
 from app.services.system.streamlink_config_service import StreamlinkConfigService
+from app.services.core.channel_settings import initialize_channel_settings
 from app.utils.async_db_utils import run_in_thread_pool
 from collections.abc import Callable
 from app.utils.cache import SimpleCache
@@ -276,19 +277,17 @@ def get_all_streamer_recording_settings(
             # Create a dictionary for quick lookup
             settings_dict = {s.streamer_id: s for s in existing_settings}
 
-            # Create or get settings for each streamer
+            # Lock missing channels in a consistent order across concurrent lists.
+            for streamer_id in sorted(
+                s.id for s in streamers if s.id not in settings_dict
+            ):
+                settings_dict[streamer_id] = initialize_channel_settings(
+                    db, StreamerRecordingSettings, streamer_id
+                )
+            db.flush()
             result = []
             for streamer in streamers:
-                if streamer.id in settings_dict:
-                    # Use existing settings
-                    settings = settings_dict[streamer.id]
-                else:
-                    # Create default settings
-                    settings = StreamerRecordingSettings(
-                        streamer_id=streamer.id, enabled=True
-                    )
-                    db.add(settings)
-                    db.flush()
+                settings = settings_dict[streamer.id]
                 # Create response object
                 try:
                     cleanup_policy = None
@@ -647,8 +646,9 @@ def update_streamer_recording_settings(
         )
 
         if not streamer_settings:
-            streamer_settings = StreamerRecordingSettings(streamer_id=streamer_id)
-            db.add(streamer_settings)
+            streamer_settings = initialize_channel_settings(
+                db, StreamerRecordingSettings, streamer_id
+            )
 
         # Update settings
         db.flush()
@@ -991,8 +991,9 @@ def update_streamer_cleanup_policy(
         )
 
         if not streamer_settings:
-            streamer_settings = StreamerRecordingSettings(streamer_id=streamer_id)
-            db.add(streamer_settings)
+            streamer_settings = initialize_channel_settings(
+                db, StreamerRecordingSettings, streamer_id
+            )
 
         # Handle the use_global_cleanup_policy flag
         use_global = request_data.get("use_global_cleanup_policy", False)

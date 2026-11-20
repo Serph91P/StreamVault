@@ -164,6 +164,15 @@ def test_feature_model_metadata_preserves_pre_extraction_sqlite_and_postgres_abi
                 "CREATE UNIQUE INDEX ix_stream_events_delivery_key ON stream_events (delivery_key)",
             ]
         )
+    # #1031 aligns fresh ORM schemas with migration 003, preserving the indexes.
+    for name in ("NotificationSettings", "StreamerRecordingSettings"):
+        table = baseline[name]["table"]
+        for ddl in baseline[name]["ddl"].values():
+            ddl["table"] = ddl["table"].replace(
+                f"\tCONSTRAINT fk_{table}_streamer_id_streamers",
+                f"\tCONSTRAINT uq_{table}_streamer_id UNIQUE (streamer_id), \n"
+                f"\tCONSTRAINT fk_{table}_streamer_id_streamers",
+            )
     for name, definition in additions.items():
         assert current.pop(name) == definition
     assert current == baseline

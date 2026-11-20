@@ -4,6 +4,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.responses import JSONResponse
 from app.services.streamer_service import StreamerService
+from app.services.core.channel_settings import initialize_channel_settings
 from app.services.communication.websocket_manager import (
     websocket_manager,
     emit_toast,
@@ -558,10 +559,9 @@ async def add_streamer(
             )
 
             if not streamer_recording_settings:
-                streamer_recording_settings = StreamerRecordingSettings(
-                    streamer_id=new_streamer.id
+                streamer_recording_settings = initialize_channel_settings(
+                    db, StreamerRecordingSettings, new_streamer.id
                 )
-                db.add(streamer_recording_settings)
 
             # Update recording settings
             streamer_recording_settings.enabled = recording_enabled
@@ -1006,10 +1006,9 @@ def update_streamer_settings(
         )
 
         if not recording_settings:
-            recording_settings = StreamerRecordingSettings(
-                streamer_id=streamer_id, enabled=True, quality="best"
+            recording_settings = initialize_channel_settings(
+                db, StreamerRecordingSettings, streamer_id
             )
-            db.add(recording_settings)
             db.flush()
 
         # Update settings from request body
@@ -1100,8 +1099,9 @@ def update_streamer_settings(
                 .first()
             )
             if not notification_settings:
-                notification_settings = NotificationSettings(streamer_id=streamer_id)
-                db.add(notification_settings)
+                notification_settings = initialize_channel_settings(
+                    db, NotificationSettings, streamer_id
+                )
 
             for key in (
                 "notify_online",

@@ -85,6 +85,14 @@ jobs:
           TWITCH_APP_SECRET: ci-placeholder
           BASE_URL: http://localhost:7000
 
+      - name: Check initial settings races on PostgreSQL
+        run: uv run pytest -q -v tests/test_initial_channel_settings_postgres.py
+        env:
+          SV1031_POSTGRES_URL: postgresql+psycopg://streamvault_ci:ci-placeholder@localhost:5432/streamvault_ci
+          TWITCH_APP_ID: ci-placeholder
+          TWITCH_APP_SECRET: ci-placeholder
+          BASE_URL: http://localhost:7000
+
   # Build Docker image (no push) to validate it builds correctly
   build:
     needs: [test]
