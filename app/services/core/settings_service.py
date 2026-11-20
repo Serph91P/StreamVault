@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models import GlobalSettings, NotificationSettings, Streamer
+from app.services.core.channel_settings import initialize_channel_settings
 from app.schemas.settings import (
     GlobalSettingsSchema,
     StreamerNotificationSettingsSchema,
@@ -162,8 +163,9 @@ class SettingsService:
             .first()
         )
         if not settings:
-            settings = NotificationSettings(streamer_id=streamer_id)
-            self.db.add(settings)
+            settings = initialize_channel_settings(
+                self.db, NotificationSettings, streamer_id
+            )
 
         if settings_data.notify_online is not None:
             settings.notify_online = settings_data.notify_online
@@ -272,8 +274,9 @@ class SettingsService:
             .first()
         )
         if not settings:
-            settings = NotificationSettings(streamer_id=streamer_id)
-            self.db.add(settings)
+            settings = initialize_channel_settings(
+                self.db, NotificationSettings, streamer_id
+            )
             self.db.commit()
         return StreamerNotificationSettingsSchema.model_validate(settings)
 
@@ -286,8 +289,9 @@ class SettingsService:
             .first()
         )
         if not settings:
-            settings = NotificationSettings(streamer_id=streamer_id)
-            self.db.add(settings)
+            settings = initialize_channel_settings(
+                self.db, NotificationSettings, streamer_id
+            )
 
         settings.notify_online = settings_data.notify_online
         settings.notify_offline = settings_data.notify_offline

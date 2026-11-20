@@ -277,6 +277,15 @@ def test_feature_model_layout_preserves_canonical_postgresql_schema():
             "CREATE UNIQUE INDEX ix_stream_events_delivery_key ON stream_events (delivery_key)",
         ]
     )
+    # #1031 restores the existing migrated invariant in fresh ORM metadata.
+    for entry in expected:
+        table = entry["table"]
+        if table in ("notification_settings", "streamer_recording_settings"):
+            entry["create_table_postgresql"] = entry["create_table_postgresql"].replace(
+                f"\tCONSTRAINT fk_{table}_streamer_id_streamers",
+                f"\tCONSTRAINT uq_{table}_streamer_id UNIQUE (streamer_id), \n"
+                f"\tCONSTRAINT fk_{table}_streamer_id_streamers",
+            )
     assert [
         entry for entry in current if entry["table"] not in added_tables
     ] == expected

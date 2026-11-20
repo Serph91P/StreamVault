@@ -5,7 +5,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 import json
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -89,7 +98,7 @@ class RecordingSettings(Base):
 
 class StreamerRecordingSettings(Base):
     __tablename__ = "streamer_recording_settings"
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = (UniqueConstraint("streamer_id"), {"extend_existing": True})
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     streamer_id: Mapped[int] = mapped_column(
