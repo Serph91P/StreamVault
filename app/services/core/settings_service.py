@@ -47,8 +47,11 @@ class SettingsService:
             self.db.commit()
         return settings
 
+    def find_global_settings_row(self) -> GlobalSettings | None:
+        return self.db.query(GlobalSettings).first()
+
     def get_global_settings_row(self) -> GlobalSettings:
-        settings = self.db.query(GlobalSettings).first()
+        settings = self.find_global_settings_row()
         if not settings:
             settings = GlobalSettings(id=1)
             self.db.add(settings)
@@ -56,8 +59,10 @@ class SettingsService:
         return settings
 
     def get_global_settings_schema(self) -> GlobalSettingsSchema:
-        settings = self.get_global_settings_row()
+        return self._global_settings_schema(self.get_global_settings_row())
 
+    @staticmethod
+    def _global_settings_schema(settings: GlobalSettings) -> GlobalSettingsSchema:
         def _bool(value, default: bool) -> bool:
             return default if value is None else bool(value)
 
@@ -205,39 +210,49 @@ class SettingsService:
     def update_global_settings(
         self, settings_data: GlobalSettingsSchema
     ) -> GlobalSettingsSchema:
-        settings = self.db.query(GlobalSettings).first()
+        settings = self.find_global_settings_row()
         if not settings:
-            settings = GlobalSettings()
+            settings = GlobalSettings(id=1)
             self.db.add(settings)
 
-        if "notification_url" in settings_data.model_fields_set:
+        supplied = settings_data.model_fields_set
+        if "notification_url" in supplied:
             settings.notification_url = settings_data.notification_url or ""
-        settings.notifications_enabled = settings_data.notifications_enabled
-        settings.notify_online_global = settings_data.notify_online_global
-        settings.notify_offline_global = settings_data.notify_offline_global
-        settings.notify_update_global = settings_data.notify_update_global
-        settings.notify_favorite_category_global = (
-            settings_data.notify_favorite_category_global
-        )
-        # System notification settings (Migration 028)
-        settings.notify_recording_started = settings_data.notify_recording_started
-        settings.notify_recording_failed = settings_data.notify_recording_failed
-        settings.notify_recording_completed = settings_data.notify_recording_completed
-        # Codec preferences (Migration 024)
-        if hasattr(settings_data, "supported_codecs"):
+        if "notifications_enabled" in supplied:
+            settings.notifications_enabled = settings_data.notifications_enabled
+        if "notify_online_global" in supplied:
+            settings.notify_online_global = settings_data.notify_online_global
+        if "notify_offline_global" in supplied:
+            settings.notify_offline_global = settings_data.notify_offline_global
+        if "notify_update_global" in supplied:
+            settings.notify_update_global = settings_data.notify_update_global
+        if "notify_favorite_category_global" in supplied:
+            settings.notify_favorite_category_global = (
+                settings_data.notify_favorite_category_global
+            )
+        if "notify_recording_started" in supplied:
+            settings.notify_recording_started = settings_data.notify_recording_started
+        if "notify_recording_failed" in supplied:
+            settings.notify_recording_failed = settings_data.notify_recording_failed
+        if "notify_recording_completed" in supplied:
+            settings.notify_recording_completed = (
+                settings_data.notify_recording_completed
+            )
+        if "supported_codecs" in supplied:
             settings.supported_codecs = settings_data.supported_codecs or "h264,h265"
-        if hasattr(settings_data, "prefer_higher_quality"):
+        if "prefer_higher_quality" in supplied:
             settings.prefer_higher_quality = settings_data.prefer_higher_quality
-        settings.twitch_max_concurrent_upstreams = (
-            settings_data.twitch_max_concurrent_upstreams
-        )
-        if "http_proxy" in settings_data.model_fields_set:
+        if "twitch_max_concurrent_upstreams" in supplied:
+            settings.twitch_max_concurrent_upstreams = (
+                settings_data.twitch_max_concurrent_upstreams
+            )
+        if "http_proxy" in supplied:
             settings.http_proxy = settings_data.http_proxy or ""
-        if "https_proxy" in settings_data.model_fields_set:
+        if "https_proxy" in supplied:
             settings.https_proxy = settings_data.https_proxy or ""
 
         self.db.commit()
-        return GlobalSettingsSchema.model_validate(settings)
+        return self._global_settings_schema(settings)
 
     async def update_settings(
         self, settings_data: GlobalSettingsSchema

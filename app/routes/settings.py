@@ -214,36 +214,65 @@ async def test_websocket_notification(
 
 def _persist_settings_snapshot(
     session_factory: Callable[[], Session], settings_data: GlobalSettingsSchema
-) -> tuple[GlobalSettingsSchema, bool]:
+) -> tuple[GlobalSettingsSchema, bool, bool]:
     with session_factory() as db:
         service = SettingsService(db)
-        if settings_data.notification_url and not service.validate_apprise_url(
-            settings_data.notification_url
+        supplied = settings_data.model_fields_set
+        # Snapshot without creating a row before validation succeeds.
+        settings = service.find_global_settings_row()
+        http_proxy = ((settings.http_proxy or "") if settings else "").strip()
+        https_proxy = ((settings.https_proxy or "") if settings else "").strip()
+        codecs = settings.supported_codecs if settings else "h264,h265"
+        notification_url = (settings.notification_url or "") if settings else ""
+        notifications_enabled = (
+            bool(settings.notifications_enabled) if settings else True
+        )
+        submitted_notification_url = settings_data.notification_url or ""
+        new_notification_url = submitted_notification_url.strip()
+        new_http_proxy = (settings_data.http_proxy or "").strip()
+        new_https_proxy = (settings_data.https_proxy or "").strip()
+        url_changed = (
+            "notification_url" in supplied
+            and notification_url.strip() != new_notification_url
+        )
+        http_changed = "http_proxy" in supplied and http_proxy != new_http_proxy
+        https_changed = "https_proxy" in supplied and https_proxy != new_https_proxy
+        if (
+            "notification_url" in supplied
+            and submitted_notification_url
+            and submitted_notification_url != notification_url
+            and (
+                not new_notification_url
+                or (
+                    url_changed
+                    and not service.validate_apprise_url(new_notification_url)
+                )
+            )
         ):
             raise HTTPException(
                 status_code=400, detail="Invalid notification URL format"
             )
-        if settings_data.http_proxy and not service.validate_proxy_url(
-            settings_data.http_proxy
-        ):
+        if http_changed and not service.validate_proxy_url(new_http_proxy):
             raise HTTPException(
                 status_code=400,
                 detail="HTTP proxy URL must start with 'http://' or 'https://'",
             )
-        if settings_data.https_proxy and not service.validate_proxy_url(
-            settings_data.https_proxy
-        ):
+        if https_changed and not service.validate_proxy_url(new_https_proxy):
             raise HTTPException(
                 status_code=400,
                 detail="HTTPS proxy URL must start with 'http://' or 'https://'",
             )
-        settings = service.get_global_settings_row()
-        changed = (
-            settings_data.http_proxy != settings.http_proxy
-            or settings_data.https_proxy != settings.https_proxy
-            or settings_data.supported_codecs != settings.supported_codecs
+        updated = service.update_global_settings(settings_data)
+        config_changed = (
+            http_changed
+            or https_changed
+            or ("supported_codecs" in supplied and codecs != updated.supported_codecs)
         )
-        return service.update_global_settings(settings_data), changed
+        notification_changed = url_changed or (
+            "notifications_enabled" in supplied
+            and notifications_enabled != updated.notifications_enabled
+        )
+        return updated, config_changed, notification_changed
 
 
 @router.post("", response_model=GlobalSettingsSchema)
@@ -259,12 +288,19 @@ async def update_settings(
     _identity: AuthenticatedUser = Depends(require_admin_user),
 ) -> GlobalSettingsSchema:
     try:
-        updated_settings, config_changed = await run_in_thread_pool(
+        (
+            updated_settings,
+            config_changed,
+            notification_changed,
+        ) = await run_in_thread_pool(
             _persist_settings_snapshot, session_factory, settings_data
         )
 
-        notification_service = await run_in_thread_pool(notification_service_factory)
-        await run_in_thread_pool(notification_service._initialize_apprise)
+        if notification_changed:
+            notification_service = await run_in_thread_pool(
+                notification_service_factory
+            )
+            await run_in_thread_pool(notification_service._initialize_apprise)
 
         # Regenerate Streamlink config after the updated settings are committed.
         try:
