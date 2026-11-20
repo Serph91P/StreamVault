@@ -49,6 +49,7 @@ export interface FieldGroup {
 }
 
 const QUALITY_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Use global default' },
   { value: 'best', label: 'Best' },
   { value: '1080p60', label: '1080p60' },
   { value: '1080p', label: '1080p' },
@@ -60,26 +61,7 @@ const QUALITY_OPTIONS: SelectOption[] = [
   { value: 'audio_only', label: 'Audio Only' },
 ]
 
-const RECORDING_QUALITY_OPTIONS: SelectOption[] = [
-  { value: '', label: 'Use global default' },
-  ...QUALITY_OPTIONS.filter(o => o.value !== 'audio_only'),
-]
-
 export const STREAMER_FIELD_GROUPS: FieldGroup[] = [
-  {
-    id: 'quality',
-    title: 'Stream Quality',
-    payloadKey: 'root',
-    fields: [
-      {
-        key: 'quality',
-        label: 'Quality',
-        type: 'select',
-        default: 'best',
-        options: QUALITY_OPTIONS,
-      },
-    ],
-  },
   {
     id: 'notifications',
     title: 'Notification Settings',
@@ -131,9 +113,8 @@ export const STREAMER_FIELD_GROUPS: FieldGroup[] = [
         key: 'quality',
         label: 'Recording Quality',
         type: 'select',
-        default: '',
-        options: RECORDING_QUALITY_OPTIONS,
-        dependsOn: (state) => Boolean((state.recording as Record<string, unknown>)?.enabled),
+        default: 'best',
+        options: QUALITY_OPTIONS,
       },
       {
         key: 'custom_filename',
@@ -173,11 +154,10 @@ export const STREAMER_FIELD_GROUPS: FieldGroup[] = [
 
 /**
  * Build the initial reactive state object from the schema defaults.
- * Returns shape: { quality, notifications: {...}, recording: {...} }
+ * Returns shape: { notifications: {...}, recording: {...} }
  */
 export function buildDefaultState(): Record<string, unknown> {
   const state: Record<string, unknown> = {
-    quality: 'best',
     notifications: {} as Record<string, unknown>,
     recording: {} as Record<string, unknown>,
   }
@@ -194,4 +174,26 @@ export function buildDefaultState(): Record<string, unknown> {
     }
   }
   return state
+}
+
+/** Emit only editable wire fields, and only changed fields when updating a channel. */
+export function serializeChannelSettings(
+  state: Record<string, unknown>,
+  baseline?: Record<string, unknown>,
+  excludeFields: readonly string[] = [],
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+  for (const { payloadKey, fields } of STREAMER_FIELD_GROUPS) {
+    const values = state[payloadKey] as Record<string, unknown> | undefined
+    const original = baseline?.[payloadKey] as Record<string, unknown> | undefined
+    const changes: Record<string, unknown> = {}
+    for (const { key } of fields) {
+      const value = values?.[key]
+      if (value !== undefined && value !== original?.[key] && !excludeFields.includes(`${payloadKey}.${key}`)) {
+        changes[key] = value
+      }
+    }
+    if (Object.keys(changes).length) payload[payloadKey] = changes
+  }
+  return payload
 }

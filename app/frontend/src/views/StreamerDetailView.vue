@@ -441,7 +441,7 @@ import BaseModal from '@/components/base/BaseModal.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import StreamerSettingsFields from '@/components/streamers/StreamerSettingsFields.vue'
 import ChannelSettingsPanel from '@/components/settings/ChannelSettingsPanel.vue'
-import { buildDefaultState } from '@/schemas/streamerSettings.schema'
+import { buildDefaultState, serializeChannelSettings } from '@/schemas/streamerSettings.schema'
 
 // Router & URL params
 const route = useRoute()
@@ -549,12 +549,14 @@ watch(() => route.query.tab, () => {
 // Settings inline - schema-driven
 const savingSettings = ref(false)
 const streamerSettings = ref<Record<string, unknown>>(buildDefaultState())
+let savedChannelSettings = buildDefaultState()
 const channelSettingsPanel = ref<InstanceType<typeof ChannelSettingsPanel> | null>(null)
 
 // Keep the existing schema-driven editor coherent with immediate mutations;
 // merge only changed keys so unrelated unsaved codec/quality edits survive.
 function reconcileRecordingSettings(settings: Record<string, unknown>) {
   if (streamer.value) streamer.value.recording = { ...streamer.value.recording, ...settings }
+  savedChannelSettings.recording = { ...(savedChannelSettings.recording as Record<string, unknown>), ...settings }
   streamerSettings.value = {
     ...streamerSettings.value,
     recording: { ...(streamerSettings.value.recording as Record<string, unknown>), ...settings }
@@ -562,6 +564,7 @@ function reconcileRecordingSettings(settings: Record<string, unknown>) {
 }
 function reconcileNotificationSettings(settings: Record<string, unknown>) {
   if (streamer.value) streamer.value.notifications = { ...streamer.value.notifications, ...settings }
+  savedChannelSettings.notifications = { ...(savedChannelSettings.notifications as Record<string, unknown>), ...settings }
   streamerSettings.value = {
     ...streamerSettings.value,
     notifications: { ...(streamerSettings.value.notifications as Record<string, unknown>), ...settings }
@@ -572,11 +575,10 @@ const loadSettings = () => {
   const defaults = buildDefaultState()
   const s = streamer.value || {}
 
-  streamerSettings.value = {
-    ...defaults,
-    quality: s.quality || s.recording_quality || (defaults.quality as string) || 'best',
+  savedChannelSettings = {
     recording: {
       ...((defaults.recording as Record<string, unknown>) || {}),
+      quality: s.recording_quality ?? s.quality ?? '',
       ...((s.recording as Record<string, unknown>) || {}),
     },
     notifications: {
@@ -584,6 +586,7 @@ const loadSettings = () => {
       ...((s.notifications as Record<string, unknown>) || {}),
     },
   }
+  streamerSettings.value = { ...savedChannelSettings }
 }
 
 const saveSettings = async () => {
@@ -591,13 +594,12 @@ const saveSettings = async () => {
 
   try {
     // The dedicated cleanup editor owns inheritance and saves independently.
-    const recording = { ...(streamerSettings.value.recording as Record<string, unknown>) }
-    delete recording.use_global_cleanup_policy
+    const payload = serializeChannelSettings(streamerSettings.value, savedChannelSettings, ['recording.use_global_cleanup_policy'])
     const response = await fetch(`/api/streamers/streamer/${streamerId.value}/settings`, {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...streamerSettings.value, recording }),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {

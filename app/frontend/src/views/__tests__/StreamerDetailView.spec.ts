@@ -209,7 +209,9 @@ describe('StreamerDetailView tab query synchronization', () => {
   it('hydrates the settings draft from the server on a direct settings deep link', async () => {
     mocks.getStreamer.mockResolvedValueOnce({ id: 42, username: 'saved-channel', recording: { enabled: false, supported_codecs: 'av1' }, notifications: { notify_online: false }, quality: '720p' })
     const { wrapper } = await mountView({ tab: 'settings' })
-    expect(wrapper.getComponent({ name: 'StreamerSettingsFields' }).props('modelValue')).toMatchObject({ quality: '720p', recording: { enabled: false, supported_codecs: 'av1' }, notifications: { notify_online: false } })
+    const draft = wrapper.getComponent({ name: 'StreamerSettingsFields' }).props('modelValue')
+    expect(draft).toMatchObject({ recording: { quality: '720p', enabled: false, supported_codecs: 'av1' }, notifications: { notify_online: false } })
+    expect(draft).not.toHaveProperty('quality')
   })
   it('leaves cleanup inheritance to its dedicated editor and never overwrites it with a stale draft', async () => {
     const { wrapper } = await mountView({ tab: 'settings' })
@@ -217,8 +219,15 @@ describe('StreamerDetailView tab query synchronization', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
     try {
+      wrapper.getComponent({ name: 'StreamerSettingsFields' }).vm.$emit('update:modelValue', {
+        recording: { quality: '720p', use_global_cleanup_policy: false },
+        notifications: { notify_online: false },
+      })
       await (wrapper.vm as unknown as { saveSettings: () => Promise<void> }).saveSettings()
-      expect(JSON.parse(fetchMock.mock.calls[0][1].body).recording).not.toHaveProperty('use_global_cleanup_policy')
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+        recording: { quality: '720p' },
+        notifications: { notify_online: false },
+      })
     } finally {
       vi.unstubAllGlobals()
     }
