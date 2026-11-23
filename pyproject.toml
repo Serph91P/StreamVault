@@ -10,9 +10,9 @@ readme = "README.md"
 requires-python = ">=3.14,<3.15"
 license = "MIT"
 dependencies = [
-    "fastapi==0.163.1",
+    "fastapi==0.165.0",
     "uvicorn[standard]==0.54.0",
-    "SQLAlchemy[postgresql]==2.1.8",
+    "SQLAlchemy[postgresql]==2.1.9",
     "psycopg[binary]==3.3.9",
     "psycopg-pool==3.3.3",
     "aiosqlite==0.22.1",
@@ -33,13 +33,13 @@ dependencies = [
     "apprise==2.2.0",
     "py-vapid==1.9.6",
     "psutil==7.2.2",
-    "cachetools==8.0.0",
+    "cachetools==8.0.2",
     "streamlink==8.6.3",
     "http-ece==1.2.1",
 ]
 
 [dependency-groups]
-dev = ["pre-commit==4.7.0", "ruff==0.17.5"]
+dev = ["pre-commit==4.7.0", "ruff==0.17.6"]
 test = ["pytest==9.2.0", "pytest-asyncio==1.5.0", "pytest-cov==7.1.0"]
 typing = [
     "mypy==2.4.1",
